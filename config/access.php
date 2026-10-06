@@ -1,0 +1,303 @@
+<?php
+
+$definitions = [
+    'company' => [
+        'view' => 'View shop profile',
+        'update' => 'Update shop profile',
+    ],
+    'branches' => [
+        'view' => 'View branches',
+        'create' => 'Add branches',
+        'update' => 'Update branches',
+        'delete' => 'Remove branches',
+    ],
+    'settings' => [
+        'view' => 'View settings',
+        'manage' => 'Manage settings',
+    ],
+    'financial_years' => [
+        'view' => 'View financial years',
+        'create' => 'Add financial years',
+        'update' => 'Update financial years',
+        'delete' => 'Remove financial years',
+        'close' => 'Close financial years',
+    ],
+    'sequences' => [
+        'view' => 'View document numbers',
+        'update' => 'Update document numbers',
+    ],
+    'masters' => [
+        'view' => 'View master data',
+        'create' => 'Add master data',
+        'update' => 'Update master data',
+        'delete' => 'Remove master data',
+    ],
+    'items' => [
+        'view' => 'View jewellery pieces',
+        'create' => 'Add jewellery pieces',
+        'update' => 'Update jewellery pieces',
+        'delete' => 'Remove jewellery pieces',
+    ],
+    'rates' => [
+        'view' => 'View metal rates',
+        'create' => 'Enter metal rates',
+    ],
+    'customers' => [
+        'view' => 'View customers',
+        'create' => 'Add customers',
+        'update' => 'Update customers',
+        'delete' => 'Remove customers',
+    ],
+    'suppliers' => [
+        'view' => 'View suppliers',
+        'create' => 'Add suppliers',
+        'update' => 'Update suppliers',
+        'delete' => 'Remove suppliers',
+    ],
+    'payments' => [
+        'view' => 'View payments',
+        'create' => 'Receive and record payments',
+    ],
+    'repairs' => [
+        'view' => 'View repairs',
+        'create' => 'Take repair jobs',
+        'update' => 'Update repair jobs',
+    ],
+    'schemes' => [
+        'view' => 'View gold schemes',
+        'create' => 'Run gold schemes',
+        'update' => 'Update gold schemes',
+    ],
+    'users' => [
+        'view' => 'View users',
+        'create' => 'Add users',
+        'update' => 'Update users',
+        'delete' => 'Remove users',
+    ],
+    'roles' => [
+        'view' => 'View roles',
+        'create' => 'Add roles',
+        'update' => 'Update roles',
+        'delete' => 'Remove roles',
+    ],
+    'sales' => [
+        'view' => 'View sales',
+        'create' => 'Create sales',
+        'update' => 'Update sales',
+        'delete' => 'Delete sales',
+        'cancel' => 'Cancel sales',
+        'approve' => 'Approve sales',
+        'export' => 'Export sales',
+        'print' => 'Print sales',
+    ],
+    'purchase' => [
+        'view' => 'View purchases',
+        'create' => 'Create purchases',
+        'update' => 'Update purchases',
+        'delete' => 'Delete purchases',
+        'approve' => 'Approve purchases',
+        'export' => 'Export purchases',
+        'print' => 'Print purchases',
+    ],
+    'inventory' => [
+        'view' => 'View inventory',
+        'create' => 'Create inventory records',
+        'update' => 'Update inventory records',
+        'adjust' => 'Adjust inventory',
+        'delete' => 'Delete inventory records',
+        'export' => 'Export inventory',
+        'print' => 'Print inventory',
+    ],
+    'reports' => [
+        'view' => 'View reports',
+        'export' => 'Export reports',
+        'print' => 'Print reports',
+    ],
+];
+
+$permissions = [];
+
+foreach ($definitions as $group => $actions) {
+    foreach ($actions as $action => $label) {
+        $permissions[$group.'.'.$action] = [
+            'group' => $group,
+            'label' => $label,
+        ];
+    }
+}
+
+return [
+
+    'groups' => [
+        'company' => 'Shop profile',
+        'branches' => 'Branches',
+        'settings' => 'Settings',
+        'financial_years' => 'Financial years',
+        'sequences' => 'Document numbers',
+        'masters' => 'Master data',
+        'items' => 'Jewellery pieces',
+        'rates' => 'Metal rates',
+        'customers' => 'Customers',
+        'suppliers' => 'Suppliers',
+        'payments' => 'Payments',
+        'repairs' => 'Repairs',
+        'schemes' => 'Gold schemes',
+        'users' => 'Users',
+        'roles' => 'Roles',
+        'sales' => 'Sales',
+        'purchase' => 'Purchases',
+        'inventory' => 'Inventory',
+        'reports' => 'Reports',
+    ],
+
+    'permissions' => $permissions,
+
+    /*
+    | Super Admin and Owner are locked and always receive every permission.
+    | Manager receives every permission except the listed ones.
+    | Auditor receives only view, export, and print permissions.
+    */
+    'roles' => [
+        'super_admin' => [
+            'name' => 'Super Admin',
+            'description' => 'Locked role with every permission.',
+            'permissions' => '*',
+        ],
+        'owner' => [
+            'name' => 'Owner',
+            'description' => 'Locked role for the shop proprietor.',
+            'permissions' => '*',
+        ],
+        'manager' => [
+            'name' => 'Manager',
+            'description' => 'Daily operations without deleting staff, branches, years, roles, or master records.',
+            'permissions' => 'except',
+            'except' => [
+                'users.delete',
+                'roles.create',
+                'roles.update',
+                'roles.delete',
+                'branches.delete',
+                'financial_years.delete',
+                'sales.delete',
+                'purchase.delete',
+                'inventory.delete',
+                'masters.delete',
+                'items.delete',
+                'customers.delete',
+                'suppliers.delete',
+            ],
+        ],
+        'sales_staff' => [
+            'name' => 'Sales Staff',
+            'description' => 'Creates and updates sales, and can print them.',
+            'permissions' => [
+                'company.view',
+                'branches.view',
+                'masters.view',
+                'items.view',
+                'rates.view',
+                'customers.view',
+                'customers.create',
+                'customers.update',
+                'payments.view',
+                'payments.create',
+                'sales.view',
+                'sales.create',
+                'sales.update',
+                'sales.print',
+                'repairs.view',
+                'repairs.create',
+                'repairs.update',
+                'schemes.view',
+                'schemes.create',
+            ],
+        ],
+        'cashier' => [
+            'name' => 'Cashier',
+            'description' => 'Creates sales and prints bills.',
+            'permissions' => [
+                'company.view',
+                'branches.view',
+                'masters.view',
+                'items.view',
+                'rates.view',
+                'customers.view',
+                'customers.create',
+                'payments.view',
+                'payments.create',
+                'sales.view',
+                'sales.create',
+                'sales.print',
+                'repairs.view',
+                'repairs.create',
+                'repairs.update',
+                'schemes.view',
+                'schemes.create',
+            ],
+        ],
+        'inventory_manager' => [
+            'name' => 'Inventory Manager',
+            'description' => 'Looks after stock and stock adjustments.',
+            'permissions' => [
+                'company.view',
+                'branches.view',
+                'masters.view',
+                'masters.create',
+                'masters.update',
+                'items.view',
+                'items.create',
+                'items.update',
+                'rates.view',
+                'reports.view',
+                'purchase.view',
+                'purchase.create',
+                'purchase.print',
+                'inventory.view',
+                'inventory.create',
+                'inventory.update',
+                'inventory.adjust',
+                'inventory.export',
+                'inventory.print',
+            ],
+        ],
+        'accountant' => [
+            'name' => 'Accountant',
+            'description' => 'Financial years, reports, and read-only sales and purchases.',
+            'permissions' => [
+                'company.view',
+                'branches.view',
+                'masters.view',
+                'items.view',
+                'rates.view',
+                'customers.view',
+                'suppliers.view',
+                'payments.view',
+                'repairs.view',
+                'schemes.view',
+                'inventory.view',
+                'settings.view',
+                'financial_years.view',
+                'financial_years.create',
+                'financial_years.update',
+                'financial_years.close',
+                'sequences.view',
+                'sales.view',
+                'sales.export',
+                'sales.print',
+                'purchase.view',
+                'purchase.export',
+                'purchase.print',
+                'reports.view',
+                'reports.export',
+                'reports.print',
+            ],
+        ],
+        'auditor' => [
+            'name' => 'Auditor',
+            'description' => 'View, export, and print only.',
+            'permissions' => 'read',
+        ],
+    ],
+
+];
