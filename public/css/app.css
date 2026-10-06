@@ -1,0 +1,173 @@
+:root {
+    --ink: #2a211c;
+    --paper: #f4efe6;
+    --sidebar: #241810;
+    --sidebar-text: #f6efe4;
+    --gold: #c6a15b;
+    --maroon: #7c2430;
+    --line: #e4d8c8;
+}
+
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", "Source Sans 3", sans-serif;
+}
+
+a {
+    color: var(--maroon);
+}
+
+.app-shell {
+    min-height: 100vh;
+}
+
+.app-sidebar {
+    background-color: var(--sidebar) !important;
+    color: var(--sidebar-text);
+}
+
+.app-sidebar .brand {
+    color: var(--gold);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.app-sidebar .shop-name,
+.app-sidebar .menu-label {
+    color: #ead9b8;
+}
+
+.app-sidebar .menu-label {
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.app-sidebar a,
+.app-sidebar .nav-link {
+    color: var(--sidebar-text);
+    text-decoration: none;
+}
+
+.app-sidebar .nav-link {
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.75rem;
+}
+
+.app-sidebar .nav-link.active,
+.app-sidebar .nav-link:hover {
+    background: rgba(198, 161, 91, 0.22);
+    color: #fff8ea;
+}
+
+.btn-primary {
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-bg: var(--maroon);
+    --bs-btn-border-color: var(--maroon);
+    --bs-btn-hover-bg: #641c27;
+    --bs-btn-hover-border-color: #641c27;
+    --bs-btn-active-bg: #541822;
+    --bs-btn-active-border-color: #541822;
+}
+
+.app-main,
+.card,
+.card-header,
+.list-group-item,
+.table,
+.form-label,
+.form-check-label,
+.col-form-label {
+    color: var(--ink);
+}
+
+.card,
+.card-header,
+.list-group-item {
+    background-color: #fff;
+}
+
+.form-control,
+.form-select {
+    color: var(--ink);
+    background-color: #fff;
+    border-color: #cfc3b4;
+}
+
+.form-control::placeholder {
+    color: #6d6258;
+}
+
+.text-secondary {
+    --bs-secondary-rgb: 74, 64, 56;
+}
+
+.card {
+    border: 1px solid var(--line);
+    box-shadow: none;
+}
+
+.page-title {
+    font-weight: 650;
+}
+
+.permission-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.35rem 1rem;
+}
+
+.stat-label {
+    color: #6d6258;
+    font-size: 0.85rem;
+}
+
+.guest-wrap {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+}
+
+.guest-card {
+    width: min(420px, 100%);
+}
+
+@media print {
+    .app-sidebar,
+    header,
+    .no-print {
+        display: none !important;
+    }
+
+    .app-main {
+        width: 100%;
+    }
+}
+
+@media (min-width: 992px) {
+    .app-shell {
+        display: flex;
+    }
+
+    .app-sidebar {
+        width: 260px;
+        flex: 0 0 260px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow: auto;
+        background-color: var(--sidebar) !important;
+        color: var(--sidebar-text);
+    }
+
+    .app-main {
+        flex: 1;
+        min-width: 0;
+    }
+}
