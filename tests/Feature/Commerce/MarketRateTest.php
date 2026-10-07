@@ -32,7 +32,8 @@ class MarketRateTest extends TestCase
 
         $this->actingAs($owner)->get(route('rates.index'))
             ->assertOk()
-            ->assertSee('Market price')
+            ->assertSee('Gold and silver today')
+            ->assertSee('999 fine')
             ->assertSee('value="15262.44"', false)
             ->assertSee('value="13994.39"', false);
 

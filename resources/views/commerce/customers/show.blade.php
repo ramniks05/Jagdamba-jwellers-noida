@@ -17,6 +17,24 @@
         <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="stat-label">KYC</div><div>{{ $customer->kyc_status->label() }}</div><div class="small text-secondary">{{ $customer->customer_type->label() }}</div></div></div></div>
         <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="stat-label">Tax</div><div>PAN {{ $customer->pan ?: '—' }}</div><div>GSTIN {{ $customer->gstin ?: '—' }}</div></div></div></div>
     </div>
+    <div class="card mb-4">
+        <div class="card-header bg-white">Customer details</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4"><div class="stat-label">Email</div><div>{{ $customer->email ?: '—' }}</div></div>
+                <div class="col-md-4"><div class="stat-label">Date of birth</div><div>{{ $customer->dob?->format('d M Y') ?: '—' }}</div></div>
+                <div class="col-md-4"><div class="stat-label">Anniversary</div><div>{{ $customer->anniversary?->format('d M Y') ?: '—' }}</div></div>
+                <div class="col-12">
+                    <div class="stat-label">Address</div>
+                    <div>{{ $customer->address_line1 ?: '—' }}</div>
+                    @if ($customer->address_line2)
+                        <div>{{ $customer->address_line2 }}</div>
+                    @endif
+                    <div>{{ collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', ') }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
     @can('create', App\Models\Payment::class)
         @if (! $customer->is_system)
             <form class="card mb-4" method="POST" action="{{ route('customers.payments.store', $customer) }}">

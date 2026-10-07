@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'company_id', 'customer_id', 'name', 'mobile', 'mobile_key', 'email', 'address_line1',
-    'city', 'state', 'postal_code', 'country', 'pan', 'gstin', 'status', 'purpose', 'reviewed_at', 'reviewed_by',
+    'city', 'state', 'postal_code', 'country', 'pan', 'gstin', 'dob', 'anniversary', 'status', 'purpose', 'reviewed_at', 'reviewed_by',
 ])]
 class CustomerIntake extends Model
 {
@@ -23,6 +23,8 @@ class CustomerIntake extends Model
         return [
             'status' => IntakeStatus::class,
             'purpose' => IntakePurpose::class,
+            'dob' => 'date',
+            'anniversary' => 'date',
             'reviewed_at' => 'datetime',
         ];
     }

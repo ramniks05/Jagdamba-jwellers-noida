@@ -111,6 +111,8 @@ class CustomerIntakeService
                 'country' => $locked->country,
                 'pan' => $locked->pan,
                 'gstin' => $locked->gstin,
+                'dob' => $locked->dob?->toDateString(),
+                'anniversary' => $locked->anniversary?->toDateString(),
                 'kyc_status' => KycStatus::Pending->value,
                 'customer_type' => CustomerType::Retail->value,
                 'is_active' => true,
@@ -160,6 +162,8 @@ class CustomerIntakeService
             'postal_code' => $customer->postal_code,
             'pan' => $customer->pan,
             'gstin' => $customer->gstin,
+            'dob' => $customer->dob?->toDateString(),
+            'anniversary' => $customer->anniversary?->toDateString(),
         ];
     }
 
@@ -193,6 +197,8 @@ class CustomerIntakeService
             'country' => $this->blank($attributes['country'] ?? null) ?: 'India',
             'pan' => $this->upper($attributes['pan'] ?? null),
             'gstin' => $this->upper($attributes['gstin'] ?? null),
+            'dob' => $this->blank($attributes['dob'] ?? null),
+            'anniversary' => $this->blank($attributes['anniversary'] ?? null),
             'status' => IntakeStatus::Pending,
         ];
     }
@@ -218,8 +224,8 @@ class CustomerIntakeService
             'state' => $intake->state,
             'postal_code' => $intake->postal_code,
             'country' => $intake->country,
-            'dob' => $customer->dob?->toDateString(),
-            'anniversary' => $customer->anniversary?->toDateString(),
+            'dob' => $intake->dob?->toDateString(),
+            'anniversary' => $intake->anniversary?->toDateString(),
             'pan' => $intake->pan,
             'gstin' => $intake->gstin,
             'id_proof_type' => $customer->id_proof_type,

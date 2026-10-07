@@ -35,6 +35,8 @@
                         'postal_code' => old('postal_code', $preview['postal_code'] ?? ''),
                         'gstin' => old('gstin', $preview['gstin'] ?? ''),
                         'pan' => old('pan', $preview['pan'] ?? ''),
+                        'dob' => old('dob', $preview['dob'] ?? ''),
+                        'anniversary' => old('anniversary', $preview['anniversary'] ?? ''),
                     ];
                 @endphp
                 <div class="border rounded p-3 mb-4">
@@ -60,11 +62,17 @@
                             <div class="col-md-4"><input class="form-control" name="postal_code" placeholder="PIN" value="{{ $details['postal_code'] }}" required></div>
                         </div>
                         <div class="mb-2"><label class="form-label">GSTIN, if any</label><input class="form-control" name="gstin" value="{{ $details['gstin'] }}"></div>
-                        <div class="mb-3"><label class="form-label">PAN, if any</label><input class="form-control" name="pan" value="{{ $details['pan'] }}"></div>
+                        <div class="mb-2"><label class="form-label">PAN, if any</label><input class="form-control" name="pan" value="{{ $details['pan'] }}"></div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6"><label class="form-label">Date of birth</label><input class="form-control" name="dob" type="date" value="{{ $details['dob'] }}"></div>
+                            <div class="col-md-6"><label class="form-label">Anniversary</label><input class="form-control" name="anniversary" type="date" value="{{ $details['anniversary'] }}"></div>
+                        </div>
                         <button class="btn btn-primary" type="submit">Send changes</button>
                     </form>
+                    <a class="small" href="{{ route('customer-form.create', $company) }}">Check another mobile</a>
                 </div>
             @endif
+            @unless ($editing)
             <div class="row g-4">
                 <div class="col-md-5">
                     <h2 class="h6">Already a customer</h2>
@@ -93,11 +101,16 @@
                             <div class="col-md-4"><input class="form-control" name="postal_code" placeholder="PIN" value="{{ old('postal_code') }}" required></div>
                         </div>
                         <div class="mb-2"><label class="form-label">GSTIN, if any</label><input class="form-control" name="gstin" value="{{ old('gstin') }}"></div>
-                        <div class="mb-3"><label class="form-label">PAN, if any</label><input class="form-control" name="pan" value="{{ old('pan') }}"></div>
+                        <div class="mb-2"><label class="form-label">PAN, if any</label><input class="form-control" name="pan" value="{{ old('pan') }}"></div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6"><label class="form-label">Date of birth</label><input class="form-control" name="dob" type="date" value="{{ old('dob') }}"></div>
+                            <div class="col-md-6"><label class="form-label">Anniversary</label><input class="form-control" name="anniversary" type="date" value="{{ old('anniversary') }}"></div>
+                        </div>
                         <button class="btn btn-primary" type="submit">Send details</button>
                     </form>
                 </div>
             </div>
+            @endunless
         </div>
     </div>
 @endsection

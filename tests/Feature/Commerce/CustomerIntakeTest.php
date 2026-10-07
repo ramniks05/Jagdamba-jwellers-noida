@@ -31,6 +31,8 @@ class CustomerIntakeTest extends TestCase
             'city' => 'Mumbai',
             'state' => 'Maharashtra',
             'postal_code' => '400001',
+            'dob' => '1990-05-12',
+            'anniversary' => '2015-11-02',
         ])->assertRedirect(route('customer-form.create', $company))->assertSessionHas('form_result', 'submitted');
 
         $this->seeShop($owner);
@@ -44,6 +46,14 @@ class CustomerIntakeTest extends TestCase
         $intake->refresh();
         $this->assertSame(IntakeStatus::Approved, $intake->status);
         $this->assertSame($customer->id, $intake->customer_id);
+        $this->assertSame('1990-05-12', $customer->dob?->toDateString());
+        $this->assertSame('2015-11-02', $customer->anniversary?->toDateString());
+        $this->actingAs($owner)->get(route('customers.show', $customer))
+            ->assertOk()
+            ->assertSee('12 Market Road')
+            ->assertSee('Mumbai')
+            ->assertSee('12 May 1990')
+            ->assertSee('02 Nov 2015');
 
         $this->post(route('customer-form.store', $company), [
             'intent' => 'known',
@@ -83,7 +93,10 @@ class CustomerIntakeTest extends TestCase
             ->assertSee('Meera Shah')
             ->assertSee('12 Market Road')
             ->assertSee('These are correct')
-            ->assertSee('Send changes');
+            ->assertSee('Send changes')
+            ->assertSee('Date of birth')
+            ->assertDontSee('New customer')
+            ->assertDontSee('Already a customer');
 
         $this->post(route('customer-form.store', $company), [
             'intent' => 'confirm',

@@ -22,7 +22,7 @@ class CustomerFormRequest extends FormRequest
             'country' => trim((string) $this->input('country')) ?: 'India',
         ]);
 
-        foreach (['email', 'pan', 'gstin'] as $field) {
+        foreach (['email', 'pan', 'gstin', 'dob', 'anniversary'] as $field) {
             if ($this->input($field) === '') {
                 $this->merge([$field => null]);
             }
@@ -48,6 +48,8 @@ class CustomerFormRequest extends FormRequest
             'country' => ['nullable', 'string', 'max:100'],
             'pan' => ['nullable', 'regex:'.IdentityRules::PAN],
             'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
+            'dob' => ['nullable', 'date', 'before_or_equal:today'],
+            'anniversary' => ['nullable', 'date'],
         ];
     }
 }
