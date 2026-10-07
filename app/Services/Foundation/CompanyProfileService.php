@@ -14,7 +14,10 @@ use Throwable;
 
 class CompanyProfileService
 {
-    public function __construct(private readonly SettingService $settings) {}
+    public function __construct(
+        private readonly SettingService $settings,
+        private readonly SignatureCutout $signatures,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -147,6 +150,17 @@ class CompanyProfileService
             throw ValidationException::withMessages([
                 $field => 'The '.$field.' must be a JPEG, PNG, or WebP image.',
             ]);
+        }
+
+        if ($field === 'signature') {
+            $png = $this->signatures->png($file->getRealPath());
+
+            if ($png !== null) {
+                $path = 'companies/'.$company->uuid.'/signature-'.Str::lower(Str::random(8)).'.png';
+                Storage::disk('public')->put($path, $png);
+
+                return $path;
+            }
         }
 
         return $file->storeAs(

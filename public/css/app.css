@@ -775,11 +775,20 @@ a {
     text-align: center;
 }
 
-.invoice-sign img {
+.invoice-sign img,
+.shop-signature {
+    background: transparent;
     display: block;
-    height: 64px;
+    height: 72px;
     margin: 6px auto 0;
+    max-width: 190px;
+    mix-blend-mode: multiply;
     object-fit: contain;
+    width: auto;
+}
+
+.shop-signature {
+    margin: 0 0 0.75rem;
 }
 
 .invoice-sign-space {

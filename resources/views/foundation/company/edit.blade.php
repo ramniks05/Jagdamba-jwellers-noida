@@ -118,15 +118,15 @@
                     <div class="card-header bg-white">Invoice signature</div>
                     <div class="card-body">
                         @if ($company->signature_path)
-                            <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature" class="img-fluid bg-white border rounded mb-3 p-2" style="max-height: 90px;">
+                            <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature" class="shop-signature">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="remove_signature" name="remove_signature" value="1">
                                 <label class="form-check-label" for="remove_signature">Remove signature</label>
                             </div>
                         @endif
-                        <label class="form-label" for="signature">Upload the authorised signature</label>
-                        <input class="form-control" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                        <div class="form-text">JPEG, PNG, or WebP, max 2 MB. It is printed on every invoice under Authorised signatory.</div>
+                        <button class="btn btn-primary" id="signature-open" type="button"><i class="bi bi-upload"></i> Upload signature</button>
+                        <input class="d-none" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                        <div class="form-text mt-2" id="signature-picked">JPEG, PNG, or WebP, max 2 MB. A white or plain paper background is removed, so only the signature ink is printed. Choose the file, then click Save profile.</div>
                     </div>
                 </div>
             </div>
@@ -134,3 +134,18 @@
         <button class="btn btn-primary mt-4" type="submit">Save profile</button>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        document.getElementById('signature-open').addEventListener('click', function () {
+            document.getElementById('signature').click();
+        });
+        document.getElementById('signature').addEventListener('change', function () {
+            const picked = document.getElementById('signature-picked');
+            const file = this.files && this.files[0];
+            picked.textContent = file
+                ? 'Selected ' + file.name + '. Click Save profile to put it on the invoice.'
+                : 'JPEG, PNG, or WebP, max 2 MB. A white or plain paper background is removed, so only the signature ink is printed.';
+        });
+    </script>
+@endpush
