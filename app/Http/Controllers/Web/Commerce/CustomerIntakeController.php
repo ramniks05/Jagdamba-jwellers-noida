@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Commerce;
 
+use App\Enums\IntakePurpose;
 use App\Enums\IntakeStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
@@ -44,9 +45,11 @@ class CustomerIntakeController extends Controller
     public function approve(CustomerIntake $intake, CustomerIntakeService $intakes): RedirectResponse
     {
         $this->authorize('create', Customer::class);
+        $updating = $intake->purpose === IntakePurpose::Update;
         $customer = $intakes->approve($intake, request()->user()?->id);
+        $message = $updating ? $customer->name.' details updated.' : $customer->name.' added as a customer.';
 
-        return redirect()->route('customers.show', $customer)->with('status', $customer->name.' added as a customer.');
+        return redirect()->route('customers.show', $customer)->with('status', $message);
     }
 
     public function reject(CustomerIntake $intake, CustomerIntakeService $intakes): RedirectResponse

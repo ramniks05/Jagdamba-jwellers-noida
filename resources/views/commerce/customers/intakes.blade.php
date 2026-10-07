@@ -10,13 +10,14 @@
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
-                <thead><tr><th>Name</th><th>Mobile</th><th>Address</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>Mobile</th><th>Address</th><th>Request</th><th></th></tr></thead>
                 <tbody>
                     @forelse ($intakes as $intake)
                         <tr>
                             <td>{{ $intake->name }}<div class="small text-secondary">{{ $intake->email }}</div></td>
                             <td>{{ $intake->mobile }}</td>
                             <td>{{ $intake->address_line1 }}, {{ $intake->city }} {{ $intake->postal_code }}</td>
+                            <td>{{ $intake->purpose->label() }}</td>
                             <td class="text-end">
                                 @can('create', App\Models\Customer::class)
                                     <form class="d-inline" method="POST" action="{{ route('customer-intakes.approve', $intake) }}">
@@ -31,7 +32,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4">No forms are waiting.</td></tr>
+                        <tr><td colspan="5">No forms are waiting.</td></tr>
                     @endforelse
                 </tbody>
             </table>

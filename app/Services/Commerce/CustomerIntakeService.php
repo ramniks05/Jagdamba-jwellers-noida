@@ -3,6 +3,7 @@
 namespace App\Services\Commerce;
 
 use App\Enums\CustomerType;
+use App\Enums\IntakePurpose;
 use App\Enums\IntakeStatus;
 use App\Enums\KycStatus;
 use App\Models\Company;
@@ -30,15 +31,20 @@ class CustomerIntakeService
             $mobile = trim((string) $attributes['mobile']);
             $key = $this->mobileKey($mobile);
             $known = $this->knownCustomer($key);
+            $intent = $attributes['intent'] ?? 'new';
 
-            if ($known) {
-                return ['result' => 'known', 'customer' => $known, 'intake' => null];
-            }
-
-            if (($attributes['intent'] ?? 'new') === 'known') {
+            if (in_array($intent, ['known', 'confirm', 'update'], true) && ! $known) {
                 throw ValidationException::withMessages([
                     'mobile' => 'This mobile is not in the shop yet. Fill the new customer form.',
                 ]);
+            }
+
+            if ($intent === 'known' || ($intent === 'new' && $known)) {
+                return ['result' => 'known', 'customer' => $known, 'intake' => null];
+            }
+
+            if ($intent === 'confirm') {
+                return ['result' => 'confirmed', 'customer' => null, 'intake' => null];
             }
 
             $waiting = CustomerIntake::query()
@@ -46,24 +52,32 @@ class CustomerIntakeService
                 ->where('mobile_key', $key)
                 ->first();
 
+            if ($intent === 'update') {
+                $details = $this->details($company, $attributes, $mobile, $key) + [
+                    'customer_id' => $known->id,
+                    'purpose' => IntakePurpose::Update,
+                ];
+
+                if ($waiting) {
+                    $waiting->fill($details);
+                    $waiting->save();
+
+                    return ['result' => 'updated', 'customer' => null, 'intake' => $waiting];
+                }
+
+                return [
+                    'result' => 'updated',
+                    'customer' => null,
+                    'intake' => CustomerIntake::query()->create($details),
+                ];
+            }
+
             if ($waiting) {
                 return ['result' => 'waiting', 'customer' => null, 'intake' => $waiting];
             }
 
-            $intake = CustomerIntake::query()->create([
-                'company_id' => $company->id,
-                'name' => $attributes['name'],
-                'mobile' => $mobile,
-                'mobile_key' => $key,
-                'email' => $this->blank($attributes['email'] ?? null),
-                'address_line1' => $attributes['address_line1'],
-                'city' => $attributes['city'],
-                'state' => $attributes['state'],
-                'postal_code' => $attributes['postal_code'],
-                'country' => $this->blank($attributes['country'] ?? null) ?: 'India',
-                'pan' => $this->upper($attributes['pan'] ?? null),
-                'gstin' => $this->upper($attributes['gstin'] ?? null),
-                'status' => IntakeStatus::Pending,
+            $intake = CustomerIntake::query()->create($this->details($company, $attributes, $mobile, $key) + [
+                'purpose' => IntakePurpose::Create,
             ]);
 
             return ['result' => 'submitted', 'customer' => null, 'intake' => $intake];
@@ -82,8 +96,11 @@ class CustomerIntakeService
                 ]);
             }
 
-            $known = $this->knownCustomer($locked->mobile_key);
-            $customer = $known ?: $this->customers->create($locked->company, [
+            $customer = $locked->purpose === IntakePurpose::Update
+                ? $this->applyUpdate($locked)
+                : null;
+
+            $customer ??= $this->knownCustomer($locked->mobile_key) ?: $this->customers->create($locked->company, [
                 'name' => $locked->name,
                 'mobile' => $locked->mobile,
                 'email' => $locked->email,
@@ -128,6 +145,24 @@ class CustomerIntakeService
         });
     }
 
+    /**
+     * @return array<string, ?string>
+     */
+    public function preview(Customer $customer): array
+    {
+        return [
+            'name' => $customer->name,
+            'mobile' => $customer->mobile,
+            'email' => $customer->email,
+            'address_line1' => $customer->address_line1,
+            'city' => $customer->city,
+            'state' => $customer->state,
+            'postal_code' => $customer->postal_code,
+            'pan' => $customer->pan,
+            'gstin' => $customer->gstin,
+        ];
+    }
+
     public function mobileKey(string $mobile): string
     {
         $digits = preg_replace('/\D+/', '', $mobile) ?? '';
@@ -137,6 +172,63 @@ class CustomerIntakeService
         }
 
         return $digits;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function details(Company $company, array $attributes, string $mobile, string $key): array
+    {
+        return [
+            'company_id' => $company->id,
+            'name' => $attributes['name'],
+            'mobile' => $mobile,
+            'mobile_key' => $key,
+            'email' => $this->blank($attributes['email'] ?? null),
+            'address_line1' => $attributes['address_line1'],
+            'city' => $attributes['city'],
+            'state' => $attributes['state'],
+            'postal_code' => $attributes['postal_code'],
+            'country' => $this->blank($attributes['country'] ?? null) ?: 'India',
+            'pan' => $this->upper($attributes['pan'] ?? null),
+            'gstin' => $this->upper($attributes['gstin'] ?? null),
+            'status' => IntakeStatus::Pending,
+        ];
+    }
+
+    private function applyUpdate(CustomerIntake $intake): ?Customer
+    {
+        $customer = $intake->customer_id
+            ? Customer::query()->whereKey($intake->customer_id)->first()
+            : null;
+        $customer ??= $this->knownCustomer($intake->mobile_key);
+
+        if (! $customer) {
+            return null;
+        }
+
+        return $this->customers->update($customer, [
+            'name' => $intake->name,
+            'mobile' => $intake->mobile,
+            'email' => $intake->email,
+            'address_line1' => $intake->address_line1,
+            'address_line2' => $customer->address_line2,
+            'city' => $intake->city,
+            'state' => $intake->state,
+            'postal_code' => $intake->postal_code,
+            'country' => $intake->country,
+            'dob' => $customer->dob?->toDateString(),
+            'anniversary' => $customer->anniversary?->toDateString(),
+            'pan' => $intake->pan,
+            'gstin' => $intake->gstin,
+            'id_proof_type' => $customer->id_proof_type,
+            'id_proof_number' => $customer->id_proof_number,
+            'kyc_status' => $customer->kyc_status->value,
+            'customer_type' => $customer->customer_type->value,
+            'is_active' => $customer->is_active,
+            'notes' => $customer->notes,
+        ]);
     }
 
     private function knownCustomer(string $key): ?Customer

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\IntakePurpose;
 use App\Enums\IntakeStatus;
 use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'company_id', 'customer_id', 'name', 'mobile', 'mobile_key', 'email', 'address_line1',
-    'city', 'state', 'postal_code', 'country', 'pan', 'gstin', 'status', 'reviewed_at', 'reviewed_by',
+    'city', 'state', 'postal_code', 'country', 'pan', 'gstin', 'status', 'purpose', 'reviewed_at', 'reviewed_by',
 ])]
 class CustomerIntake extends Model
 {
@@ -21,6 +22,7 @@ class CustomerIntake extends Model
     {
         return [
             'status' => IntakeStatus::class,
+            'purpose' => IntakePurpose::class,
             'reviewed_at' => 'datetime',
         ];
     }

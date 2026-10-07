@@ -24,9 +24,14 @@ class CustomerFormController extends Controller
     {
         abort_unless($company->isOperational(), 404);
         $result = $intakes->receive($company, $request->validated());
-
-        return redirect()
+        $redirect = redirect()
             ->route('customer-form.create', $company)
             ->with('form_result', $result['result']);
+
+        if ($result['result'] === 'known' && $result['customer']) {
+            $redirect->with('customer_preview', $intakes->preview($result['customer']));
+        }
+
+        return $redirect;
     }
 }

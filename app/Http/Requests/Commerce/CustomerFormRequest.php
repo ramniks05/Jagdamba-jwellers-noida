@@ -34,10 +34,10 @@ class CustomerFormRequest extends FormRequest
      */
     public function rules(): array
     {
-        $newCustomer = $this->input('intent') === 'new';
+        $newCustomer = in_array($this->input('intent'), ['new', 'update'], true);
 
         return [
-            'intent' => ['required', Rule::in(['known', 'new'])],
+            'intent' => ['required', Rule::in(['known', 'new', 'confirm', 'update'])],
             'mobile' => ['required', 'string', 'max:20', 'regex:/^(?:\+?91[\s-]?)?[6-9][0-9]{9}$/'],
             'name' => [Rule::requiredIf($newCustomer), 'nullable', 'string', 'max:160'],
             'email' => ['nullable', 'email', 'max:160'],
