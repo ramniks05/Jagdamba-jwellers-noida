@@ -15,7 +15,10 @@
             <h1 class="page-title h3 mb-1">{{ $pledge->number }}</h1>
             <div class="text-secondary">{{ $pledge->customer?->name }} · {{ $pledge->status === 'open' ? 'Open' : 'Released' }}</div>
         </div>
-        <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print receipt</button>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
+            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print receipt</button>
+        </div>
     </div>
 
     @if ($pledge->status === 'open')
@@ -59,11 +62,7 @@
     @endif
 
     <article class="invoice-sheet">
-        <header class="invoice-head">
-            <div class="invoice-kicker">Girvi receipt</div>
-            <h1>{{ $company->displayName() }}</h1>
-            <p>{{ $company->formattedAddress() }}</p>
-        </header>
+        @include('commerce.partials.shop-document-head', ['kicker' => 'Girvi receipt'])
         <table class="invoice-parties">
             <tbody>
                 <tr>
@@ -73,14 +72,15 @@
                 <tr>
                     <td>
                         <strong>{{ $pledge->customer?->name }}</strong>
-                        @if ($pledge->customer?->mobile)
-                            <div><span>Mobile</span><span>{{ $pledge->customer->mobile }}</span></div>
+                        <div>{{ $pledge->customer?->mobile ?: 'Mobile not recorded' }}</div>
+                        @if ($pledge->customer?->address_line1)
+                            <div>{{ collect([$pledge->customer->address_line1, $pledge->customer->city])->filter()->implode(', ') }}</div>
                         @endif
                     </td>
                     <td>
-                        <div><span>Number</span><span>{{ $pledge->number }}</span></div>
-                        <div><span>Date</span><span>{{ $pledge->pledged_at?->timezone(config('app.timezone'))->format('d M Y') }}</span></div>
-                        <div><span>Status</span><span>{{ $pledge->status === 'open' ? 'Gold is in the shop' : 'Released '.$pledge->released_at?->timezone(config('app.timezone'))->format('d M Y') }}</span></div>
+                        <div><span>Number</span><strong>{{ $pledge->number }}</strong></div>
+                        <div><span>Date</span><strong>{{ $pledge->pledged_at?->timezone(config('app.timezone'))->format('d-m-Y') }}</strong></div>
+                        <div><span>Status</span>{{ $pledge->status === 'open' ? 'Gold is in the shop' : 'Released '.($pledge->released_at?->timezone(config('app.timezone'))->format('d-m-Y') ?? '') }}</div>
                     </td>
                 </tr>
             </tbody>
@@ -88,9 +88,11 @@
         <table class="invoice-table">
             <thead>
                 <tr>
+                    <th class="num">#</th>
                     <th>Piece</th>
                     <th>Metal</th>
-                    <th>Net</th>
+                    <th class="num">Gross</th>
+                    <th class="num">Net</th>
                     <th class="num">Rate / g</th>
                     <th class="num">Gold value</th>
                 </tr>
@@ -98,39 +100,71 @@
             <tbody>
                 @forelse ($pledge->items as $item)
                     <tr>
-                        <td>{{ $item->description }}</td>
+                        <td class="num">{{ $loop->iteration }}</td>
+                        <td><strong>{{ $item->description }}</strong></td>
                         <td>{{ $item->metalType?->name }} {{ $item->purity?->name }}</td>
-                        <td>{{ $weight((string) $item->net_weight) }}</td>
+                        <td class="num">{{ $weight((string) $item->gross_weight) }}</td>
+                        <td class="num">{{ $weight((string) $item->net_weight) }}</td>
                         <td class="num">{{ $money((string) $item->rate_per_gram) }}</td>
-                        <td class="num">{{ $money((string) $item->gold_value) }}</td>
+                        <td class="num"><strong>{{ $money((string) $item->gold_value) }}</strong></td>
                     </tr>
                 @empty
                     <tr>
-                        <td>{{ $pledge->description }}</td>
+                        <td class="num">1</td>
+                        <td><strong>{{ $pledge->description }}</strong></td>
                         <td>{{ $pledge->metalType?->name }} {{ $pledge->purity?->name }}</td>
-                        <td>{{ $weight((string) $pledge->net_weight) }}</td>
+                        <td class="num">{{ $weight((string) $pledge->gross_weight) }}</td>
+                        <td class="num">{{ $weight((string) $pledge->net_weight) }}</td>
                         <td class="num">{{ $money((string) $pledge->rate_per_gram) }}</td>
-                        <td class="num">{{ $money((string) $pledge->gold_value) }}</td>
+                        <td class="num"><strong>{{ $money((string) $pledge->gold_value) }}</strong></td>
                     </tr>
                 @endforelse
-                @if ($pledge->items->count() > 1)
-                    <tr>
-                        <td colspan="4">Total gold value</td>
-                        <td class="num">{{ $money((string) $pledge->gold_value) }}</td>
-                    </tr>
-                @endif
             </tbody>
         </table>
-        <table class="invoice-totals">
-            <tbody>
-                <tr><td>Loan</td><td class="num">{{ $money((string) $pledge->principal) }} · {{ $loanLabel }}</td></tr>
-                <tr><td>Interest</td><td class="num">{{ $percentLabel }}% per month</td></tr>
+        <div class="invoice-bottom">
+            <div class="invoice-words">
+                <div class="invoice-kicker">Loan in words</div>
+                <p>{{ $loanWords }}</p>
+                <div class="invoice-kicker">Cash given to the customer</div>
+                <div>{{ $money((string) $pledge->principal) }} · {{ $loanLabel }}</div>
+            </div>
+            <table class="invoice-totals">
+                <tr><td>Gold value</td><td>{{ $money((string) $pledge->gold_value) }}</td></tr>
+                <tr class="invoice-grand"><td>Loan given</td><td>{{ $money((string) $pledge->principal) }}</td></tr>
+                <tr><td>Interest</td><td>{{ $percentLabel }}% / month</td></tr>
                 @if ((float) $pledge->interest_charged > 0)
-                    <tr><td>Interest collected</td><td class="num">{{ $money((string) $pledge->interest_charged) }}</td></tr>
+                    <tr><td>Interest collected</td><td>{{ $money((string) $pledge->interest_charged) }}</td></tr>
                 @endif
-            </tbody>
-        </table>
-        <p class="mt-3 mb-0">The gold stays with the shop until the loan and the interest are paid. Bring this receipt to release the gold.</p>
+                @if ($pledge->status === 'open')
+                    <tr><td>Interest due now</td><td>{{ $money($interest) }} · {{ $months }} {{ $months === 1 ? 'month' : 'months' }}</td></tr>
+                    <tr class="invoice-grand"><td>To release today</td><td>{{ $money($release) }}</td></tr>
+                @endif
+            </table>
+        </div>
+        <footer class="invoice-foot">
+            <div class="invoice-terms">
+                <p>The gold listed above stays with the shop until the loan and the interest are paid. A part of a month is charged as one full month. Please keep this receipt and bring it to release the gold.</p>
+                @if ($pledge->notes)
+                    <p>{{ $pledge->notes }}</p>
+                @endif
+                @if ($footer !== '')
+                    <p class="thanks">{{ $footer }}</p>
+                @endif
+                <div class="invoice-sign">
+                    <div class="invoice-sign-space"></div>
+                    <span>Customer signature</span>
+                </div>
+            </div>
+            <div class="invoice-sign">
+                <div>For {{ $company->displayName() }}</div>
+                @if ($company->signature_path)
+                    <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature">
+                @else
+                    <div class="invoice-sign-space"></div>
+                @endif
+                <span>Authorised signatory</span>
+            </div>
+        </footer>
     </article>
 @endsection
 

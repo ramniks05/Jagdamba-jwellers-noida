@@ -3,9 +3,68 @@
 @section('title', $scheme->name)
 
 @section('content')
-    <h1 class="page-title h3 mb-1">{{ $scheme->name }}</h1>
-    <p class="text-secondary mb-4">{{ $scheme->code }} · {{ $scheme->duration_months }} months · {{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</p>
-    <div class="row g-3 mb-4">
+    <div class="d-flex justify-content-between align-items-start mb-3 no-print">
+        <div>
+            <h1 class="page-title h3 mb-1">{{ $scheme->name }}</h1>
+            <p class="text-secondary mb-0">{{ $scheme->code }} · {{ $scheme->duration_months }} months · {{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
+            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print scheme</button>
+        </div>
+    </div>
+    <article class="invoice-sheet">
+        @include('commerce.partials.shop-document-head', ['kicker' => 'Scheme details'])
+        <table class="invoice-parties">
+            <tbody>
+                <tr>
+                    <th>Scheme</th>
+                    <th>What the customer gets</th>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>{{ $scheme->name }}</strong>
+                        <div><span>Months</span><span>{{ $scheme->duration_months }}</span></div>
+                        <div><span>Each month</span><span>{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</span></div>
+                        <div><span>Bonus</span><span>{{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</span></div>
+                    </td>
+                    <td>
+                        <div><span>Customer pays</span><strong>{{ $payable !== null ? $money($payable) : 'Depends on each month' }}</strong></div>
+                        <div><span>Customer gets</span><strong>{{ $maturity !== null ? $money($maturity) : 'After every month is paid' }}</strong></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="invoice-bottom">
+            <div class="invoice-words">
+                <div class="invoice-kicker">Customer gets</div>
+                <p>{{ $maturityWords ?? 'The closing amount is known after every month is paid.' }}</p>
+            </div>
+            <table class="invoice-totals">
+                <tr><td>Months</td><td>{{ $scheme->duration_months }}</td></tr>
+                <tr><td>Customer pays</td><td>{{ $payable !== null ? $money($payable) : 'Each month' }}</td></tr>
+                <tr class="invoice-grand"><td>Customer gets</td><td>{{ $maturity !== null ? $money($maturity) : 'At the end' }}</td></tr>
+            </table>
+        </div>
+        <footer class="invoice-foot">
+            <div class="invoice-terms">
+                <p>The customer pays every month. The maturity amount is credited only when every month is paid, and it can be used on a bill. This sheet can be given to the customer before they join.</p>
+                @if ($footer !== '')
+                    <p class="thanks">{{ $footer }}</p>
+                @endif
+            </div>
+            <div class="invoice-sign">
+                <div>For {{ $company->displayName() }}</div>
+                @if ($company->signature_path)
+                    <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature">
+                @else
+                    <div class="invoice-sign-space"></div>
+                @endif
+                <span>Authorised signatory</span>
+            </div>
+        </footer>
+    </article>
+    <div class="row g-3 mb-4 no-print">
         <div class="col-md-4">
             <div class="card h-100"><div class="card-body">
                 <div class="text-secondary">Monthly</div>
@@ -27,7 +86,7 @@
     </div>
     @can('create', App\Models\GoldScheme::class)
         @if ($scheme->is_active)
-            <form class="card mb-4" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form">
+            <form class="card mb-4 no-print" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form">
                 @csrf
                 <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -45,7 +104,7 @@
             </form>
         @endif
     @endcan
-    <div class="card">
+    <div class="card no-print">
         <div class="table-responsive">
             <table class="table mb-0">
                 <thead>

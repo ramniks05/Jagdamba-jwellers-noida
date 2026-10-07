@@ -13,7 +13,10 @@
             <h1 class="page-title h3 mb-1">{{ $enrollment->number }}</h1>
             <div class="text-secondary">{{ $enrollment->customer?->name }} · {{ $enrollment->scheme?->name }} · {{ $open ? 'Open' : 'Matured' }}</div>
         </div>
-        <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print passbook</button>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
+            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print passbook</button>
+        </div>
     </div>
 
     @if ($open && $nextInstallment)
@@ -64,26 +67,23 @@
     @endif
 
     <article class="invoice-sheet">
-        <header class="invoice-head">
-            <div class="invoice-kicker">Scheme passbook</div>
-            <h1>{{ $enrollment->scheme?->name }}</h1>
-            <p>{{ $enrollment->number }} · {{ $enrollment->customer?->name }}@if ($enrollment->customer?->mobile) · {{ $enrollment->customer->mobile }}@endif</p>
-        </header>
+        @include('commerce.partials.shop-document-head', ['kicker' => 'Scheme passbook'])
         <table class="invoice-parties">
             <tbody>
                 <tr>
-                    <th>Account</th>
-                    <th>Maturity</th>
+                    <th>Customer</th>
+                    <th>Scheme</th>
                 </tr>
                 <tr>
                     <td>
-                        <div><span>Started</span><span>{{ $enrollment->started_on?->format('d M Y') }}</span></div>
-                        <div><span>Paid</span><span>{{ $paidCount }} of {{ $enrollment->installments->count() }}</span></div>
-                        <div><span>Collected</span><span>{{ $money($collected) }}</span></div>
+                        <strong>{{ $enrollment->customer?->name }}</strong>
+                        <div>{{ $enrollment->customer?->mobile ?: 'Mobile not recorded' }}</div>
                     </td>
                     <td>
-                        <div><span>Status</span><span>{{ $open ? 'Open' : 'Matured' }}</span></div>
-                        <div><span>Customer gets</span><span>{{ $enrollment->status === 'matured' ? $money((string) $enrollment->maturity_amount) : ($closing ? $money($closing) : ($maturity ? $money($maturity) : 'When every month is paid')) }}</span></div>
+                        <div><span>Number</span><strong>{{ $enrollment->number }}</strong></div>
+                        <div><span>Scheme</span><strong>{{ $enrollment->scheme?->name }}</strong></div>
+                        <div><span>Started</span>{{ $enrollment->started_on?->format('d-m-Y') }}</div>
+                        <div><span>Status</span>{{ $open ? 'Open' : 'Matured' }}</div>
                     </td>
                 </tr>
             </tbody>
@@ -94,19 +94,52 @@
                     <th>Month</th>
                     <th>Due</th>
                     <th class="num">Amount</th>
-                    <th>Paid</th>
+                    <th>Paid on</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($enrollment->installments as $installment)
                     <tr>
                         <td>{{ $loop->iteration }}</td>
-                        <td>{{ $installment->due_on->format('d M Y') }}</td>
+                        <td>{{ $installment->due_on->format('d-m-Y') }}</td>
                         <td class="num">{{ $money((string) $installment->amount) }}</td>
-                        <td>{{ $installment->paid_at ? $installment->paid_at->timezone(config('app.timezone'))->format('d M Y') : 'Due' }}</td>
+                        <td>{{ $installment->paid_at ? $installment->paid_at->timezone(config('app.timezone'))->format('d-m-Y') : 'Due' }}</td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
+        <div class="invoice-bottom">
+            <div class="invoice-words">
+                <div class="invoice-kicker">Customer gets</div>
+                <p>{{ $getsWords ?? 'The closing amount is known after every month is paid.' }}</p>
+                <div>{{ $enrollment->scheme?->duration_months }} months @if ($enrollment->scheme?->monthly_amount !== null) · {{ $money((string) $enrollment->scheme->monthly_amount) }} each month @endif</div>
+            </div>
+            <table class="invoice-totals">
+                <tr><td>Customer pays</td><td>{{ $payable !== null ? $money($payable) : 'Each month' }}</td></tr>
+                <tr><td>Paid</td><td>{{ $paidCount }} of {{ $enrollment->installments->count() }}</td></tr>
+                <tr><td>Collected</td><td>{{ $money($collected) }}</td></tr>
+                <tr class="invoice-grand">
+                    <td>Customer gets</td>
+                    <td>{{ $enrollment->status === 'matured' ? $money((string) $enrollment->maturity_amount) : ($closing ? $money($closing) : ($maturity ? $money($maturity) : 'At the end')) }}</td>
+                </tr>
+            </table>
+        </div>
+        <footer class="invoice-foot">
+            <div class="invoice-terms">
+                <p>This passbook is for the customer. The maturity amount is credited only when every month is paid, and it can be used on a bill.</p>
+                @if ($footer !== '')
+                    <p class="thanks">{{ $footer }}</p>
+                @endif
+            </div>
+            <div class="invoice-sign">
+                <div>For {{ $company->displayName() }}</div>
+                @if ($company->signature_path)
+                    <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature">
+                @else
+                    <div class="invoice-sign-space"></div>
+                @endif
+                <span>Authorised signatory</span>
+            </div>
+        </footer>
     </article>
 @endsection

@@ -13,7 +13,10 @@ use App\Models\SchemeEnrollment;
 use App\Services\Commerce\SchemeBenefit;
 use App\Services\Commerce\SchemeService;
 use App\Services\Foundation\NumberFormatService;
+use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
+use App\Support\CustomerShare;
+use App\Support\RupeesInWords;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Http\RedirectResponse;
@@ -48,18 +51,33 @@ class SchemeController extends Controller
         return redirect()->route('schemes.show', $scheme)->with('status', 'Scheme saved.');
     }
 
-    public function show(GoldScheme $scheme, NumberFormatService $format, CompanyContext $context, SchemeBenefit $benefit): View
+    public function show(GoldScheme $scheme, NumberFormatService $format, CompanyContext $context, SchemeBenefit $benefit, SettingService $settings): View
     {
         $this->authorize('view', $scheme);
+        $company = $context->company();
         $scheme->load('enrollments.customer');
+        $money = fn (string $amount) => $format->money($amount, $company);
+        $payable = $this->fixedPayable($scheme);
+        $maturity = $this->fixedMaturity($scheme, $benefit);
+        $share = $company->displayName()."\n"
+            .'Scheme '.$scheme->name."\n"
+            .$scheme->duration_months.' months'
+            .($scheme->monthly_amount !== null ? ' · '.$money((string) $scheme->monthly_amount).' each month' : '')."\n"
+            .'Customer pays '.($payable !== null ? $money($payable) : 'the amount chosen each month')."\n"
+            .'Customer gets '.($maturity !== null ? $money($maturity) : 'the closing amount after every month is paid');
 
         return view('commerce.schemes.show', [
             'scheme' => $scheme,
+            'company' => $company,
             'customers' => Customer::query()->where('is_active', true)->where('is_system', false)->orderBy('name')->get(),
             'bonuses' => config('schemes.bonus_types'),
-            'maturity' => $this->fixedMaturity($scheme, $benefit),
-            'payable' => $this->fixedPayable($scheme),
-            'money' => fn (string $amount) => $format->money($amount, $context->company()),
+            'maturity' => $maturity,
+            'payable' => $payable,
+            'maturityWords' => $maturity !== null ? RupeesInWords::format($maturity) : null,
+            'showLogo' => (bool) $settings->get('invoice.show_logo', $company),
+            'footer' => (string) ($settings->get('invoice.footer_note', $company) ?? ''),
+            'shareUrl' => CustomerShare::whatsapp(null, $share),
+            'money' => $money,
         ]);
     }
 
@@ -71,7 +89,7 @@ class SchemeController extends Controller
         return redirect()->route('enrollments.show', $enrollment)->with('status', 'Customer enrolled.');
     }
 
-    public function enrollment(SchemeEnrollment $enrollment, NumberFormatService $format, CompanyContext $context, SchemeBenefit $benefit): View
+    public function enrollment(SchemeEnrollment $enrollment, NumberFormatService $format, CompanyContext $context, SchemeBenefit $benefit, SettingService $settings): View
     {
         $this->authorize('view', $enrollment);
         $enrollment->load(['scheme', 'customer', 'installments']);
@@ -91,15 +109,36 @@ class SchemeController extends Controller
             )
             : null;
 
+        $company = $context->company();
+        $money = fn (string $amount) => $format->money($amount, $company);
+        $payable = $this->fixedPayable($enrollment->scheme);
+        $maturity = $this->fixedMaturity($enrollment->scheme, $benefit);
+        $gets = $enrollment->status === 'matured'
+            ? (string) $enrollment->maturity_amount
+            : ($closing ?? $maturity);
+        $share = $company->displayName()."\n"
+            .'Scheme '.$enrollment->scheme?->name."\n"
+            .'Passbook '.$enrollment->number."\n"
+            .'Customer '.($enrollment->customer?->name)."\n"
+            .'Paid '.$paid->count().' of '.$installments->count()."\n"
+            .'Collected '.$money((string) $collected)."\n"
+            .'Customer gets '.($gets !== null ? $money($gets) : 'the closing amount after every month is paid');
+
         return view('commerce.schemes.enrollment', [
             'enrollment' => $enrollment,
+            'company' => $company,
             'nextInstallment' => $installments->first(fn ($row) => $row->paid_at === null),
             'paidCount' => $paid->count(),
             'collected' => (string) $collected,
             'closing' => $closing,
-            'maturity' => $this->fixedMaturity($enrollment->scheme, $benefit),
+            'maturity' => $maturity,
+            'payable' => $payable,
+            'getsWords' => $gets !== null ? RupeesInWords::format($gets) : null,
+            'showLogo' => (bool) $settings->get('invoice.show_logo', $company),
+            'footer' => (string) ($settings->get('invoice.footer_note', $company) ?? ''),
+            'shareUrl' => CustomerShare::whatsapp($enrollment->customer?->mobile, $share),
             'methods' => PaymentMethod::cases(),
-            'money' => fn (string $amount) => $format->money($amount, $context->company()),
+            'money' => $money,
         ]);
     }
 
