@@ -4,6 +4,8 @@ use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\PasswordResetController;
 use App\Http\Controllers\Web\BranchController;
 use App\Http\Controllers\Web\Commerce\CustomerController as ShopCustomerController;
+use App\Http\Controllers\Web\Commerce\CustomerFormController;
+use App\Http\Controllers\Web\Commerce\CustomerIntakeController;
 use App\Http\Controllers\Web\Commerce\GirviController;
 use App\Http\Controllers\Web\Commerce\ItemController;
 use App\Http\Controllers\Web\Commerce\LocationController;
@@ -34,6 +36,9 @@ use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SettingController;
 use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('customer-form/{company}', [CustomerFormController::class, 'create'])->name('customer-form.create');
+Route::post('customer-form/{company}', [CustomerFormController::class, 'store'])->middleware('throttle:customer-form')->name('customer-form.store');
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('login');
@@ -101,6 +106,10 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('rates', [RateController::class, 'store'])->name('rates.store');
 
     Route::resource('locations', LocationController::class)->except(['show', 'destroy']);
+    Route::get('customers/qr', [CustomerIntakeController::class, 'qr'])->name('customers.qr');
+    Route::get('customer-intakes', [CustomerIntakeController::class, 'index'])->name('customer-intakes.index');
+    Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');
+    Route::post('customer-intakes/{intake}/reject', [CustomerIntakeController::class, 'reject'])->name('customer-intakes.reject');
     Route::resource('customers', ShopCustomerController::class);
     Route::post('customers/{customer}/payments', [ShopCustomerController::class, 'payment'])->name('customers.payments.store');
     Route::resource('suppliers', SupplierController::class);

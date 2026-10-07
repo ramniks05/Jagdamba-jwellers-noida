@@ -5,9 +5,13 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="page-title h3 mb-0">Customers</h1>
-        @can('create', App\Models\Customer::class)
-            <a class="btn btn-primary" href="{{ route('customers.create') }}"><i class="bi bi-person-plus"></i> Add customer</a>
-        @endcan
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="{{ route('customers.qr') }}">Customer QR</a>
+            <a class="btn btn-outline-secondary" href="{{ route('customer-intakes.index') }}">Waiting approval</a>
+            @can('create', App\Models\Customer::class)
+                <a class="btn btn-primary" href="{{ route('customers.create') }}"><i class="bi bi-person-plus"></i> Add customer</a>
+            @endcan
+        </div>
     </div>
     <form class="row g-2 mb-3" method="GET" action="{{ route('customers.index') }}">
         <div class="col-md-4"><input class="form-control" name="search" value="{{ $search }}" placeholder="Name, code, or mobile"></div>

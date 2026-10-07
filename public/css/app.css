@@ -587,6 +587,10 @@ a {
     width: min(420px, 100%);
 }
 
+.guest-card-wide {
+    width: min(720px, 100%);
+}
+
 .guest-card .brand-mark {
     background: #faf6f1;
     color: var(--maroon);

@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="guest-wrap">
-        <div class="guest-card">
+        <div class="guest-card @yield('guest_class')">
             @yield('content')
         </div>
     </div>
