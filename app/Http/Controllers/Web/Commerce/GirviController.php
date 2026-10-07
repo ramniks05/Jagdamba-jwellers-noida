@@ -81,13 +81,27 @@ class GirviController extends Controller
                 'rate_per_gram' => $pledge->rate_per_gram,
                 'gold_value' => $pledge->gold_value,
             ]]);
-        $pieceLines = $pieces->map(fn ($item) => trim($item->description.' '.($item->metalType?->name).' '.($item->purity?->name)).' · '.$weight((string) $item->net_weight).' · '.$money((string) $item->gold_value))->implode("\n");
+        $pieceLines = $pieces->map(function ($item) use ($money, $weight) {
+            $metal = trim(($item->metalType?->name).' '.($item->purity?->name));
+
+            return $item->description."\n".$metal.' · '.$weight((string) $item->net_weight).' · '.$money((string) $item->rate_per_gram).'/g · '.$money((string) $item->gold_value);
+        })->implode("\n");
+        $weightLines = $pieces->groupBy(fn ($item) => trim(($item->metalType?->name).' '.($item->purity?->name)))
+            ->map(function ($rows, $name) use ($weight) {
+                $net = $rows->reduce(
+                    fn (BigDecimal $sum, $item) => $sum->plus((string) $item->net_weight),
+                    BigDecimal::zero(),
+                )->toScale(3, RoundingMode::HalfUp);
+
+                return $name.' weight '.$weight((string) $net);
+            })->implode("\n");
         $share = $company->displayName()."\n"
             .'Girvi receipt '.$pledge->number."\n"
             .'Date '.$pledge->pledged_at?->timezone(config('app.timezone'))->format('d-m-Y')."\n"
             .'Customer '.($pledge->customer?->name)."\n\n"
             .$pieceLines."\n\n"
-            .'Gold value '.$money((string) $pledge->gold_value)."\n"
+            .$weightLines."\n"
+            .'Total value '.$money((string) $pledge->gold_value)."\n"
             .'Loan given '.$money((string) $pledge->principal)."\n"
             .'Interest '.rtrim(rtrim(number_format((float) $pledge->interest_percent, 2, '.', ''), '0'), '.')."% per month\n"
             .($pledge->status === 'open'

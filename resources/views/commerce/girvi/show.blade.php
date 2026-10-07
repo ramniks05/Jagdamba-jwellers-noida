@@ -94,7 +94,7 @@
                     <th class="num">Gross</th>
                     <th class="num">Net</th>
                     <th class="num">Rate / g</th>
-                    <th class="num">Gold value</th>
+                    <th class="num">Value</th>
                 </tr>
             </thead>
             <tbody>
@@ -129,7 +129,7 @@
                 <div>{{ $money((string) $pledge->principal) }} · {{ $loanLabel }}</div>
             </div>
             <table class="invoice-totals">
-                <tr><td>Gold value</td><td>{{ $money((string) $pledge->gold_value) }}</td></tr>
+                <tr><td>Total value</td><td>{{ $money((string) $pledge->gold_value) }}</td></tr>
                 <tr class="invoice-grand"><td>Loan given</td><td>{{ $money((string) $pledge->principal) }}</td></tr>
                 <tr><td>Interest</td><td>{{ $percentLabel }}% / month</td></tr>
                 @if ((float) $pledge->interest_charged > 0)
@@ -143,7 +143,7 @@
         </div>
         <footer class="invoice-foot">
             <div class="invoice-terms">
-                <p>The gold listed above stays with the shop until the loan and the interest are paid. A part of a month is charged as one full month. Please keep this receipt and bring it to release the gold.</p>
+                <p>Each piece above is kept on its own metal, karat, weight, and rate. The loan is on the total value. The pieces stay with the shop until the loan and the interest are paid. A part of a month is charged as one full month. Please keep this receipt and bring it to release them.</p>
                 @if ($pledge->notes)
                     <p>{{ $pledge->notes }}</p>
                 @endif

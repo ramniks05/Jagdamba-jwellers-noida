@@ -4,7 +4,7 @@
 
 @section('content')
     <h1 class="page-title h3 mb-2">New girvi</h1>
-    <p class="text-secondary">Add every piece the customer leaves. Each piece is priced from its own weight and rate. The loan and the monthly interest are calculated on the total gold value.</p>
+    <p class="text-secondary">Add every piece the customer leaves. Each piece keeps its own metal, karat, weight, and rate. The loan is calculated on the total value, so gold and silver are not mixed into one weight.</p>
     <form method="POST" action="{{ route('girvi.store') }}" id="girvi-form">
         @csrf
         <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
@@ -222,7 +222,7 @@
         function writePieces() {
             const fields = ['description', 'metal_uuid', 'purity_uuid', 'gross_weight', 'stone_weight', 'rate_per_gram'];
             document.getElementById('piece-fields').innerHTML = pieces.map((piece, index) => fields.map((field) => '<input type="hidden" name="pieces[' + index + '][' + field + ']" value="' + escapeAttr(piece[field]) + '">').join('')).join('');
-            document.getElementById('added-pieces').innerHTML = pieces.map((piece, index) => '<div class="list-group-item d-flex justify-content-between align-items-center"><span>' + escapeAttr(piece.description) + ' · ' + escapeAttr(piece.metal) + ' · ' + piece.net.toFixed(3) + ' g</span><button class="btn btn-outline-secondary btn-sm" type="button" data-remove="' + index + '">Remove</button></div>').join('');
+            document.getElementById('added-pieces').innerHTML = pieces.map((piece, index) => '<div class="list-group-item d-flex justify-content-between align-items-center gap-2"><span>' + escapeAttr(piece.description) + ' · ' + escapeAttr(piece.metal) + ' · ' + piece.net.toFixed(3) + ' g · ' + money.format(Number(piece.rate_per_gram)) + '/g · ' + money.format(piece.gold) + '</span><button class="btn btn-outline-secondary btn-sm" type="button" data-remove="' + index + '">Remove</button></div>').join('');
         }
 
         function addPiece() {
@@ -273,7 +273,6 @@
             const list = document.getElementById('girvi-lines');
             const interestPercent = Number(document.getElementById('interest').value || 0);
             const gold = round2(pieces.reduce((sum, piece) => sum + piece.gold, 0));
-            const net = round3(pieces.reduce((sum, piece) => sum + piece.net, 0));
             if (pieces.length === 0) {
                 list.innerHTML = '';
                 note.textContent = 'Add the first piece. You can add more pieces on this same girvi.';
@@ -285,30 +284,41 @@
             } else {
                 principal = round2(gold * Number(document.getElementById('loan-percent').value || 0) / 100);
             }
+            const detail = pieces.map(pieceLine).join('') + weightLines();
             if (principal <= 0 || principal > gold + 0.001) {
-                list.innerHTML = pieces.map((piece) => line([piece.description, piece.gold])).join('');
+                list.innerHTML = detail;
                 note.textContent = principal <= 0
                     ? 'Enter the loan percent or the loan amount.'
-                    : 'The loan cannot be more than the gold value, ' + money.format(gold) + '.';
+                    : 'The loan cannot be more than the total value, ' + money.format(gold) + '.';
                 return;
             }
             const monthInterest = round2(principal * interestPercent / 100);
-            const rows = pieces.map((piece) => [piece.description, piece.gold]);
-            rows.push(['Pieces', String(pieces.length)]);
-            rows.push(['Net weight', net.toFixed(3) + ' g']);
-            rows.push(['Gold value', gold]);
-            rows.push(['Loan given now', principal]);
-            rows.push(['Interest for 1 month', monthInterest]);
-            rows.push(['To release after 1 month', round2(principal + monthInterest)]);
-            list.innerHTML = rows.map(line).join('');
-            note.textContent = chosen
-                ? 'A part of a month is charged as one full month.'
-                : 'Choose the customer. The loan is given in cash now.';
+            const rows = [
+                ['Total value', gold],
+                ['Loan given now', principal],
+                ['Interest for 1 month', monthInterest],
+                ['To release after 1 month', round2(principal + monthInterest)],
+            ];
+            list.innerHTML = detail + rows.map(line).join('');
+            note.textContent = (chosen ? '' : 'Choose the customer. The loan is given in cash now. ')
+                + 'Each line is one piece. Weights are totalled only when the metal and karat are the same. A part of a month is charged as one full month.';
+        }
+
+        function pieceLine(piece) {
+            return '<li class="list-group-item d-flex justify-content-between align-items-start px-0"><span><span class="d-block">' + escapeAttr(piece.description) + '</span><span class="small text-secondary">' + escapeAttr(piece.metal) + ' · ' + piece.net.toFixed(3) + ' g · ' + money.format(Number(piece.rate_per_gram)) + ' / g</span></span><span>' + money.format(piece.gold) + '</span></li>';
+        }
+
+        function weightLines() {
+            const groups = new Map();
+            pieces.forEach((piece) => {
+                groups.set(piece.metal, round3((groups.get(piece.metal) || 0) + piece.net));
+            });
+            return [...groups.entries()].map(([name, grams]) => line([name + ' weight', grams.toFixed(3) + ' g'])).join('');
         }
 
         function line(row) {
             const value = typeof row[1] === 'number' ? money.format(row[1]) : row[1];
-            const strong = row[0] === 'Loan given now' || row[0] === 'To release after 1 month' ? ' fw-semibold' : '';
+            const strong = row[0] === 'Loan given now' || row[0] === 'To release after 1 month' || row[0] === 'Total value' ? ' fw-semibold' : '';
             return '<li class="list-group-item d-flex justify-content-between px-0' + strong + '"><span>' + row[0] + '</span><span>' + value + '</span></li>';
         }
 
