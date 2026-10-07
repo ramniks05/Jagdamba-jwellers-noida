@@ -103,7 +103,9 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('items/{item}/lost', [ItemController::class, 'lost'])->name('items.lost');
 
     Route::get('rates', [RateController::class, 'index'])->name('rates.index');
+    Route::post('rates/market', [RateController::class, 'refresh'])->name('rates.market');
     Route::post('rates', [RateController::class, 'store'])->name('rates.store');
+    Route::post('rates/from-market', [RateController::class, 'storeMarket'])->name('rates.market.store');
 
     Route::resource('locations', LocationController::class)->except(['show', 'destroy']);
     Route::get('customers/qr', [CustomerIntakeController::class, 'qr'])->name('customers.qr');

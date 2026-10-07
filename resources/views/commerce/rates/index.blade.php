@@ -5,6 +5,60 @@
 @section('content')
     <h1 class="page-title h3 mb-2">Metal rates</h1>
     <p class="text-secondary">A new rate is added to the history. Bills keep the rate that was current when they were saved.</p>
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Market price</h2>
+                    <p class="text-secondary mb-0">Gold and silver buy price per gram, before GST, from a free India feed. Change any amount, then save. Bills use the amount you save. Platinum is entered by hand.</p>
+                </div>
+                @if ($canEnter)
+                    <form method="POST" action="{{ route('rates.market') }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary" type="submit">Refresh</button>
+                    </form>
+                @endif
+            </div>
+            @if ($quoteError)
+                <div class="alert alert-warning mb-0">{{ $quoteError }}</div>
+            @elseif ($quote)
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4"><div class="stat-label">Gold, 999</div><div class="fw-semibold">{{ $money($quote->goldPerGram) }} / g</div></div>
+                    <div class="col-md-4"><div class="stat-label">Silver, 999</div><div class="fw-semibold">{{ $money($quote->silverPerGram) }} / g</div></div>
+                    <div class="col-md-4"><div class="stat-label">Quoted</div><div>{{ \Illuminate\Support\Carbon::parse($quote->quotedAt)->timezone(config('app.timezone'))->format('d M Y H:i') }}</div></div>
+                </div>
+                @if ($canEnter)
+                    <form method="POST" action="{{ route('rates.market.store') }}">
+                        @csrf
+                        <div class="table-responsive">
+                            <table class="table mb-3">
+                                <thead><tr><th></th><th>Purity</th><th>Rate / gram</th></tr></thead>
+                                <tbody>
+                                    @foreach ($suggestions as $index => $row)
+                                        @php
+                                            $submitted = collect(old('lines', []));
+                                            $previous = $submitted->first(fn ($line) => ($line['purity_uuid'] ?? null) === $row['purity']->uuid);
+                                            $rateValue = $previous['rate_per_gram'] ?? $row['rate'];
+                                            $checked = old('lines') === null ? $row['selected'] : $previous !== null;
+                                        @endphp
+                                        <tr>
+                                            <td><input type="checkbox" name="lines[{{ $index }}][use]" value="1" @checked($checked)></td>
+                                            <td>{{ $row['purity']->metalType?->name }} {{ $row['purity']->name }}</td>
+                                            <td>
+                                                <input type="hidden" name="lines[{{ $index }}][purity_uuid]" value="{{ $row['purity']->uuid }}">
+                                                <input class="form-control" name="lines[{{ $index }}][rate_per_gram]" value="{{ $rateValue }}" inputmode="decimal">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Save selected rates</button>
+                    </form>
+                @endif
+            @endif
+        </div>
+    </div>
     @if ($canEnter)
         <form class="card mb-4" method="POST" action="{{ route('rates.store') }}">
             @csrf
@@ -55,7 +109,7 @@
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
-                <thead><tr><th>Effective</th><th>Metal</th><th>Rate / g</th><th>Branch</th><th>Note</th></tr></thead>
+                <thead><tr><th>Effective</th><th>Metal</th><th>Rate / g</th><th>Branch</th><th>Source</th><th>Note</th></tr></thead>
                 <tbody>
                     @forelse ($rates as $rate)
                         <tr>
@@ -63,10 +117,11 @@
                             <td>{{ $rate->metalType?->name }} {{ $rate->purity?->name }}</td>
                             <td>{{ $rate->rate_per_gram }}</td>
                             <td>{{ $rate->branch?->name ?: 'Whole shop' }}</td>
+                            <td>{{ $rate->source === 'market' ? 'Market' : 'Entered' }}</td>
                             <td>{{ $rate->note }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5">No rates yet. Enter today's rate before billing.</td></tr>
+                        <tr><td colspan="6">No rates yet. Enter today's rate before billing.</td></tr>
                     @endforelse
                 </tbody>
             </table>
