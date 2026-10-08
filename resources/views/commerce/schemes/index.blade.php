@@ -32,7 +32,14 @@
                             <td class="num">{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</td>
                             <td>{{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</td>
                             <td class="num">{{ $scheme->enrollments_count }}</td>
-                            <td class="text-end"><a href="{{ route('schemes.show', $scheme) }}">Open</a></td>
+                            <td class="text-end">
+                                @can('create', App\Models\GoldScheme::class)
+                                    @if ($scheme->is_active)
+                                        <a href="{{ route('schemes.show', $scheme) }}#add-member">Add member</a>
+                                    @endif
+                                @endcan
+                                <a href="{{ route('schemes.show', $scheme) }}">Open</a>
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="7">No schemes yet.</td></tr>

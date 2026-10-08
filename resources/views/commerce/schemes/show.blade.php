@@ -9,10 +9,35 @@
             <p class="text-secondary mb-0">{{ $scheme->code }} · {{ $scheme->duration_months }} months · {{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            @can('create', App\Models\GoldScheme::class)
+                @if ($scheme->is_active)
+                    <a class="btn btn-primary" href="#add-member"><i class="bi bi-person-plus"></i> Add member</a>
+                @endif
+            @endcan
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
-            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print scheme</button>
+            <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print scheme</button>
         </div>
     </div>
+    @can('create', App\Models\GoldScheme::class)
+        @if ($scheme->is_active)
+            <form class="card mb-4 no-print" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form">
+                @csrf
+                <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center" id="add-member">
+                    <span>Add a member</span>
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#customer-modal"><i class="bi bi-person-plus"></i> New customer</button>
+                </div>
+                <div class="card-body">
+                    <label class="form-label" for="customer-search">Search by mobile number or name</label>
+                    <input class="form-control" id="customer-search" placeholder="Mobile, name, or code" autocomplete="off">
+                    <div class="bill-results mt-2 d-none" id="customer-results"></div>
+                    <div class="alert alert-warning mt-3 mb-3 d-none" id="customer-chosen"></div>
+                    <div class="text-danger small mb-3 d-none" id="customer-error">Choose a customer. A walk-in cannot join a scheme.</div>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-person-check"></i> Enroll</button>
+                </div>
+            </form>
+        @endif
+    @endcan
     <article class="invoice-sheet">
         @include('commerce.partials.shop-document-head', ['kicker' => 'Scheme details'])
         <table class="invoice-parties">
@@ -80,26 +105,6 @@
             </div></div>
         </div>
     </div>
-    @can('create', App\Models\GoldScheme::class)
-        @if ($scheme->is_active)
-            <form class="card mb-4 no-print" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form">
-                @csrf
-                <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <span>Add a member</span>
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#customer-modal"><i class="bi bi-person-plus"></i> New customer</button>
-                </div>
-                <div class="card-body">
-                    <label class="form-label" for="customer-search">Search by mobile number or name</label>
-                    <input class="form-control" id="customer-search" placeholder="Mobile, name, or code" autocomplete="off">
-                    <div class="bill-results mt-2 d-none" id="customer-results"></div>
-                    <div class="alert alert-warning mt-3 mb-3 d-none" id="customer-chosen"></div>
-                    <div class="text-danger small mb-3 d-none" id="customer-error">Choose a customer. A walk-in cannot join a scheme.</div>
-                    <button class="btn btn-primary" type="submit"><i class="bi bi-person-check"></i> Enroll</button>
-                </div>
-            </form>
-        @endif
-    @endcan
     <div class="card no-print">
         <div class="table-responsive">
             <table class="table mb-0">
