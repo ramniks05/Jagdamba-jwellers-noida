@@ -17,6 +17,7 @@ use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\StockLocation;
 use App\Support\CompanyContext;
+use App\Support\StoneRate;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Database\Eloquent\Model;
@@ -239,6 +240,8 @@ class ItemService
                 'name' => $row['name'],
                 'weight' => $row['weight'],
                 'value' => $row['value'],
+                'rate' => $row['rate'],
+                'rate_unit' => $row['rate_unit'],
                 'position' => $index,
             ]);
         }
@@ -246,28 +249,18 @@ class ItemService
 
     /**
      * @param  array<string, mixed>  $attributes
-     * @return list<array{name: string, weight: string, value: string}>
+     * @return list<array{name: string, weight: string, value: string, rate: ?string, rate_unit: ?string}>
      */
     private function namedStones(array $attributes): array
     {
         $rows = [];
 
         foreach ((array) ($attributes['stones'] ?? []) as $stone) {
-            if (! is_array($stone)) {
+            if (! is_array($stone) || trim((string) ($stone['name'] ?? '')) === '') {
                 continue;
             }
 
-            $name = trim((string) ($stone['name'] ?? ''));
-
-            if ($name === '') {
-                continue;
-            }
-
-            $rows[] = [
-                'name' => $name,
-                'weight' => (string) BigDecimal::of((string) ($stone['weight'] ?? '0'))->toScale(3, RoundingMode::HalfUp),
-                'value' => (string) BigDecimal::of((string) ($stone['value'] ?? '0'))->toScale(2, RoundingMode::HalfUp),
-            ];
+            $rows[] = StoneRate::row($stone);
         }
 
         return $rows;

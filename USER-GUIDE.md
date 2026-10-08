@@ -23,9 +23,13 @@ The signature shows on the printed invoice. If it is missing, the invoice still 
 
 1. Open **Setup → Settings**.
 2. Check GST, rounding, and the invoice note at the bottom of the bill.
-3. Save.
+3. Choose **Making charge on the bill**. This is the choice every new bill starts with. It can still be changed on a single bill.
+   - **Making inside jewellery GST**: making is added to the piece and taxed at the jewellery GST, 3%.
+   - **Making with its own GST**: making is shown on its own line and taxed at **Making GST percent**, 5% by default.
+   - **Processing charge, no GST**: the bill says Processing instead of Making, and no GST is charged on it.
+4. Save.
 
-On this shop, GST is 3% added on top of the piece value, and the bill total is rounded to the nearest rupee.
+On this shop, GST is 3% added on top of the piece value, and the bill total is rounded to the nearest rupee. New bills start with **Processing charge, no GST**. Ask your CA which way is right for your shop before you change it.
 
 ### 3. Today's metal rate
 
@@ -83,10 +87,11 @@ All selling is done on **New bill**. **Pieces** is only the stock list. You do n
 1. Click **New bill**.
 2. Search the customer by mobile, name, or code, and choose them. If they are new, click **New customer**.
 3. Add the jewellery in one of the two ways below.
-4. Check the total on the right. GST is already included in that total.
-5. Type the cash, UPI, or card amount. **Put the total in cash** fills the full amount.
-6. Click **Save invoice**.
-7. Click **Print invoice** and give the A4 sheet to the customer.
+4. Check **Making charge on this bill** on the right. It starts with the choice from **Settings**. Change it only for this customer if needed. The total updates at once.
+5. Check the total on the right. GST is already included in that total.
+6. Type the cash, UPI, or card amount. **Put the total in cash** fills the full amount.
+7. Click **Save invoice**.
+8. Click **Print invoice** and give the A4 sheet to the customer.
 
 A named customer may leave a balance. Walk-in must pay the full total before the bill can be saved.
 
@@ -267,6 +272,32 @@ Loan given now is ₹1,35,000. Interest for one month is ₹2,700. To release th
 
 The receipt lists every piece, the loan in words, the cash given, the interest, and today's release amount. The customer signs it, and the shop signs it.
 
+## Orders — make a piece to order
+
+Use this when the customer wants a piece made and pays an advance now. Today's rate for that metal and karat is locked on the order. When the piece is ready, the bill uses the actual weight at the locked rate, even if the market rate has gone up or down. The advance comes off that bill.
+
+Walk-in cannot be used for an order.
+
+1. Open **Orders → New order**.
+2. Search the customer, or add them.
+3. Tap the piece, such as Ring, or type it, such as Bridal necklace set.
+4. Choose metal and purity. The panel shows **Rate locked today**. If it says there is no rate, save today's rate in **Metal rates** first.
+5. Type the expected weight and, if you know it, the making estimate in rupees. With the shop set to processing charge, this box is called **Processing estimate**.
+6. Choose the delivery date and write the design and size.
+7. Type the advance, how it was paid, and the UPI or cheque reference.
+8. Read the panel: gold value, making, GST, estimated bill, advance, and the balance at delivery.
+9. Click **Book order and take advance**.
+10. Click **Print slip** or **Send to customer**.
+
+On the order page:
+
+- **Take more advance** saves another payment on the same order.
+- **Mark ready** tells the counter that the piece is back from the karigar. Call the customer.
+- **Make the bill** opens **New bill** with the customer already chosen and the order shown at the top. Weigh the finished piece, or pick it from stock, and add it. The bill shows **Advance** and **To pay now**. **Cash** fills only the amount still to pay. Save the invoice. The order becomes **Delivered** and links to the bill.
+- **Cancel this order** closes it. Type how much to refund now. Whatever you do not refund stays on the customer's account and is used on their next bill.
+
+**Orders → To deliver** lists every booked and ready order, earliest delivery date first. A late date shows in red.
+
 ## Reports
 
 Each report has **Print report**.
@@ -353,7 +384,30 @@ Bill total    = Exact total rounded to the nearest rupee
 
 The discount cannot be more than the item total. The round-off line on the invoice is the difference between the exact total and the bill total. It can be a few paise added or a few paise taken off.
 
-Worked bill. One ring, Gold 22K, rate ₹10,000 per gram. Gross 10.000 g, stone 0.500 g, wastage 8%, making ₹400 per gram, stone value ₹1,500, no discount.
+The sum above is for **Making inside jewellery GST**. With the other two choices, making is taken out of the item total and handled on its own line:
+
+```text
+Jewellery      = Item total − all making on the bill
+After discount = Jewellery − discount in rupees
+GST            = After discount × 3 ÷ 100
+Making GST     = Making × 5 ÷ 100    (Making with its own GST)
+               = 0                   (Processing charge, no GST)
+Exact total    = After discount + GST + Making + Making GST
+```
+
+Wastage stays in the jewellery and is taxed at 3%. The discount comes off the jewellery, not the making.
+
+Same ring three ways. Gold value ₹1,00,000, making ₹5,000, no wastage, no discount.
+
+| Choice | Jewellery GST 3% | Making GST | Bill total |
+| --- | --- | --- | --- |
+| Making inside jewellery GST | 1,05,000 × 3% = ₹3,150 | — | ₹1,08,150 |
+| Making with its own GST, 5% | 1,00,000 × 3% = ₹3,000 | 5,000 × 5% = ₹250 | ₹1,08,250 |
+| Processing charge, no GST | 1,00,000 × 3% = ₹3,000 | ₹0 | ₹1,08,000 |
+
+On the printed invoice, the last two choices show **Jewellery value**, the making or processing line, and GST split as "on jewellery" and "on making". Bills saved before this choice existed keep making inside jewellery GST.
+
+Worked bill with making inside jewellery GST. One ring, Gold 22K, rate ₹10,000 per gram. Gross 10.000 g, stone 0.500 g, wastage 8%, making ₹400 per gram, stone value ₹1,500, no discount.
 
 | Step | Figure |
 | --- | --- |
@@ -523,6 +577,33 @@ Worked girvi. Both pieces are Gold 24K at ₹12,000 per gram. Loan 75%. Interest
 
 **Release the gold** collects the loan plus the interest. The amount must match the figure on the screen. The gold is handed back and the loan is cleared.
 
+### An order
+
+```text
+Gold value     = expected weight × rate locked on the booking day
+Estimated bill = gold value + making estimate, then GST and round off as on a bill
+Balance        = estimated bill − advance paid
+```
+
+The estimate follows the **Making charge on the bill** choice in **Settings**.
+
+The estimate is only a guide for the customer. The real bill is worked out on delivery like any other bill, with the actual net weight, wastage, making, and stones. The only difference is that the order's metal and karat use the locked rate. Any other piece on the same bill uses today's rate.
+
+Example: Ring, Gold 22K, 10 g expected, rate locked at ₹10,000 per gram, processing estimate ₹5,000 with no GST, GST 3% on the gold, advance ₹20,000.
+
+| Line | Amount |
+| --- | --- |
+| Gold value 10 g × ₹10,000 | ₹1,00,000.00 |
+| Processing, no GST | ₹5,000.00 |
+| GST 3% on jewellery | ₹3,000.00 |
+| Estimated bill | ₹1,08,000.00 |
+| Advance paid | ₹20,000.00 |
+| Balance at delivery, about | ₹88,000.00 |
+
+On delivery the ring weighs 10.4 g. With no making or wastage entered, the bill is 10.4 × ₹10,000 = ₹1,04,000, plus GST 3% ₹3,120, which makes ₹1,07,120. The advance of ₹20,000 comes off, so the customer pays ₹87,120 now.
+
+If the advance is more than the bill, only the bill amount is used. The rest stays as credit on the customer's account.
+
 ### The customer's balance
 
 ```text
@@ -542,6 +623,8 @@ A positive balance means the customer owes the shop. A negative balance means th
 | Girvi interest only | The interest is paid, and the loan stays |
 | Girvi is released | The loan and the interest are paid, and the loan is cleared |
 | A scheme is matured | The closing amount becomes credit they can use on a bill |
+| An order advance is taken | The advance becomes credit. The bill on delivery uses it |
+| An order is cancelled with a refund | The refund reduces that credit. The rest stays as credit |
 
 ### What the home page is adding up
 
@@ -559,7 +642,7 @@ A positive balance means the customer owes the shop. A negative balance means th
 1. Open **Metal rates** and save today's rates.
 2. Click **New bill** for every sale.
 3. Use **Purchases** when stock arrives.
-4. Use **Old gold**, **Repairs**, **Schemes**, and **Girvi** only for that job.
+4. Use **Orders**, **Old gold**, **Repairs**, **Schemes**, and **Girvi** only for that job.
 5. At the end of the day, open **Reports → Sales** and **Outstanding**.
 
 ## If something will not price
@@ -567,5 +650,6 @@ A positive balance means the customer owes the shop. A negative balance means th
 - Save the rate for that exact metal and purity under **Metal rates**.
 - Choose a customer before saving a bill. Walk-in must be paid in full.
 - A purchase needs a supplier and an item code.
-- Girvi and schemes cannot use Walk-in.
+- Girvi, schemes, and orders cannot use Walk-in.
+- An order needs today's rate for its metal and karat before it can be booked.
 - A sold piece will not show in **New bill** search or in the stock report.

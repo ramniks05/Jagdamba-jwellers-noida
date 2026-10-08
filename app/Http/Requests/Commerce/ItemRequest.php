@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Models\Item;
+use App\Support\StoneRate;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Foundation\Http\FormRequest;
@@ -100,6 +101,8 @@ class ItemRequest extends FormRequest
             'stones.*.name' => ['required', 'string', 'max:80'],
             'stones.*.weight' => ['required', 'numeric', 'gte:0'],
             'stones.*.value' => ['required', 'numeric', 'gte:0'],
+            'stones.*.rate' => ['nullable', 'numeric', 'gte:0'],
+            'stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
             'stone_weight' => ['required', 'numeric', 'gte:0'],
             'other_weight' => ['required', 'numeric', 'gte:0'],
             'making_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Making->value))],
@@ -115,11 +118,12 @@ class ItemRequest extends FormRequest
             'huid' => ['nullable', 'string', 'max:32'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'image' => ['nullable', 'image', 'max:2048'],
+            'old_gold_uuid' => [Rule::prohibitedIf($item instanceof Item), 'nullable', 'uuid', Rule::exists('old_gold_exchanges', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
         ];
     }
 
     /**
-     * @return list<array{name: string, weight: string, value: string}>
+     * @return list<array{name: string, weight: string, value: string, rate: ?string, rate_unit: ?string}>
      */
     private function stoneRows(mixed $stones): array
     {
@@ -133,8 +137,9 @@ class ItemRequest extends FormRequest
             $name = trim((string) ($stone['name'] ?? ''));
             $weight = trim((string) ($stone['weight'] ?? ''));
             $value = trim((string) ($stone['value'] ?? ''));
+            $rate = trim((string) ($stone['rate'] ?? ''));
 
-            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0')) {
+            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0') && ($rate === '' || $rate === '0')) {
                 continue;
             }
 
@@ -142,6 +147,8 @@ class ItemRequest extends FormRequest
                 'name' => $name,
                 'weight' => $weight === '' ? '0' : $weight,
                 'value' => $value === '' ? '0' : $value,
+                'rate' => $rate === '' ? null : $rate,
+                'rate_unit' => trim((string) ($stone['rate_unit'] ?? '')) ?: null,
             ];
         }
 

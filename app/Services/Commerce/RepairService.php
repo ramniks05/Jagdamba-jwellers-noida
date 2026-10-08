@@ -24,8 +24,8 @@ class RepairService
 {
     /** @var array<string, array<int, string>> */
     private array $next = [
-        'received' => ['inspection', 'cancelled'],
-        'inspection' => ['repairing', 'cancelled'],
+        'received' => ['inspection', 'repairing', 'ready', 'cancelled'],
+        'inspection' => ['repairing', 'ready', 'cancelled'],
         'repairing' => ['ready', 'cancelled'],
         'ready' => ['delivered'],
     ];

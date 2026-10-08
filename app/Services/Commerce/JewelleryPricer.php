@@ -94,6 +94,104 @@ class JewelleryPricer
         );
     }
 
+    /**
+     * Mode "inside" taxes making with the jewellery. Mode "separate" taxes making at its own
+     * percent. Mode "processing" leaves it out of GST. A discount comes off the jewellery first.
+     */
+    public function billWithMaking(
+        string $linesAmount,
+        string $makingAmount,
+        string $discount,
+        string $taxPercent,
+        string $makingMode,
+        string $makingTaxPercent,
+        bool $taxExclusive,
+        bool $roundRupee,
+    ): PricingBreakdown {
+        $base = $this->decimal($linesAmount);
+        $making = $this->decimal($makingAmount);
+        $making = $making->isGreaterThan($base) ? $base : $making;
+
+        if (! in_array($makingMode, ['separate', 'processing'], true)) {
+            $bill = $this->bill($linesAmount, $discount, $taxPercent, $taxExclusive, $roundRupee);
+
+            return new PricingBreakdown(
+                linesAmount: $bill->linesAmount,
+                discountAmount: $bill->discountAmount,
+                taxableAmount: $bill->taxableAmount,
+                taxAmount: $bill->taxAmount,
+                exactTotal: $bill->exactTotal,
+                roundOff: $bill->roundOff,
+                total: $bill->total,
+                makingAmount: $this->money($making),
+            );
+        }
+
+        $discountAmount = $this->enabled('discount') ? $this->decimal($discount) : BigDecimal::zero();
+
+        if ($discountAmount->isGreaterThan($base)) {
+            throw ValidationException::withMessages([
+                'discount' => 'The discount cannot be more than the item total.',
+            ]);
+        }
+
+        $jewellery = $base->minus($making);
+        $jewelleryDiscount = $discountAmount->isGreaterThan($jewellery) ? $jewellery : $discountAmount;
+        $jewelleryNet = $jewellery->minus($jewelleryDiscount);
+        $makingNet = $making->minus($discountAmount->minus($jewelleryDiscount));
+        $taxOn = $this->enabled('tax');
+        $percent = $taxOn ? $this->decimal($taxPercent) : BigDecimal::zero();
+        $makingPercent = $taxOn && $makingMode === 'separate' ? $this->decimal($makingTaxPercent) : BigDecimal::zero();
+        $jewelleryTax = $this->taxOn($jewelleryNet, $percent, $taxExclusive);
+        $makingTax = $this->taxOn($makingNet, $makingPercent, $taxExclusive);
+        $taxable = $taxExclusive ? $jewelleryNet : $jewelleryNet->minus($jewelleryTax);
+
+        if ($makingMode === 'separate') {
+            $taxable = $taxable->plus($taxExclusive ? $makingNet : $makingNet->minus($makingTax));
+        }
+
+        $exact = $jewelleryNet->plus($makingNet);
+
+        if ($taxExclusive) {
+            $exact = $exact->plus($jewelleryTax)->plus($makingTax);
+        }
+
+        $exactMoney = $this->money($exact);
+        $roundOff = '0.00';
+        $total = $exactMoney;
+
+        if ($this->enabled('round_off') && $roundRupee) {
+            $rounded = BigDecimal::of($exactMoney)->toScale(0, RoundingMode::HalfUp);
+            $roundOff = $this->money($rounded->minus($exactMoney));
+            $total = $this->money($rounded);
+        }
+
+        return new PricingBreakdown(
+            linesAmount: $this->money($base),
+            discountAmount: $this->money($discountAmount),
+            taxableAmount: $this->money($taxable),
+            taxAmount: $this->money($jewelleryTax->plus($makingTax)),
+            exactTotal: $exactMoney,
+            roundOff: $roundOff,
+            total: $total,
+            makingMode: $makingMode,
+            makingAmount: $this->money($makingNet),
+            makingTaxPercent: (string) $makingPercent,
+            makingTaxAmount: $this->money($makingTax),
+        );
+    }
+
+    private function taxOn(BigDecimal $amount, BigDecimal $percent, bool $exclusive): BigDecimal
+    {
+        if ($percent->isZero()) {
+            return BigDecimal::zero();
+        }
+
+        return $exclusive
+            ? $amount->multipliedBy($percent)->dividedBy('100', 2, RoundingMode::HalfUp)
+            : $amount->multipliedBy($percent)->dividedBy($percent->plus('100'), 2, RoundingMode::HalfUp);
+    }
+
     private function wastageAmount(BigDecimal $net, BigDecimal $rate, string $method, string $value): BigDecimal
     {
         $amount = $this->decimal($value);

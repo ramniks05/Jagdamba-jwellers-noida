@@ -4,10 +4,20 @@
 
 @section('content')
     <h1 class="page-title h3 mb-4">{{ $item->exists ? 'Edit piece' : 'Add piece' }}</h1>
+    @if ($fromOldGold ?? null)
+        <div class="alert alert-info">
+            <i class="bi bi-recycle"></i> Making a stock piece from old gold <a href="{{ route('old-gold.show', $fromOldGold) }}">{{ $fromOldGold->number }}</a>. The weight is taken out of old gold stock. Keep the same metal and purity, and give it an item code and selling price.
+        </div>
+    @endif
     <form method="POST" action="{{ $item->exists ? route('items.update', $item) : route('items.store') }}" enctype="multipart/form-data">
         @csrf
         @if ($item->exists)
             @method('PUT')
+        @endif
+        @if ($fromOldGold ?? null)
+            <input type="hidden" name="old_gold_uuid" value="{{ $fromOldGold->uuid }}">
+        @elseif (old('old_gold_uuid'))
+            <input type="hidden" name="old_gold_uuid" value="{{ old('old_gold_uuid') }}">
         @endif
         <div class="card mb-4">
             <div class="card-body row">
@@ -121,11 +131,11 @@
                         $stoneRows = old('stones');
                         if (! is_array($stoneRows)) {
                             $stoneRows = $item->exists
-                                ? $item->stones->map(fn ($stone) => ['name' => $stone->name, 'weight' => $stone->weight, 'value' => $stone->value])->all()
+                                ? $item->stones->map(fn ($stone) => ['name' => $stone->name, 'weight' => $stone->weight, 'value' => $stone->value, 'rate' => $stone->rate, 'rate_unit' => $stone->rate_unit ?? 'fixed'])->all()
                                 : [];
                         }
                         if ($stoneRows === []) {
-                            $stoneRows = [['name' => '', 'weight' => '', 'value' => '']];
+                            $stoneRows = [['name' => '', 'weight' => '', 'value' => '', 'rate' => '', 'rate_unit' => 'gram']];
                         }
                     @endphp
                     <div class="d-flex justify-content-between align-items-center mb-1">
@@ -141,11 +151,23 @@
                                 </div>
                                 <div>
                                     <label for="stone-weight-{{ $index }}">Weight g</label>
-                                    <input class="form-control" id="stone-weight-{{ $index }}" name="stones[{{ $index }}][weight]" value="{{ $stone['weight'] ?? '' }}" inputmode="decimal" placeholder="0.000">
+                                    <input class="form-control stone-weight" id="stone-weight-{{ $index }}" name="stones[{{ $index }}][weight]" value="{{ $stone['weight'] ?? '' }}" inputmode="decimal" placeholder="0.000">
+                                </div>
+                                <div>
+                                    <label for="stone-unit-{{ $index }}">Per</label>
+                                    <select class="form-select stone-unit" id="stone-unit-{{ $index }}" name="stones[{{ $index }}][rate_unit]">
+                                        @foreach (['gram' => 'Gram', 'carat' => 'Carat', 'fixed' => 'Fixed'] as $unit => $unitName)
+                                            <option value="{{ $unit }}" @selected(($stone['rate_unit'] ?? 'fixed') === $unit)>{{ $unitName }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="stone-rate-{{ $index }}">Rate</label>
+                                    <input class="form-control stone-rate" id="stone-rate-{{ $index }}" name="stones[{{ $index }}][rate]" value="{{ $stone['rate'] ?? '' }}" inputmode="decimal" placeholder="0">
                                 </div>
                                 <div>
                                     <label for="stone-value-{{ $index }}">Value</label>
-                                    <input class="form-control" id="stone-value-{{ $index }}" name="stones[{{ $index }}][value]" value="{{ $stone['value'] ?? '' }}" inputmode="decimal" placeholder="0">
+                                    <input class="form-control stone-value" id="stone-value-{{ $index }}" name="stones[{{ $index }}][value]" value="{{ $stone['value'] ?? '' }}" inputmode="decimal" placeholder="0">
                                 </div>
                                 <button class="bill-remove" type="button" aria-label="Remove stone">×</button>
                             </div>
@@ -228,6 +250,27 @@
             });
         }
 
+        function syncStoneRow(row) {
+            const unit = row.querySelector('.stone-unit').value;
+            const rate = row.querySelector('.stone-rate');
+            const value = row.querySelector('.stone-value');
+            const fixed = unit === 'fixed';
+            rate.disabled = fixed;
+            if (fixed) rate.value = '';
+            value.readOnly = !fixed;
+            if (!fixed && rate.value !== '') {
+                const weight = Number(row.querySelector('.stone-weight').value || 0);
+                const amount = weight * (unit === 'carat' ? 5 : 1) * Number(rate.value || 0);
+                value.value = (Math.round((amount + Number.EPSILON) * 100) / 100).toFixed(2);
+            }
+        }
+
+        function bindStoneRow(row) {
+            row.addEventListener('input', () => syncStoneRow(row));
+            row.addEventListener('change', () => syncStoneRow(row));
+            syncStoneRow(row);
+        }
+
         function addStoneRow() {
             const index = stoneList.querySelectorAll('.stone-row').length;
             const row = document.createElement('div');
@@ -235,16 +278,25 @@
             [
                 ['Name', 'name', 'Diamond', 'text'],
                 ['Weight g', 'weight', '0.000', 'decimal'],
+                ['Per', 'rate_unit', '', 'unit'],
+                ['Rate / g', 'rate', '0', 'decimal'],
                 ['Value', 'value', '0', 'decimal'],
             ].forEach(([labelText, key, placeholder, mode]) => {
                 const field = document.createElement('div');
                 const label = document.createElement('label');
                 label.textContent = labelText;
-                const input = document.createElement('input');
-                input.className = 'form-control';
+                let input;
+                if (mode === 'unit') {
+                    input = document.createElement('select');
+                    input.className = 'form-select stone-unit';
+                    [['gram', 'Gram'], ['carat', 'Carat'], ['fixed', 'Fixed']].forEach(([value, text]) => input.add(new Option(text, value)));
+                } else {
+                    input = document.createElement('input');
+                    input.className = 'form-control stone-' + key;
+                    input.placeholder = placeholder;
+                    if (mode === 'decimal') input.inputMode = 'decimal';
+                }
                 input.name = 'stones[' + index + '][' + key + ']';
-                input.placeholder = placeholder;
-                if (mode === 'decimal') input.inputMode = 'decimal';
                 field.append(label, input);
                 row.appendChild(field);
             });
@@ -256,9 +308,11 @@
             bindStoneRemove(remove);
             row.appendChild(remove);
             stoneList.appendChild(row);
+            bindStoneRow(row);
         }
 
         document.getElementById('item-stone-add').addEventListener('click', addStoneRow);
         stoneList.querySelectorAll('.bill-remove').forEach(bindStoneRemove);
+        stoneList.querySelectorAll('.stone-row').forEach(bindStoneRow);
     </script>
 @endpush

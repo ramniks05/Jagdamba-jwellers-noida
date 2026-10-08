@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Enums\LedgerDirection;
 use App\Enums\PartyType;
+use App\Models\AdvanceOrder;
 use App\Models\LedgerEntry;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
@@ -57,5 +58,45 @@ class LedgerService
         }
 
         return (string) $balance->toScale(2, RoundingMode::HalfUp);
+    }
+
+    /**
+     * Credit a customer can spend on a bill. Advances held for open orders stay with those orders.
+     *
+     * @param  array<int, int>  $customerIds
+     * @return array<int, string>
+     */
+    public function spendableCredits(array $customerIds): array
+    {
+        $credits = [];
+
+        if ($customerIds === []) {
+            return $credits;
+        }
+
+        $balances = [];
+
+        foreach (LedgerEntry::query()->where('party_type', PartyType::Customer)->whereIn('party_id', $customerIds)->get(['party_id', 'direction', 'amount']) as $row) {
+            $amount = BigDecimal::of((string) $row->amount);
+            $balances[$row->party_id] = ($balances[$row->party_id] ?? BigDecimal::zero())
+                ->plus($row->direction === LedgerDirection::Credit ? $amount : $amount->negated());
+        }
+
+        foreach (AdvanceOrder::query()->whereIn('customer_id', array_keys($balances))->whereIn('status', AdvanceOrder::OPEN)->get(['customer_id', 'advance_paid', 'advance_refunded']) as $order) {
+            $balances[$order->customer_id] = $balances[$order->customer_id]->minus($order->advanceHeld());
+        }
+
+        foreach ($balances as $customerId => $balance) {
+            if ($balance->isPositive()) {
+                $credits[$customerId] = (string) $balance->toScale(2, RoundingMode::HalfUp);
+            }
+        }
+
+        return $credits;
+    }
+
+    public function spendableCredit(int $customerId): string
+    {
+        return $this->spendableCredits([$customerId])[$customerId] ?? '0.00';
     }
 }

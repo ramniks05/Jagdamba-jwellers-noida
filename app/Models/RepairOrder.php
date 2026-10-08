@@ -29,6 +29,26 @@ class RepairOrder extends Model
         ];
     }
 
+    public const OPEN = ['received', 'inspection', 'repairing', 'ready'];
+
+    public function isOpen(): bool
+    {
+        return in_array($this->status, self::OPEN, true);
+    }
+
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'received' => 'Received',
+            'inspection' => 'Inspection',
+            'repairing' => 'Repairing',
+            'ready' => 'Ready to deliver',
+            'delivered' => 'Delivered',
+            'cancelled' => 'Cancelled',
+            default => ucfirst((string) $this->status),
+        };
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);

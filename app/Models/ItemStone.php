@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['company_id', 'item_id', 'name', 'weight', 'value', 'position'])]
+#[Fillable(['company_id', 'item_id', 'name', 'weight', 'value', 'rate', 'rate_unit', 'position'])]
 class ItemStone extends Model
 {
     use BelongsToCompany;
@@ -17,6 +17,7 @@ class ItemStone extends Model
         return [
             'weight' => 'decimal:3',
             'value' => 'decimal:2',
+            'rate' => 'decimal:2',
         ];
     }
 

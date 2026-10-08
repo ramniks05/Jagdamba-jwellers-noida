@@ -22,6 +22,7 @@ enum DocumentType: string
     case Expense = 'expense';
     case Scheme = 'scheme';
     case Girvi = 'girvi';
+    case AdvanceOrder = 'advance_order';
 
     public function label(): string
     {

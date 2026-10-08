@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Commerce;
 
+use App\Enums\PaymentMethod;
 use App\Models\OldGoldExchange;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,8 @@ class OldGoldRequest extends FormRequest
             'testing_result' => ['nullable', 'string', 'max:200'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'refund' => ['required', 'numeric', 'gte:0'],
+            'method' => ['nullable', Rule::enum(PaymentMethod::class)],
+            'reference' => ['nullable', 'string', 'max:80'],
         ];
     }
 }

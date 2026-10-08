@@ -14,7 +14,9 @@ use App\Models\LedgerEntry;
 use App\Services\Commerce\CustomerService;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
+use App\Services\Foundation\NumberFormatService;
 use App\Support\CompanyContext;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,9 +70,48 @@ class CustomerController extends Controller
         return redirect()->route('customers.show', $customer)->with('status', 'Customer saved.');
     }
 
-    public function show(Customer $customer, LedgerService $ledger): View
+    public function show(Request $request, Customer $customer, LedgerService $ledger, NumberFormatService $format, CompanyContext $context): View|JsonResponse
     {
         $this->authorize('view', $customer);
+
+        if ($request->expectsJson()) {
+            $company = $context->company();
+            $balance = $ledger->balance(PartyType::Customer, (int) $customer->id);
+            $totals = $customer->sales()->pluck('total');
+            $billed = $totals->reduce(fn (BigDecimal $sum, $total): BigDecimal => $sum->plus((string) $total), BigDecimal::zero());
+
+            return response()->json([
+                'name' => $customer->name,
+                'code' => $customer->code,
+                'mobile' => $customer->mobile,
+                'email' => $customer->email,
+                'type' => $customer->customer_type?->label(),
+                'kyc' => $customer->kyc_status?->label(),
+                'pan' => $customer->pan,
+                'gstin' => $customer->gstin,
+                'dob' => $customer->dob?->format('d M Y'),
+                'anniversary' => $customer->anniversary?->format('d M Y'),
+                'address' => collect([
+                    $customer->address_line1,
+                    $customer->address_line2,
+                    collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', '),
+                ])->filter()->values(),
+                'notes' => $customer->notes,
+                'walkin' => (bool) $customer->is_system,
+                'balance' => $format->money((string) BigDecimal::of($balance)->abs(), $company),
+                'balance_sign' => BigDecimal::of($balance)->getSign(),
+                'bills_count' => $totals->count(),
+                'bills_total' => $format->money((string) $billed->toScale(2), $company),
+                'recent' => $customer->sales()->orderByDesc('sold_at')->limit(5)->get()->map(fn ($sale): array => [
+                    'number' => $sale->number,
+                    'when' => $sale->sold_at->timezone(config('app.timezone'))->format('d M Y'),
+                    'total' => $format->money((string) $sale->total, $company),
+                    'url' => route('sales.show', $sale),
+                ]),
+                'url' => route('customers.show', $customer),
+                'edit_url' => $request->user()?->can('update', $customer) ? route('customers.edit', $customer) : null,
+            ]);
+        }
 
         return view('commerce.customers.show', [
             'customer' => $customer,

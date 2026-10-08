@@ -13,13 +13,18 @@ use App\Models\Collection;
 use App\Models\Design;
 use App\Models\Item;
 use App\Models\MetalType;
+use App\Models\OldGoldExchange;
 use App\Models\Purity;
 use App\Models\StockLocation;
 use App\Services\Commerce\InventoryService;
 use App\Services\Commerce\ItemService;
+use App\Services\Commerce\OldGoldStockService;
 use App\Support\CompanyContext;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ItemController extends Controller
@@ -46,11 +51,10 @@ class ItemController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', Item::class);
-
-        return view('commerce.items.form', $this->formData(new Item([
+        $item = new Item([
             'gross_weight' => '0.000',
             'stone_weight' => '0.000',
             'other_weight' => '0.000',
@@ -60,18 +64,55 @@ class ItemController extends Controller
             'cost_price' => '0',
             'selling_price' => '0',
             'mrp' => '0',
-        ])));
+        ]);
+        $fromOldGold = $request->filled('from_old_gold')
+            ? OldGoldExchange::query()->with(['metalType', 'purity'])->withSum('pieceMovements', 'gross_weight')->where('uuid', $request->query('from_old_gold'))->first()
+            : null;
+
+        if ($fromOldGold) {
+            $left = BigDecimal::of((string) $fromOldGold->gross_weight)->minus((string) ($fromOldGold->piece_movements_sum_gross_weight ?? '0'))->toScale(3, RoundingMode::HalfUp);
+            $share = $fromOldGold->gross_weight > 0 ? $left->dividedBy((string) $fromOldGold->gross_weight, 10, RoundingMode::HalfUp) : BigDecimal::zero();
+            $item->fill([
+                'name' => 'Old '.$fromOldGold->purity?->name.' '.$fromOldGold->metalType?->name,
+                'gross_weight' => (string) $left,
+                'cost_price' => (string) $share->multipliedBy((string) $fromOldGold->exchange_value)->toScale(2, RoundingMode::HalfUp),
+                'notes' => 'From old gold '.$fromOldGold->number,
+            ]);
+            $item->setRelation('metalType', $fromOldGold->metalType);
+            $item->setRelation('purity', $fromOldGold->purity);
+        }
+
+        return view('commerce.items.form', $this->formData($item) + ['fromOldGold' => $fromOldGold]);
     }
 
-    public function store(ItemRequest $request, ItemService $items, CompanyContext $context): RedirectResponse
+    public function store(ItemRequest $request, ItemService $items, OldGoldStockService $oldGold, CompanyContext $context): RedirectResponse
     {
         $attributes = $request->validated();
+        $exchange = filled($attributes['old_gold_uuid'] ?? null)
+            ? OldGoldExchange::query()->where('uuid', $attributes['old_gold_uuid'])->firstOrFail()
+            : null;
+
+        if ($exchange) {
+            $this->authorize('create', OldGoldExchange::class);
+        }
+
         $attributes['image_path'] = $request->hasFile('image')
             ? $request->file('image')->store('items/'.$context->company()->uuid, 'public')
             : null;
-        $item = $items->create($context->company(), $attributes, $request->user()?->id);
 
-        return redirect()->route('items.show', $item)->with('status', 'Piece saved and added to stock.');
+        $item = DB::transaction(function () use ($items, $oldGold, $context, $attributes, $exchange, $request) {
+            $item = $items->create($context->company(), $attributes, $request->user()?->id, InventoryMovement::Opening, $exchange);
+
+            if ($exchange) {
+                $oldGold->makePiece($exchange, $item, $request->user()?->id);
+            }
+
+            return $item;
+        });
+
+        return redirect()->route('items.show', $item)->with('status', $exchange
+            ? 'Piece saved and added to stock from old gold '.$exchange->number.'.'
+            : 'Piece saved and added to stock.');
     }
 
     public function show(Item $item): View

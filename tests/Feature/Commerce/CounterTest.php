@@ -51,6 +51,7 @@ class CounterTest extends TestCase
             'customer_uuid' => $walkIn->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '500',
+            'making_mode' => 'inside',
             'payments' => [
                 ['method' => 'cash', 'amount' => '20000'],
             ],
@@ -60,6 +61,7 @@ class CounterTest extends TestCase
             'customer_uuid' => $walkIn->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '500',
+            'making_mode' => 'inside',
             'payments' => [
                 ['method' => 'cash', 'amount' => '20000'],
                 ['method' => 'upi', 'amount' => '50555', 'reference' => 'UPI123'],
@@ -110,6 +112,7 @@ class CounterTest extends TestCase
             'customer_uuid' => $customer->uuid,
             'item_ids' => [$second->uuid],
             'discount' => '500',
+            'making_mode' => 'inside',
             'payments' => [
                 ['method' => 'cash', 'amount' => '10000'],
             ],
@@ -145,7 +148,7 @@ class CounterTest extends TestCase
 
         $this->actingAs($cashier)->get(route('items.index'))->assertOk();
         $this->actingAs($cashier)->post(route('items.store'), [])->assertForbidden();
-        $this->actingAs($cashier)->get(route('sales.create'))->assertOk()->assertSee('Search by mobile number or name')->assertSee('Weigh and bill')->assertSee('Ring');
+        $this->actingAs($cashier)->get(route('sales.create'))->assertOk()->assertSee('Find customer')->assertSee('Weigh and bill')->assertSee('Ring');
     }
 
     public function test_the_bill_screen_shows_the_price_and_a_new_piece_can_be_sold_with_it(): void
@@ -173,11 +176,12 @@ class CounterTest extends TestCase
             ->assertOk()
             ->assertSee('RING01')
             ->assertSee('69,000.00')
-            ->assertSee('Search by mobile number or name');
+            ->assertSee('Find customer');
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $walkIn->uuid,
             'discount' => '0',
+            'making_mode' => 'inside',
             'new_piece' => [
                 'name' => 'Counter bangle',
                 'metal_uuid' => $gold->uuid,

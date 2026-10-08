@@ -27,6 +27,7 @@ class OldGoldService
         private readonly OldGoldPricer $pricer,
         private readonly LedgerService $ledger,
         private readonly DocumentNumberService $numbers,
+        private readonly OldGoldStockService $stock,
     ) {}
 
     /**
@@ -83,6 +84,7 @@ class OldGoldService
                 'notes' => trim((string) ($attributes['notes'] ?? '')) ?: null,
                 'user_id' => $userId,
             ]);
+            $this->stock->receive($exchange, $userId);
             $this->ledger->post(
                 (int) $company->id,
                 PartyType::Customer,
@@ -119,8 +121,9 @@ class OldGoldService
                     'customer_id' => $customer->id,
                     'number' => $voucher->number,
                     'direction' => 'out',
-                    'method' => PaymentMethod::Cash,
+                    'method' => PaymentMethod::tryFrom((string) ($attributes['method'] ?? '')) ?? PaymentMethod::Cash,
                     'amount' => (string) $refund,
+                    'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
                     'narration' => 'Old gold refund '.$exchange->number,
                     'received_at' => now(),
                     'user_id' => $userId,

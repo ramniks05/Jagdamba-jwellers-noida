@@ -23,7 +23,14 @@
                 <div class="small text-secondary">Other {{ $item->other_weight }} g</div>
                 @forelse ($item->stones as $stone)
                     <div class="d-flex justify-content-between small mt-2">
-                        <span>{{ $stone->name }} · {{ $stone->weight }} g</span>
+                        <span>
+                            {{ $stone->name }} · {{ $stone->weight }} g
+                            @if ($stone->rate !== null && $stone->rate_unit === 'carat')
+                                ({{ App\Support\StoneRate::carats((string) $stone->weight) }} ct × {{ $stone->rate }}/ct)
+                            @elseif ($stone->rate !== null && $stone->rate_unit === 'gram')
+                                × {{ $stone->rate }}/g
+                            @endif
+                        </span>
                         <span>{{ $stone->value }}</span>
                     </div>
                 @empty

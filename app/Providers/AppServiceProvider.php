@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\AdvanceOrder;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ChargeMethod;
@@ -26,6 +27,7 @@ use App\Models\StoneGrade;
 use App\Models\StoneType;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Policies\AdvanceOrderPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\GirviPolicy;
 use App\Policies\ItemPolicy;
@@ -104,6 +106,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(RepairOrder::class, RepairPolicy::class);
         Gate::policy(GoldScheme::class, SchemePolicy::class);
         Gate::policy(GirviPledge::class, GirviPolicy::class);
+        Gate::policy(AdvanceOrder::class, AdvanceOrderPolicy::class);
         Gate::policy(SchemeEnrollment::class, SchemePolicy::class);
 
         Gate::before(function (User $user, string $ability) {

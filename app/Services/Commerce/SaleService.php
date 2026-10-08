@@ -8,9 +8,11 @@ use App\Enums\ItemStatus;
 use App\Enums\LedgerDirection;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
+use App\Models\AdvanceOrder;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
+use App\Models\MetalRate;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleLine;
@@ -39,10 +41,11 @@ class SaleService
     /**
      * @return array{ready: bool, message?: string, rate?: string, metal?: string, wastage?: string, making?: string, stone?: string, line?: string}
      */
-    public function quote(Item $item): array
+    public function quote(Item $item, ?AdvanceOrder $order = null): array
     {
         $item->loadMissing(['metalType', 'purity', 'makingMethod', 'wastageMethod']);
-        $rate = $this->rates->current((int) $item->metal_type_id, (int) $item->purity_id, (int) $item->branch_id);
+        $rate = $this->orderRate($order, $item)
+            ?? $this->rates->current((int) $item->metal_type_id, (int) $item->purity_id, (int) $item->branch_id);
 
         if (! $rate || ! $item->metalType || ! $item->purity) {
             $metal = $item->metalType?->name ?: 'this metal';
@@ -80,6 +83,24 @@ class SaleService
                 throw ValidationException::withMessages([
                     'customer_uuid' => 'Choose a customer.',
                 ]);
+            }
+
+            $order = null;
+
+            if (! empty($attributes['order_uuid'])) {
+                $order = AdvanceOrder::query()->where('uuid', $attributes['order_uuid'])->lockForUpdate()->first();
+
+                if (! $order || ! $order->isOpen()) {
+                    throw ValidationException::withMessages([
+                        'order_uuid' => 'This order is not open any more.',
+                    ]);
+                }
+
+                if ((int) $order->customer_id !== (int) $customer->id) {
+                    throw ValidationException::withMessages([
+                        'customer_uuid' => 'Order '.$order->number.' is booked for another customer.',
+                    ]);
+                }
             }
 
             $uuids = array_values(array_unique($attributes['item_ids'] ?? []));
@@ -127,6 +148,7 @@ class SaleService
 
             $lines = [];
             $linesTotal = BigDecimal::zero();
+            $makingTotal = BigDecimal::zero();
 
             foreach ($items as $item) {
                 $piece = $locked[$item->id];
@@ -137,7 +159,8 @@ class SaleService
                     ]);
                 }
 
-                $rate = $this->rates->current((int) $piece->metal_type_id, (int) $piece->purity_id, (int) $piece->branch_id);
+                $rate = $this->orderRate($order, $piece)
+                    ?? $this->rates->current((int) $piece->metal_type_id, (int) $piece->purity_id, (int) $piece->branch_id);
 
                 if (! $rate) {
                     throw ValidationException::withMessages([
@@ -149,13 +172,20 @@ class SaleService
 
                 $lines[] = ['item' => $piece, 'display' => $item, 'rate' => $rate, 'priced' => $priced];
                 $linesTotal = $linesTotal->plus($priced['line_amount']);
+                $makingTotal = $makingTotal->plus($priced['making_amount']);
             }
 
             $exclusive = $this->settings->get('invoice.tax_display', $company) !== 'inclusive';
-            $bill = $this->pricer->bill(
+            $makingMode = in_array($attributes['making_mode'] ?? null, ['inside', 'separate', 'processing'], true)
+                ? $attributes['making_mode']
+                : (string) ($this->settings->get('pricing.making_mode', $company) ?? 'inside');
+            $bill = $this->pricer->billWithMaking(
                 (string) $linesTotal->toScale(2, RoundingMode::HalfUp),
+                (string) $makingTotal->toScale(2, RoundingMode::HalfUp),
                 (string) ($attributes['discount'] ?? '0'),
                 (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
+                $makingMode,
+                (string) ($this->settings->get('pricing.making_gst_percent', $company) ?? '0'),
                 $exclusive,
                 (bool) $this->settings->get('pricing.round_rupee', $company),
             );
@@ -182,10 +212,18 @@ class SaleService
             }
 
             $total = BigDecimal::of($bill->total);
+            $advance = BigDecimal::zero();
 
-            if ($paid->isGreaterThan($total)) {
+            if ($order) {
+                $advance = BigDecimal::of($order->advanceHeld());
+                $advance = $advance->isGreaterThan($total) ? $total : $advance;
+            }
+
+            if ($paid->plus($advance)->isGreaterThan($total)) {
                 throw ValidationException::withMessages([
-                    'payments' => 'Payments are more than the bill total.',
+                    'payments' => $advance->isPositive()
+                        ? 'Payments are more than the bill total after the advance of '.$advance.'.'
+                        : 'Payments are more than the bill total.',
                 ]);
             }
 
@@ -193,6 +231,22 @@ class SaleService
                 throw ValidationException::withMessages([
                     'payments' => 'A walk-in bill must be paid in full.',
                 ]);
+            }
+
+            $credit = BigDecimal::of(trim((string) ($attributes['use_credit'] ?? '')) === '' ? '0' : (string) $attributes['use_credit'])
+                ->toScale(2, RoundingMode::HalfUp);
+
+            if ($credit->isPositive()) {
+                $spendable = BigDecimal::of($this->ledger->spendableCredit((int) $customer->id));
+
+                if ($customer->is_system || $credit->isGreaterThan($spendable)) {
+                    throw ValidationException::withMessages([
+                        'use_credit' => 'This customer has only '.$spendable->toScale(2).' of old gold or credit to use.',
+                    ]);
+                }
+
+                $remaining = $total->minus($paid)->minus($advance);
+                $credit = $credit->isGreaterThan($remaining) ? $remaining->toScale(2, RoundingMode::HalfUp) : $credit;
             }
 
             $branch = $items->first()->branch;
@@ -209,10 +263,16 @@ class SaleService
                 'taxable_amount' => $bill->taxableAmount,
                 'tax_percent' => (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
                 'tax_amount' => $bill->taxAmount,
+                'making_mode' => $makingMode,
+                'making_amount' => $bill->makingAmount,
+                'making_tax_percent' => $bill->makingTaxPercent,
+                'making_tax_amount' => $bill->makingTaxAmount,
                 'prices_include_tax' => ! $exclusive,
                 'round_off' => $bill->roundOff,
                 'total' => $bill->total,
-                'paid_amount' => (string) $paid->toScale(2, RoundingMode::HalfUp),
+                'paid_amount' => (string) $paid->plus($advance)->plus($credit)->toScale(2, RoundingMode::HalfUp),
+                'advance_amount' => (string) $advance->toScale(2, RoundingMode::HalfUp),
+                'credit_amount' => (string) $credit,
                 'notes' => trim((string) ($attributes['notes'] ?? '')) ?: null,
                 'user_id' => $userId,
             ]);
@@ -251,6 +311,8 @@ class SaleService
                         'name' => $stone->name,
                         'weight' => $stone->weight,
                         'value' => $stone->value,
+                        'rate' => $stone->rate,
+                        'rate_unit' => $stone->rate_unit,
                         'position' => $index,
                     ]);
                 }
@@ -304,8 +366,26 @@ class SaleService
                 );
             }
 
+            if ($order) {
+                $order->status = 'delivered';
+                $order->delivered_at = now();
+                $order->sale_id = $sale->id;
+                $order->save();
+            }
+
             return $sale->load(['lines.stones', 'payments', 'customer', 'branch']);
         });
+    }
+
+    private function orderRate(?AdvanceOrder $order, Item $piece): ?MetalRate
+    {
+        if (! $order
+            || (int) $order->metal_type_id !== (int) $piece->metal_type_id
+            || (int) $order->purity_id !== (int) $piece->purity_id) {
+            return null;
+        }
+
+        return $order->metalRate;
     }
 
     /**

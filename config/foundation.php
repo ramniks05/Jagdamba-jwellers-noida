@@ -217,6 +217,27 @@ return [
             'default' => '3',
             'rules' => ['required', 'numeric', 'gte:0', 'lte:100'],
         ],
+        'pricing.making_mode' => [
+            'group' => 'pricing',
+            'label' => 'Making charge on the bill',
+            'help' => 'The default for new bills. It can be changed on each bill. Processing charge has no GST.',
+            'type' => 'string',
+            'default' => 'processing',
+            'rules' => ['required', 'string', 'in:inside,separate,processing'],
+            'options' => [
+                'inside' => 'Making inside jewellery GST',
+                'separate' => 'Making with its own GST',
+                'processing' => 'Processing charge, no GST',
+            ],
+        ],
+        'pricing.making_gst_percent' => [
+            'group' => 'pricing',
+            'label' => 'Making GST percent',
+            'help' => 'Used only when making has its own GST.',
+            'type' => 'decimal',
+            'default' => '5',
+            'rules' => ['required', 'numeric', 'gte:0', 'lte:100'],
+        ],
         'pricing.round_rupee' => [
             'group' => 'pricing',
             'label' => 'Round the bill to the nearest rupee',
@@ -273,6 +294,7 @@ return [
         'expense' => ['label' => 'Expense voucher', 'prefix' => 'EXP', 'reset' => 'financial_year'],
         'scheme' => ['label' => 'Gold scheme', 'prefix' => 'SCH', 'reset' => 'financial_year'],
         'girvi' => ['label' => 'Girvi', 'prefix' => 'GRV', 'reset' => 'financial_year'],
+        'advance_order' => ['label' => 'Advance order', 'prefix' => 'ORD', 'reset' => 'financial_year'],
     ],
 
 ];

@@ -9,6 +9,7 @@ use App\Enums\PaymentMethod;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Payment;
+use App\Models\Sale;
 use App\Models\Supplier;
 use App\Services\Foundation\DocumentNumberService;
 use App\Support\CompanyContext;
@@ -81,6 +82,69 @@ class PaymentService
                 $payment,
                 $userId,
             );
+
+            return $payment;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function receiveForSale(Sale $sale, array $attributes, ?int $userId = null): Payment
+    {
+        return DB::transaction(function () use ($sale, $attributes, $userId) {
+            $this->context->ensureId((int) $sale->company_id);
+            $locked = Sale::query()->whereKey($sale->getKey())->lockForUpdate()->firstOrFail();
+            $amount = BigDecimal::of((string) $attributes['amount'])->toScale(2, RoundingMode::HalfUp);
+            $due = BigDecimal::of($locked->balanceDue());
+
+            if ($amount->isNegativeOrZero()) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter an amount more than zero.',
+                ]);
+            }
+
+            if ($due->isNegativeOrZero()) {
+                throw ValidationException::withMessages([
+                    'amount' => 'This invoice is already fully paid.',
+                ]);
+            }
+
+            if ($amount->isGreaterThan($due)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'The amount is more than the balance due of '.$due.'.',
+                ]);
+            }
+
+            $receipt = $this->numbers->issue($this->numbers->for(DocumentType::Receipt, $locked->branch));
+            $payment = Payment::query()->create([
+                'company_id' => $locked->company_id,
+                'branch_id' => $locked->branch_id,
+                'sale_id' => $locked->id,
+                'customer_id' => $locked->customer_id,
+                'number' => $receipt->number,
+                'direction' => 'in',
+                'method' => PaymentMethod::from($attributes['method']),
+                'amount' => (string) $amount,
+                'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
+                'narration' => 'Received against '.$locked->number,
+                'received_at' => now(),
+                'user_id' => $userId,
+            ]);
+
+            $this->ledger->post(
+                (int) $locked->company_id,
+                PartyType::Customer,
+                (int) $locked->customer_id,
+                LedgerDirection::Credit,
+                (string) $amount,
+                'Receipt '.$payment->number,
+                $payment,
+                $userId,
+            );
+
+            $locked->paid_amount = (string) BigDecimal::of((string) $locked->paid_amount)->plus($amount)->toScale(2, RoundingMode::HalfUp);
+            $locked->save();
 
             return $payment;
         });

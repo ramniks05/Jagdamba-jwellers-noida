@@ -142,22 +142,30 @@ class SaleReturnService
      */
     private function amounts(Sale $sale, array $lines): array
     {
-        $base = BigDecimal::of((string) $sale->lines_amount);
-        $remaining = BigDecimal::of((string) $sale->total);
-        $last = array_key_last($lines);
-        $amounts = [];
+        $all = $sale->lines->sortBy('id')->values();
+        $base = $all->reduce(fn (BigDecimal $sum, SaleLine $line) => $sum->plus((string) $line->line_amount), BigDecimal::zero());
+        $total = BigDecimal::of((string) $sale->total);
+        $remaining = $total;
+        $lastId = $all->last()->id;
+        $shares = [];
 
-        foreach ($lines as $index => $line) {
-            if ($index === $last || $base->isZero()) {
+        foreach ($all as $line) {
+            if ($line->id === $lastId) {
                 $share = $remaining;
+            } elseif ($base->isZero()) {
+                $share = BigDecimal::zero();
             } else {
-                $share = BigDecimal::of((string) $sale->total)
-                    ->multipliedBy((string) $line->line_amount)
-                    ->dividedBy($base, 2, RoundingMode::HalfUp);
-                $remaining = $remaining->minus($share);
+                $share = $total->multipliedBy((string) $line->line_amount)->dividedBy($base, 2, RoundingMode::HalfUp);
             }
 
-            $amounts[$line->id] = (string) $share->toScale(2, RoundingMode::HalfUp);
+            $remaining = $remaining->minus($share);
+            $shares[$line->id] = (string) $share->toScale(2, RoundingMode::HalfUp);
+        }
+
+        $amounts = [];
+
+        foreach ($lines as $line) {
+            $amounts[$line->id] = $shares[$line->id];
         }
 
         return $amounts;

@@ -11,13 +11,17 @@ use App\Models\GirviPledge;
 use App\Models\GoldScheme;
 use App\Models\Item;
 use App\Models\MetalType;
+use App\Models\OldGoldExchange;
+use App\Models\OldGoldMovement;
 use App\Models\Purity;
 use App\Models\RepairOrder;
+use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\StockLocation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Commerce\LedgerService;
+use App\Services\Commerce\OldGoldStockService;
 use App\Support\CompanyContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -114,6 +118,156 @@ class WorkshopTest extends TestCase
         $this->assertSame('-58700.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
     }
 
+    public function test_old_gold_credit_comes_off_the_next_bill_but_order_advances_stay_with_the_order(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $ledger = app(LedgerService::class);
+
+        $this->actingAs($owner)->post(route('old-gold.store'), [
+            'customer_uuid' => $customer->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'gross_weight' => '10',
+            'rate_per_gram' => '6000',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($owner)->post(route('orders.store'), [
+            'customer_uuid' => $customer->uuid,
+            'description' => 'Bridal ring',
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'expected_weight' => '10',
+            'estimated_making' => '0',
+            'advance' => '10000',
+            'method' => 'cash',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+        $this->assertSame('60000.00', $ledger->spendableCredit((int) $customer->id));
+
+        $this->actingAs($owner)->post(route('items.store'), $this->plainPiece($gold, $purity, 'COIN01'))->assertRedirect();
+        $this->actingAs($owner)->post(route('items.store'), $this->plainPiece($gold, $purity, 'COIN02'))->assertRedirect();
+        $this->seeShop($owner);
+        $first = Item::query()->where('item_code', 'COIN01')->firstOrFail();
+        $second = Item::query()->where('item_code', 'COIN02')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $customer->uuid,
+            'item_ids' => [$first->uuid],
+            'use_credit' => '60000',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $this->assertSame('51500.00', (string) $sale->credit_amount);
+        $this->assertSame('0.00', $sale->balanceDue());
+        $this->assertSame('8500.00', $ledger->spendableCredit((int) $customer->id));
+        $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertSee('Old gold / credit adjusted');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $customer->uuid,
+            'item_ids' => [$second->uuid],
+            'use_credit' => '9000',
+        ])->assertSessionHasErrors('use_credit');
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $walkIn->uuid,
+            'item_ids' => [$second->uuid],
+            'use_credit' => '100',
+            'payments' => [['method' => 'cash', 'amount' => '51400']],
+        ])->assertSessionHasErrors();
+        $this->seeShop($owner);
+        $this->assertSame(1, Sale::query()->count());
+    }
+
+    public function test_old_gold_can_be_paid_by_upi_and_printed(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+
+        $this->actingAs($owner)->post(route('old-gold.store'), [
+            'customer_uuid' => $customer->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'gross_weight' => '10',
+            'melting_loss_percent' => '2',
+            'rate_per_gram' => '6000',
+            'refund' => '20000',
+            'method' => 'upi',
+            'reference' => 'UPI777',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $exchange = OldGoldExchange::query()->firstOrFail();
+        $payment = $exchange->payments()->firstOrFail();
+        $this->assertSame('upi', $payment->method->value);
+        $this->assertSame('UPI777', $payment->reference);
+        $this->assertSame('-38800.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->actingAs($owner)->get(route('old-gold.show', $exchange))->assertOk()->assertSee('Old gold purchase voucher')->assertSee('UPI777');
+        $this->actingAs($owner)->get(route('old-gold.index', ['search' => 'Meera']))->assertOk()->assertSee($exchange->number);
+    }
+
+    public function test_old_gold_goes_into_old_gold_stock_and_can_become_a_piece_or_be_sent_out(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('old-gold.store'), [
+            'customer_uuid' => $customer->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'gross_weight' => '20',
+            'rate_per_gram' => '6000',
+            'refund' => '0',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $exchange = OldGoldExchange::query()->firstOrFail();
+        $stock = app(OldGoldStockService::class);
+        $this->assertSame('20.000', $stock->balances()->first()['gross']);
+        $this->assertSame('120000.00', $stock->balances()->first()['value']);
+
+        $this->actingAs($owner)->get(route('items.create', ['from_old_gold' => $exchange->uuid]))
+            ->assertOk()->assertSee('Making a stock piece from old gold')->assertSee($exchange->uuid);
+        $this->actingAs($owner)->post(route('items.store'), [
+            'name' => 'Old bangle',
+            'item_code' => 'OLD-1',
+            'old_gold_uuid' => $exchange->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'location_uuid' => $location->uuid,
+            'gross_weight' => '8',
+            'cost_price' => '48000',
+            'selling_price' => '60000',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $item = Item::query()->where('item_code', 'OLD-1')->firstOrFail();
+        $this->assertSame(ItemStatus::Available, $item->status);
+        $this->assertSame('12.000', $stock->balances()->first()['gross']);
+        $this->assertSame('72000.00', $stock->balances()->first()['value']);
+        $this->actingAs($owner)->get(route('old-gold.show', $exchange))->assertOk()->assertSee('OLD-1');
+
+        $this->actingAs($owner)->post(route('old-gold.stock.send'), [
+            'purity_uuid' => $purity->uuid,
+            'kind' => 'refiner',
+            'gross_weight' => '13',
+            'fine_weight' => '13',
+        ])->assertSessionHasErrors('gross_weight');
+
+        $this->actingAs($owner)->post(route('old-gold.stock.send'), [
+            'purity_uuid' => $purity->uuid,
+            'kind' => 'refiner',
+            'party' => 'Shree Refinery',
+            'gross_weight' => '12',
+            'fine_weight' => '12',
+        ])->assertRedirect(route('old-gold.stock'))->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $this->assertTrue($stock->balances()->isEmpty());
+        $this->assertSame('72000.00', (string) OldGoldMovement::query()->where('kind', 'refiner')->value('value'));
+        $this->actingAs($owner)->get(route('old-gold.stock'))->assertOk()->assertSee('Shree Refinery')->assertSee('OLD-1');
+    }
+
     public function test_a_repair_is_charged_when_it_is_delivered(): void
     {
         [$owner] = $this->counter();
@@ -145,6 +299,31 @@ class WorkshopTest extends TestCase
         $this->assertSame('delivered', $repair->status);
         $this->assertSame('12.500', (string) $repair->gross_weight);
         $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $walkIn->id));
+    }
+
+    public function test_a_quick_repair_can_be_marked_ready_straight_away(): void
+    {
+        [$owner] = $this->counter();
+        $customer = $this->customer($owner);
+
+        $this->actingAs($owner)->post(route('repairs.store'), [
+            'customer_uuid' => $customer->uuid,
+            'description' => 'Ring',
+            'problem' => 'Polish',
+            'gross_weight' => '4.2',
+            'estimated_cost' => '300',
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $repair = RepairOrder::query()->firstOrFail();
+        $this->actingAs($owner)->post(route('repairs.status', $repair), ['status' => 'ready'])->assertRedirect();
+        $this->assertSame('ready', $repair->refresh()->status);
+
+        $this->actingAs($owner)->get(route('repairs.index', ['show' => 'ready']))->assertOk()->assertSee($repair->number);
+        $this->actingAs($owner)->get(route('repairs.index', ['show' => 'delivered']))->assertOk()->assertDontSee($repair->number);
+        $this->actingAs($owner)->get(route('repairs.show', $repair))->assertOk()->assertSee('Deliver and collect');
+
+        $this->actingAs($owner)->post(route('repairs.status', $repair), ['status' => 'cancelled'])->assertSessionHasErrors();
     }
 
     public function test_a_scheme_matures_only_after_every_installment(): void

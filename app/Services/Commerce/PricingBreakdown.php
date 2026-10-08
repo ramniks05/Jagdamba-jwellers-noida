@@ -12,5 +12,9 @@ final class PricingBreakdown
         public readonly string $exactTotal,
         public readonly string $roundOff,
         public readonly string $total,
+        public readonly string $makingMode = 'inside',
+        public readonly string $makingAmount = '0.00',
+        public readonly string $makingTaxPercent = '0',
+        public readonly string $makingTaxAmount = '0.00',
     ) {}
 }

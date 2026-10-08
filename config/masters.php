@@ -75,7 +75,6 @@ return [
         ['applies_to' => 'making', 'code' => 'per_gram', 'name' => 'Per gram'],
         ['applies_to' => 'making', 'code' => 'percentage', 'name' => 'Percentage'],
         ['applies_to' => 'making', 'code' => 'fixed', 'name' => 'Fixed amount'],
-        ['applies_to' => 'making', 'code' => 'per_piece', 'name' => 'Per piece'],
         ['applies_to' => 'wastage', 'code' => 'percentage', 'name' => 'Percentage'],
         ['applies_to' => 'wastage', 'code' => 'per_gram', 'name' => 'Per gram'],
         ['applies_to' => 'wastage', 'code' => 'fixed', 'name' => 'Fixed'],

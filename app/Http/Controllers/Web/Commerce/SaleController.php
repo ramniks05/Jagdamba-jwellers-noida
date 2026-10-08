@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Web\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Enums\ItemStatus;
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Commerce\ReceiptRequest;
 use App\Http\Requests\Commerce\SaleRequest;
 use App\Http\Requests\Commerce\SaleReturnRequest;
+use App\Models\AdvanceOrder;
 use App\Models\Category;
 use App\Models\ChargeMethod;
 use App\Models\Customer;
@@ -17,6 +20,8 @@ use App\Models\Sale;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
 use App\Models\Company;
+use App\Services\Commerce\LedgerService;
+use App\Services\Commerce\PaymentService;
 use App\Services\Commerce\SaleReturnService;
 use App\Services\Commerce\SaleService;
 use App\Services\Foundation\NumberFormatService;
@@ -89,24 +94,30 @@ class SaleController extends Controller
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 ? $date : null;
     }
 
-    public function create(Request $request, SaleService $sales, SettingService $settings, NumberFormatService $format, CompanyContext $context): View
+    public function create(Request $request, SaleService $sales, LedgerService $ledger, SettingService $settings, NumberFormatService $format, CompanyContext $context): View
     {
         $this->authorize('create', Sale::class);
         $company = $context->company();
         $search = trim((string) $request->query('search', ''));
+        $order = $request->filled('order')
+            ? AdvanceOrder::query()->with(['customer', 'metalType', 'purity'])->where('uuid', (string) $request->query('order'))->whereIn('status', AdvanceOrder::OPEN)->first()
+            : null;
         $items = Item::query()
             ->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones'])
             ->where('status', ItemStatus::Available)
             ->orderBy('item_code')
             ->limit(300)
             ->get();
+        $customers = Customer::query()->where('is_active', true)->orderBy('name')->get();
 
         return view('commerce.sales.create', [
             'search' => $search,
-            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(),
+            'order' => $order,
+            'customers' => $customers,
+            'credits' => $ledger->spendableCredits($customers->where('is_system', false)->modelKeys()),
             'rows' => $items->map(fn (Item $item): array => [
                 'item' => $item,
-                'quote' => $sales->quote($item),
+                'quote' => $sales->quote($item, $order),
             ]),
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'metals' => MetalType::query()->with('purities')->where('is_active', true)->orderBy('name')->get(),
@@ -115,6 +126,8 @@ class SaleController extends Controller
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
             'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
+            'makingMode' => (string) old('making_mode', $settings->get('pricing.making_mode', $company) ?? 'inside'),
+            'makingGstPercent' => (string) ($settings->get('pricing.making_gst_percent', $company) ?? '0'),
             'taxExclusive' => $settings->get('invoice.tax_display', $company) !== 'inclusive',
             'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
             'money' => fn (string $amount): string => $format->money($amount, $company),
@@ -133,7 +146,7 @@ class SaleController extends Controller
     {
         $this->authorize('view', $sale);
         $company = $context->company();
-        $sale->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch']);
+        $sale->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
 
         return view('commerce.sales.show', [
             'sale' => $sale,
@@ -144,6 +157,8 @@ class SaleController extends Controller
             'showLogo' => (bool) $settings->get('invoice.show_logo', $company),
             'amountWords' => RupeesInWords::format((string) $sale->total),
             'taxes' => $this->taxRows($sale, $company),
+            'makingLines' => (string) $sale->lines->reduce(fn (BigDecimal $sum, $line) => $sum->plus((string) $line->making_amount), BigDecimal::zero()),
+            'methods' => PaymentMethod::cases(),
             'money' => fn (string $amount) => $format->money($amount, $company),
             'weight' => fn (string $amount) => $format->weight($amount, $company),
         ]);
@@ -154,15 +169,35 @@ class SaleController extends Controller
      */
     private function taxRows(Sale $sale, Company $company): array
     {
-        $tax = BigDecimal::of((string) $sale->tax_amount);
-        $percent = (float) $sale->tax_percent;
+        $makingTax = BigDecimal::of((string) $sale->making_tax_amount);
+        $split = $sale->making_mode !== 'inside';
+        $rows = $this->taxPair(
+            $sale,
+            $company,
+            BigDecimal::of((string) $sale->tax_amount)->minus($makingTax),
+            (float) $sale->tax_percent,
+            $split ? ' on jewellery' : '',
+        );
+
+        if ($makingTax->isPositive()) {
+            $rows = array_merge($rows, $this->taxPair($sale, $company, $makingTax, (float) $sale->making_tax_percent, ' on making'));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{label: string, amount: string}>
+     */
+    private function taxPair(Sale $sale, Company $company, BigDecimal $tax, float $percent, string $suffix): array
+    {
         $customerState = mb_strtolower(trim((string) $sale->customer?->state));
         $shopState = mb_strtolower(trim((string) $company->state));
         $interstate = $customerState !== '' && $shopState !== '' && $customerState !== $shopState;
 
         if ($interstate) {
             return [[
-                'label' => 'IGST '.$this->percentLabel($percent).'%',
+                'label' => 'IGST '.$this->percentLabel($percent).'%'.$suffix,
                 'amount' => (string) $tax,
             ]];
         }
@@ -170,8 +205,8 @@ class SaleController extends Controller
         $half = $tax->dividedBy(2, 2, RoundingMode::HalfUp);
 
         return [
-            ['label' => 'CGST '.$this->percentLabel($percent / 2).'%', 'amount' => (string) $half],
-            ['label' => 'SGST '.$this->percentLabel($percent / 2).'%', 'amount' => (string) $tax->minus($half)],
+            ['label' => 'CGST '.$this->percentLabel($percent / 2).'%'.$suffix, 'amount' => (string) $half],
+            ['label' => 'SGST '.$this->percentLabel($percent / 2).'%'.$suffix, 'amount' => (string) $tax->minus($half)],
         ];
     }
 
@@ -180,6 +215,14 @@ class SaleController extends Controller
         $label = rtrim(rtrim(number_format($percent, 2, '.', ''), '0'), '.');
 
         return $label === '' ? '0' : $label;
+    }
+
+    public function payment(ReceiptRequest $request, Sale $sale, PaymentService $payments): RedirectResponse
+    {
+        $this->authorize('view', $sale);
+        $payment = $payments->receiveForSale($sale, $request->validated(), $request->user()?->id);
+
+        return redirect()->route('sales.show', $sale)->with('status', 'Receipt '.$payment->number.' saved for '.$sale->number.'.');
     }
 
     public function returnSale(SaleReturnRequest $request, Sale $sale, SaleReturnService $returns): RedirectResponse

@@ -16,7 +16,47 @@
             $sale->customer?->postal_code,
         ])->filter()->implode(', ');
         $phones = collect([$company->phone, $company->mobile])->filter()->implode(' · ');
+        $due = $sale->balanceDue();
     @endphp
+    @if ((float) $due > 0)
+        @can('create', App\Models\Payment::class)
+            <form class="card due-pay mb-3 no-print" method="POST" action="{{ route('sales.payments.store', $sale) }}">
+                @csrf
+                <div class="card-body">
+                    <div class="due-pay-head">
+                        <div>
+                            <div class="stat-label">Balance due on {{ $sale->number }}</div>
+                            <div class="due-pay-amount">{{ $money($due) }}</div>
+                        </div>
+                        <div class="text-secondary small">Total {{ $money((string) $sale->total) }} · Paid {{ $money((string) $sale->paid_amount) }}</div>
+                    </div>
+                    <div class="due-pay-row">
+                        <div>
+                            <label class="form-label" for="due-method">Paid by</label>
+                            <select class="form-select" id="due-method" name="method" required>
+                                @foreach ($methods as $method)
+                                    <option value="{{ $method->value }}" @selected(old('method') === $method->value)>{{ $method->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" for="due-amount">Amount ₹</label>
+                            <input class="form-control @error('amount') is-invalid @enderror" id="due-amount" name="amount" inputmode="decimal" value="{{ old('amount', $due) }}" required>
+                            @error('amount')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="form-label" for="due-reference">Reference</label>
+                            <input class="form-control" id="due-reference" name="reference" value="{{ old('reference') }}" placeholder="UPI ref, cheque no.">
+                        </div>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-cash-coin"></i> Receive payment</button>
+                    </div>
+                    <div class="form-text">Change the amount if the customer pays only part of the due.</div>
+                </div>
+            </form>
+        @endcan
+    @endif
     <article class="invoice-sheet">
         <header class="invoice-head">
             <div class="invoice-brand">
@@ -73,7 +113,7 @@
                     <th class="num">Gross</th>
                     <th class="num">Net</th>
                     <th class="num">Rate / g</th>
-                    <th class="num">Making</th>
+                    <th class="num">{{ $sale->makingLabel() }}</th>
                     <th class="num">Amount</th>
                 </tr>
             </thead>
@@ -90,7 +130,17 @@
                                     <div><span>Wastage</span><strong>{{ $money((string) $line->wastage_amount) }}</strong></div>
                                 @endif
                                 @forelse ($line->stones as $stone)
-                                    <div><span>{{ $stone->name }} · {{ $weight((string) $stone->weight) }}</span><strong>{{ $money((string) $stone->value) }}</strong></div>
+                                    <div>
+                                        <span>
+                                            {{ $stone->name }} · {{ $weight((string) $stone->weight) }}
+                                            @if ($stone->rate !== null && $stone->rate_unit === 'carat')
+                                                ({{ App\Support\StoneRate::carats((string) $stone->weight) }} ct × {{ $money((string) $stone->rate) }}/ct)
+                                            @elseif ($stone->rate !== null && $stone->rate_unit === 'gram')
+                                                × {{ $money((string) $stone->rate) }}/g
+                                            @endif
+                                        </span>
+                                        <strong>{{ $money((string) $stone->value) }}</strong>
+                                    </div>
                                 @empty
                                     @if ((float) $line->stone_amount > 0)
                                         <div><span>Stone</span><strong>{{ $money((string) $line->stone_amount) }}</strong></div>
@@ -116,15 +166,35 @@
                 @if ($sale->payments->isNotEmpty())
                     <div class="invoice-kicker">Received</div>
                     @foreach ($sale->payments as $payment)
-                        <div>{{ $payment->method->label() }} {{ $money((string) $payment->amount) }}@if ($payment->reference) · {{ $payment->reference }}@endif</div>
+                        <div>{{ $payment->received_at?->timezone(config('app.timezone'))->format('d-m-Y') }} · {{ $payment->number }} · {{ $payment->method->label() }} {{ $money((string) $payment->amount) }}@if ($payment->reference) · {{ $payment->reference }}@endif</div>
                     @endforeach
                 @endif
             </div>
             <table class="invoice-totals">
                 <tr>
-                    <td>Taxable value</td>
-                    <td>{{ $money((string) $sale->lines_amount) }}</td>
+                    <td>Net weight</td>
+                    <td>{{ $weight((string) $sale->lines->reduce(fn ($sum, $line) => $sum->plus((string) $line->net_weight), Brick\Math\BigDecimal::zero())) }}</td>
                 </tr>
+                <tr>
+                    <td>Net metal value</td>
+                    <td>{{ $money((string) $sale->lines->reduce(fn ($sum, $line) => $sum->plus((string) $line->metal_amount), Brick\Math\BigDecimal::zero())->toScale(2)) }}</td>
+                </tr>
+                @if ($sale->making_mode === 'inside')
+                    <tr>
+                        <td>Taxable value</td>
+                        <td>{{ $money((string) $sale->lines_amount) }}</td>
+                    </tr>
+                @else
+                    @php($jewelleryValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($makingLines)->toScale(2))
+                    <tr>
+                        <td>Jewellery value</td>
+                        <td>{{ $money($jewelleryValue) }}</td>
+                    </tr>
+                    <tr>
+                        <td>{{ $sale->making_mode === 'processing' ? 'Processing charge (no GST)' : 'Making charge' }}</td>
+                        <td>{{ $money($makingLines) }}</td>
+                    </tr>
+                @endif
                 @if ((float) $sale->discount_amount !== 0.0)
                     <tr>
                         <td>Discount</td>
@@ -147,13 +217,25 @@
                     <td>Total</td>
                     <td>{{ $money((string) $sale->total) }}</td>
                 </tr>
+                @if ((float) $sale->advance_amount > 0)
+                    <tr>
+                        <td>Advance {{ $sale->advanceOrder?->number }}</td>
+                        <td>{{ $money((string) $sale->advance_amount) }}</td>
+                    </tr>
+                @endif
+                @if ((float) $sale->credit_amount > 0)
+                    <tr>
+                        <td>Old gold / credit adjusted</td>
+                        <td>{{ $money((string) $sale->credit_amount) }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <td>Paid</td>
                     <td>{{ $money((string) $sale->paid_amount) }}</td>
                 </tr>
                 <tr>
                     <td>Balance due</td>
-                    <td>{{ $money($sale->balanceDue()) }}</td>
+                    <td>{{ $money($due) }}</td>
                 </tr>
             </table>
         </div>

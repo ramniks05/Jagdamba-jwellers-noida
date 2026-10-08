@@ -5,6 +5,7 @@ namespace App\Http\Requests\Commerce;
 use App\Enums\ChargeAppliesTo;
 use App\Enums\PaymentMethod;
 use App\Models\Sale;
+use App\Support\StoneRate;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -72,6 +73,7 @@ class SaleRequest extends FormRequest
 
         return [
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where($shop)],
+            'order_uuid' => ['nullable', 'uuid', Rule::exists('advance_orders', 'uuid')->where('company_id', $this->user()->company_id)],
             'item_ids' => ['array'],
             'item_ids.*' => ['uuid', 'distinct'],
             'new_piece' => ['nullable', 'array'],
@@ -91,6 +93,8 @@ class SaleRequest extends FormRequest
             'new_piece.stones.*.name' => ['required', 'string', 'max:80'],
             'new_piece.stones.*.weight' => ['required', 'numeric', 'gte:0'],
             'new_piece.stones.*.value' => ['required', 'numeric', 'gte:0'],
+            'new_piece.stones.*.rate' => ['nullable', 'numeric', 'gte:0'],
+            'new_piece.stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
             'new_pieces' => ['array'],
             'new_pieces.*.name' => ['required', 'string', 'max:160'],
             'new_pieces.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
@@ -108,12 +112,16 @@ class SaleRequest extends FormRequest
             'new_pieces.*.stones.*.name' => ['required', 'string', 'max:80'],
             'new_pieces.*.stones.*.weight' => ['required', 'numeric', 'gte:0'],
             'new_pieces.*.stones.*.value' => ['required', 'numeric', 'gte:0'],
+            'new_pieces.*.stones.*.rate' => ['nullable', 'numeric', 'gte:0'],
+            'new_pieces.*.stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
             'discount' => ['required', 'numeric', 'gte:0'],
+            'making_mode' => ['nullable', Rule::in(['inside', 'separate', 'processing'])],
             'notes' => ['nullable', 'string', 'max:500'],
             'payments' => ['array'],
             'payments.*.method' => ['required', Rule::enum(PaymentMethod::class)],
             'payments.*.amount' => ['required', 'numeric', 'gt:0'],
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
+            'use_credit' => ['nullable', 'numeric', 'gte:0'],
         ];
     }
 
@@ -154,7 +162,7 @@ class SaleRequest extends FormRequest
     }
 
     /**
-     * @return list<array{name: string, weight: string, value: string}>
+     * @return list<array{name: string, weight: string, value: string, rate: ?string, rate_unit: ?string}>
      */
     private function stoneRows(mixed $stones): array
     {
@@ -168,8 +176,9 @@ class SaleRequest extends FormRequest
             $name = trim((string) ($stone['name'] ?? ''));
             $weight = trim((string) ($stone['weight'] ?? ''));
             $value = trim((string) ($stone['value'] ?? ''));
+            $rate = trim((string) ($stone['rate'] ?? ''));
 
-            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0')) {
+            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0') && ($rate === '' || $rate === '0')) {
                 continue;
             }
 
@@ -177,6 +186,8 @@ class SaleRequest extends FormRequest
                 'name' => $name,
                 'weight' => $weight === '' ? '0' : $weight,
                 'value' => $value === '' ? '0' : $value,
+                'rate' => $rate === '' ? null : $rate,
+                'rate_unit' => trim((string) ($stone['rate_unit'] ?? '')) ?: null,
             ];
         }
 

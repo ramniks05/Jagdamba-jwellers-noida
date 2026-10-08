@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ @filemtime(public_path('css/app.css')) }}">
+    <script>
+        if (localStorage.getItem('sidebar') === 'collapsed') document.documentElement.classList.add('sidebar-collapsed');
+    </script>
 </head>
 <body>
     <div class="app-shell">
@@ -35,6 +38,7 @@
                     @endif
                     @can('sales.view')
                         <a class="nav-link {{ request()->routeIs('sales.*') && ! request()->routeIs('sales.create') ? 'active' : '' }}" href="{{ route('sales.index') }}"><i class="bi bi-receipt"></i><span>Sales</span></a>
+                        <a class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}"><i class="bi bi-journal-bookmark"></i><span>Orders</span></a>
                     @endcan
                     @can('customers.view')
                         <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}"><i class="bi bi-people"></i><span>Customers</span></a>
@@ -108,18 +112,26 @@
                 </nav>
                 <form class="sidebar-foot" method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button class="btn btn-outline-light btn-sm w-100" type="submit"><i class="bi bi-box-arrow-right"></i> Log out</button>
+                    <button class="btn btn-outline-light btn-sm w-100" type="submit" title="Log out"><i class="bi bi-box-arrow-right"></i> <span>Log out</span></button>
                 </form>
             </div>
         </aside>
         <main class="app-main">
             <header class="app-topbar">
                 <button class="btn btn-outline-secondary d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar"><i class="bi bi-list"></i> Menu</button>
+                <button class="btn btn-outline-secondary btn-sm d-none d-lg-inline-flex topbar-icon" type="button" id="sidebar-toggle" title="Hide menu" aria-label="Hide menu"><i class="bi bi-layout-sidebar-inset"></i></button>
+                @unless (request()->routeIs('overview'))
+                    <a class="btn btn-outline-secondary btn-sm topbar-back" href="{{ route('overview') }}" id="page-back"><i class="bi bi-arrow-left"></i> Back</a>
+                @endunless
                 <div class="topbar-date"><i class="bi bi-calendar-event"></i> {{ now()->timezone(config('app.timezone'))->format('D, d M Y') }}</div>
                 @php
                     $initials = collect(preg_split('/\s+/', trim((string) auth()->user()->name)))->filter()->take(2)->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))->join('');
                 @endphp
                 <a class="user-chip" href="{{ route('profile.edit') }}"><span class="user-avatar">{{ $initials }}</span>{{ auth()->user()->name }}</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button class="btn btn-outline-secondary btn-sm topbar-icon d-inline-flex" type="submit" title="Log out"><i class="bi bi-box-arrow-right"></i> <span class="d-none d-sm-inline">Log out</span></button>
+                </form>
             </header>
             <div class="app-content container-fluid">
                 @include('partials.alerts')
@@ -128,6 +140,42 @@
         </main>
     </div>
     <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    <script>
+        (() => {
+            const root = document.documentElement;
+            const toggle = document.getElementById('sidebar-toggle');
+            const syncToggle = () => {
+                const collapsed = root.classList.contains('sidebar-collapsed');
+                toggle.title = collapsed ? 'Show menu' : 'Hide menu';
+                toggle.setAttribute('aria-label', toggle.title);
+            };
+            document.querySelectorAll('#sidebar .nav-link, #sidebar .nav-bill').forEach((link) => {
+                link.title = link.textContent.trim();
+            });
+            toggle.addEventListener('click', () => {
+                root.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('sidebar', root.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+                syncToggle();
+            });
+            syncToggle();
+
+            const back = document.getElementById('page-back');
+            if (back) {
+                back.addEventListener('click', (event) => {
+                    let fromHere = false;
+                    try {
+                        fromHere = document.referrer !== '' && new URL(document.referrer).origin === location.origin;
+                    } catch (error) {
+                        fromHere = false;
+                    }
+                    if (fromHere && history.length > 1) {
+                        event.preventDefault();
+                        history.back();
+                    }
+                });
+            }
+        })();
+    </script>
     @stack('scripts')
 </body>
 </html>
