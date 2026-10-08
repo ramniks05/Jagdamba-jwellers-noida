@@ -39,6 +39,8 @@ class SaleRequest extends FormRequest
                     $piece[$field] = null;
                 }
             }
+
+            $piece['stones'] = $this->stoneRows($piece['stones'] ?? []);
         }
 
         $pieces = [];
@@ -85,6 +87,10 @@ class SaleRequest extends FormRequest
             'new_piece.wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
             'new_piece.wastage_value' => ['nullable', 'numeric', 'gte:0'],
             'new_piece.stone_value' => ['nullable', 'numeric', 'gte:0'],
+            'new_piece.stones' => ['array'],
+            'new_piece.stones.*.name' => ['required', 'string', 'max:80'],
+            'new_piece.stones.*.weight' => ['required', 'numeric', 'gte:0'],
+            'new_piece.stones.*.value' => ['required', 'numeric', 'gte:0'],
             'new_pieces' => ['array'],
             'new_pieces.*.name' => ['required', 'string', 'max:160'],
             'new_pieces.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
@@ -98,6 +104,10 @@ class SaleRequest extends FormRequest
             'new_pieces.*.wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
             'new_pieces.*.wastage_value' => ['nullable', 'numeric', 'gte:0'],
             'new_pieces.*.stone_value' => ['nullable', 'numeric', 'gte:0'],
+            'new_pieces.*.stones' => ['array'],
+            'new_pieces.*.stones.*.name' => ['required', 'string', 'max:80'],
+            'new_pieces.*.stones.*.weight' => ['required', 'numeric', 'gte:0'],
+            'new_pieces.*.stones.*.value' => ['required', 'numeric', 'gte:0'],
             'discount' => ['required', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:500'],
             'payments' => ['array'],
@@ -138,6 +148,38 @@ class SaleRequest extends FormRequest
             }
         }
 
+        $row['stones'] = $this->stoneRows($row['stones'] ?? []);
+
         return $row;
+    }
+
+    /**
+     * @return list<array{name: string, weight: string, value: string}>
+     */
+    private function stoneRows(mixed $stones): array
+    {
+        $rows = [];
+
+        foreach ((array) $stones as $stone) {
+            if (! is_array($stone)) {
+                continue;
+            }
+
+            $name = trim((string) ($stone['name'] ?? ''));
+            $weight = trim((string) ($stone['weight'] ?? ''));
+            $value = trim((string) ($stone['value'] ?? ''));
+
+            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0')) {
+                continue;
+            }
+
+            $rows[] = [
+                'name' => $name,
+                'weight' => $weight === '' ? '0' : $weight,
+                'value' => $value === '' ? '0' : $value,
+            ];
+        }
+
+        return $rows;
     }
 }

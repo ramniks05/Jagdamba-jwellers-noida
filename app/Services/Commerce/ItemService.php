@@ -12,6 +12,7 @@ use App\Models\Collection;
 use App\Models\Company;
 use App\Models\Design;
 use App\Models\Item;
+use App\Models\ItemStone;
 use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\StockLocation;
@@ -37,6 +38,7 @@ class ItemService
     {
         return DB::transaction(function () use ($company, $attributes, $userId, $movement, $reference) {
             $this->context->ensureId((int) $company->id);
+            $attributes = $this->applyStoneTotals($attributes);
             $location = $this->location($attributes['location_uuid'] ?? null);
             $weights = $this->weights($attributes);
             $metalId = $this->requiredId(MetalType::class, $attributes['metal_uuid'] ?? null, 'metal_uuid');
@@ -86,6 +88,7 @@ class ItemService
                 $movement === InventoryMovement::Purchase ? 'Purchased' : 'Opening stock',
                 $userId,
             );
+            $this->storeStones($item, $attributes);
 
             return $item->refresh();
         });
@@ -120,6 +123,10 @@ class ItemService
             }
 
             if ($stockEditable) {
+                if (array_key_exists('stones', $attributes)) {
+                    $attributes = $this->applyStoneTotals($attributes);
+                }
+
                 $weights = $this->weights($attributes);
                 $metalId = $this->requiredId(MetalType::class, $attributes['metal_uuid'] ?? null, 'metal_uuid');
                 $purity = $this->purity($attributes['purity_uuid'] ?? null, $metalId);
@@ -155,6 +162,11 @@ class ItemService
                     $locked->save();
                     $this->inventory->apply($locked, InventoryMovement::Transfer, null, null, null, 'Moved', null, $location->id);
                 }
+
+                if (array_key_exists('stones', $attributes)) {
+                    $locked->stones()->delete();
+                    $this->storeStones($locked, $attributes);
+                }
             } else {
                 $locked->save();
             }
@@ -185,6 +197,80 @@ class ItemService
             'other' => (string) $other,
             'net' => (string) $gross->minus($stone)->minus($other)->toScale(3, RoundingMode::HalfUp),
         ];
+    }
+
+    /**
+     * Named stones replace the single stone weight and value so each stone stays with this piece.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function applyStoneTotals(array $attributes): array
+    {
+        $rows = $this->namedStones($attributes);
+
+        if ($rows === []) {
+            return $attributes;
+        }
+
+        $weight = BigDecimal::zero();
+        $value = BigDecimal::zero();
+
+        foreach ($rows as $row) {
+            $weight = $weight->plus($row['weight']);
+            $value = $value->plus($row['value']);
+        }
+
+        $attributes['stone_weight'] = (string) $weight->toScale(3, RoundingMode::HalfUp);
+        $attributes['stone_value'] = (string) $value->toScale(2, RoundingMode::HalfUp);
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function storeStones(Item $item, array $attributes): void
+    {
+        foreach ($this->namedStones($attributes) as $index => $row) {
+            ItemStone::query()->create([
+                'company_id' => $item->company_id,
+                'item_id' => $item->id,
+                'name' => $row['name'],
+                'weight' => $row['weight'],
+                'value' => $row['value'],
+                'position' => $index,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return list<array{name: string, weight: string, value: string}>
+     */
+    private function namedStones(array $attributes): array
+    {
+        $rows = [];
+
+        foreach ((array) ($attributes['stones'] ?? []) as $stone) {
+            if (! is_array($stone)) {
+                continue;
+            }
+
+            $name = trim((string) ($stone['name'] ?? ''));
+
+            if ($name === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'name' => $name,
+                'weight' => (string) BigDecimal::of((string) ($stone['weight'] ?? '0'))->toScale(3, RoundingMode::HalfUp),
+                'value' => (string) BigDecimal::of((string) ($stone['value'] ?? '0'))->toScale(2, RoundingMode::HalfUp),
+            ];
+        }
+
+        return $rows;
     }
 
     private function location(?string $uuid): StockLocation

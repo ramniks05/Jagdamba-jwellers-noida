@@ -122,6 +122,16 @@ class Company extends Model
         return Attribute::get(fn (): ?string => $this->publicFileUrl($this->signature_path));
     }
 
+    public function brandLogoUrl(): string
+    {
+        return $this->logo_url ?: asset('brand/logo.jpg');
+    }
+
+    public function brandSignatureUrl(): string
+    {
+        return $this->signature_url ?: asset('brand/signature.jpg');
+    }
+
     private function publicFileUrl(?string $path): ?string
     {
         if (! $path) {

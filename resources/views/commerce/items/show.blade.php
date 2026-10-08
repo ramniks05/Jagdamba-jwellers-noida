@@ -20,7 +20,17 @@
                 <div class="stat-label">Metal</div>
                 <div>{{ $item->metalType?->name }} {{ $item->purity?->name }}</div>
                 <div class="small text-secondary mt-2">Gross {{ $item->gross_weight }} g · Net {{ $item->net_weight }} g</div>
-                <div class="small text-secondary">Stone {{ $item->stone_weight }} g · Other {{ $item->other_weight }} g</div>
+                <div class="small text-secondary">Other {{ $item->other_weight }} g</div>
+                @forelse ($item->stones as $stone)
+                    <div class="d-flex justify-content-between small mt-2">
+                        <span>{{ $stone->name }} · {{ $stone->weight }} g</span>
+                        <span>{{ $stone->value }}</span>
+                    </div>
+                @empty
+                    @if ((float) $item->stone_weight > 0 || (float) $item->stone_value > 0)
+                        <div class="small text-secondary mt-2">Stone {{ $item->stone_weight }} g · {{ $item->stone_value }}</div>
+                    @endif
+                @endforelse
             </div></div>
         </div>
         <div class="col-md-4">

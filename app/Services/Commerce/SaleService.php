@@ -14,6 +14,7 @@ use App\Models\Item;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleLine;
+use App\Models\SaleLineStone;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -107,7 +108,7 @@ class SaleService
                 ]);
             }
 
-            $items = Item::query()->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'branch'])->whereIn('uuid', $uuids)->get();
+            $items = Item::query()->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'branch', 'stones'])->whereIn('uuid', $uuids)->get();
 
             if ($items->count() !== count($uuids)) {
                 throw ValidationException::withMessages([
@@ -219,7 +220,7 @@ class SaleService
             foreach ($lines as $line) {
                 $piece = $line['item'];
                 $display = $line['display'];
-                SaleLine::query()->create([
+                $saleLine = SaleLine::query()->create([
                     'company_id' => $company->id,
                     'sale_id' => $sale->id,
                     'item_id' => $piece->id,
@@ -243,6 +244,16 @@ class SaleService
                     'stone_amount' => $line['priced']['stone_amount'],
                     'line_amount' => $line['priced']['line_amount'],
                 ]);
+                foreach ($display->stones as $index => $stone) {
+                    SaleLineStone::query()->create([
+                        'company_id' => $company->id,
+                        'sale_line_id' => $saleLine->id,
+                        'name' => $stone->name,
+                        'weight' => $stone->weight,
+                        'value' => $stone->value,
+                        'position' => $index,
+                    ]);
+                }
                 $this->inventory->apply(
                     $piece,
                     InventoryMovement::Sale,
@@ -293,7 +304,7 @@ class SaleService
                 );
             }
 
-            return $sale->load(['lines', 'payments', 'customer', 'branch']);
+            return $sale->load(['lines.stones', 'payments', 'customer', 'branch']);
         });
     }
 

@@ -12,6 +12,7 @@ use App\Models\Item;
 use App\Models\MetalRate;
 use App\Models\MetalType;
 use App\Models\Purity;
+use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\StockLocation;
 use App\Models\User;
@@ -201,6 +202,137 @@ class CounterTest extends TestCase
         $this->assertSame('PC0001', $piece->item_code);
         $this->assertSame(ItemStatus::Sold, $piece->status);
         $this->assertSame('71070.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
+    }
+
+    public function test_two_rings_keep_their_own_stones_on_the_bill(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+
+        $piece = function (string $name, string $gross, array $stones) use ($gold, $purity, $location): array {
+            return [
+                'name' => $name,
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => $gross,
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+                'stones' => $stones,
+            ];
+        };
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $walkIn->uuid,
+            'discount' => '0',
+            'new_pieces' => [
+                $piece('Ring A', '10', [['name' => 'Diamond', 'weight' => '1', 'value' => '5000']]),
+                $piece('Ring B', '8', [['name' => 'Ruby', 'weight' => '0.5', 'value' => '2000']]),
+            ],
+            'payments' => [
+                ['method' => 'cash', 'amount' => '109180'],
+            ],
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $lines = $sale->lines()->with('stones')->get()->keyBy('name');
+        $ringA = $lines['Ring A'];
+        $ringB = $lines['Ring B'];
+
+        $this->assertCount(2, $lines);
+        $this->assertSame('54000.00', (string) $ringA->metal_amount);
+        $this->assertSame('5000.00', (string) $ringA->stone_amount);
+        $this->assertSame('Diamond', $ringA->stones->sole()->name);
+        $this->assertSame('1.000', (string) $ringA->stones->sole()->weight);
+        $this->assertSame('45000.00', (string) $ringB->metal_amount);
+        $this->assertSame('Ruby', $ringB->stones->sole()->name);
+        $this->assertSame('2000.00', (string) $ringB->stones->sole()->value);
+        $this->assertNotSame($ringA->id, $ringB->stones->sole()->sale_line_id);
+
+        $this->actingAs($owner)
+            ->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Ring A')
+            ->assertSee('Diamond')
+            ->assertSee('Ring B')
+            ->assertSee('Ruby')
+            ->assertSee('54,000.00')
+            ->assertSee('5,000.00')
+            ->assertSee('2,000.00');
+    }
+
+    public function test_a_stock_piece_keeps_its_diamond_with_the_gold(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+
+        $this->actingAs($owner)->post(route('items.store'), [
+            'name' => 'Diamond ring',
+            'item_code' => 'RINGD1',
+            'sku' => 'RINGD1',
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'location_uuid' => $location->uuid,
+            'gross_weight' => '10',
+            'other_weight' => '0',
+            'making_value' => '0',
+            'wastage_value' => '0',
+            'cost_price' => '0',
+            'selling_price' => '0',
+            'mrp' => '0',
+            'stones' => [
+                ['name' => 'Diamond', 'weight' => '1', 'value' => '8000'],
+            ],
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $item = Item::query()->where('item_code', 'RINGD1')->firstOrFail();
+        $this->assertSame('1.000', (string) $item->stone_weight);
+        $this->assertSame('9.000', (string) $item->net_weight);
+        $this->assertSame('8000.00', (string) $item->stone_value);
+        $this->assertSame('Diamond', $item->stones()->sole()->name);
+
+        $this->actingAs($owner)->get(route('items.show', $item))->assertOk()->assertSee('Diamond');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $walkIn->uuid,
+            'discount' => '0',
+            'item_ids' => [$item->uuid],
+            'payments' => [
+                ['method' => 'cash', 'amount' => '63860'],
+            ],
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $line = SaleLine::query()->where('item_id', $item->id)->firstOrFail();
+        $this->assertSame('54000.00', (string) $line->metal_amount);
+        $this->assertSame('8000.00', (string) $line->stone_amount);
+        $this->assertSame('Diamond', $line->stones()->sole()->name);
+        $this->assertSame($line->id, $line->stones()->sole()->sale_line_id);
     }
 
     public function test_another_shop_cannot_open_this_piece(): void

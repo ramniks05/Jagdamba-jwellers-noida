@@ -102,12 +102,14 @@
                 <div class="card">
                     <div class="card-header bg-white">Logo</div>
                     <div class="card-body">
+                        <img src="{{ $company->brandLogoUrl() }}" alt="Shop logo" class="img-fluid rounded mb-3" style="max-height: 140px;">
                         @if ($company->logo_path)
-                            <img src="{{ '/storage/'.$company->logo_path }}" alt="Shop logo" class="img-fluid rounded mb-3" style="max-height: 140px;">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="remove_logo" name="remove_logo" value="1">
                                 <label class="form-check-label" for="remove_logo">Remove logo</label>
                             </div>
+                        @else
+                            <div class="form-text mb-3">The JD mark is used until you upload another logo.</div>
                         @endif
                         <label class="form-label" for="logo">Upload JPEG, PNG, or WebP (max 2 MB)</label>
                         <input class="form-control" id="logo" name="logo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
@@ -117,12 +119,14 @@
                 <div class="card mt-4">
                     <div class="card-header bg-white">Invoice signature</div>
                     <div class="card-body">
+                        <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature" class="shop-signature">
                         @if ($company->signature_path)
-                            <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature" class="shop-signature">
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="remove_signature" name="remove_signature" value="1">
                                 <label class="form-check-label" for="remove_signature">Remove signature</label>
                             </div>
+                        @else
+                            <div class="form-text mb-3">This is a dummy signature. Upload your own to replace it.</div>
                         @endif
                         <button class="btn btn-primary" id="signature-open" type="button"><i class="bi bi-upload"></i> Upload signature</button>
                         <input class="d-none" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">

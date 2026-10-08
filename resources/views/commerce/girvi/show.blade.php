@@ -157,11 +157,7 @@
             </div>
             <div class="invoice-sign">
                 <div>For {{ $company->displayName() }}</div>
-                @if ($company->signature_path)
-                    <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature">
-                @else
-                    <div class="invoice-sign-space"></div>
-                @endif
+                <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature">
                 <span>Authorised signatory</span>
             </div>
         </footer>

@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Overview') — {{ config('app.name') }}</title>
+    <link rel="icon" href="{{ asset('favicon.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ @filemtime(public_path('css/app.css')) }}">
@@ -17,7 +19,7 @@
             </div>
             <div class="offcanvas-body d-flex flex-column p-0">
                 <div class="sidebar-brand">
-                    <span class="brand-mark">JJ</span>
+                    <span class="brand-mark"><img src="{{ asset('brand/logo.jpg') }}" alt="JD"></span>
                     <div>
                         <div class="brand">{{ config('app.name') }}</div>
                         <div class="shop-name">{{ $currentCompany->name ?? 'Jewellery shop' }}</div>

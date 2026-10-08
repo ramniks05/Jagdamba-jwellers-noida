@@ -6,7 +6,7 @@
     <div class="card">
         <div class="card-body p-4">
             <div class="d-flex align-items-center gap-2 mb-3">
-                <span class="brand-mark">JJ</span>
+                <span class="brand-mark"><img src="{{ asset('brand/logo.jpg') }}" alt="JD"></span>
                 <div>
                     <div style="color: var(--maroon); font-weight: 700;">{{ config('app.name') }}</div>
                     <div class="small text-secondary">Shop counter</div>

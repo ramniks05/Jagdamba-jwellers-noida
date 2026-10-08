@@ -1,7 +1,7 @@
 <header class="invoice-head">
     <div class="invoice-brand">
-        @if ($showLogo && $company->logo_path)
-            <img class="invoice-logo" src="{{ '/storage/'.$company->logo_path }}" alt="{{ $company->displayName() }}">
+        @if ($showLogo)
+            <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
         @endif
         <div>
             <div class="invoice-kicker">{{ $kicker }}</div>

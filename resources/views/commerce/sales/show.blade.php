@@ -20,8 +20,8 @@
     <article class="invoice-sheet">
         <header class="invoice-head">
             <div class="invoice-brand">
-                @if ($showLogo && $company->logo_path)
-                    <img class="invoice-logo" src="{{ '/storage/'.$company->logo_path }}" alt="{{ $company->displayName() }}">
+                @if ($showLogo)
+                    <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
                 @endif
                 <div>
                     <div class="invoice-kicker">Tax invoice</div>
@@ -84,12 +84,19 @@
                         <td>
                             <strong>{{ $line->name }}</strong>
                             <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}</div>
-                            @if ((float) $line->wastage_amount > 0 || (float) $line->stone_amount > 0)
-                                <div class="muted">
-                                    @if ((float) $line->wastage_amount > 0) Wastage {{ $money((string) $line->wastage_amount) }} @endif
-                                    @if ((float) $line->stone_amount > 0) Stone {{ $money((string) $line->stone_amount) }} @endif
-                                </div>
-                            @endif
+                            <div class="invoice-split">
+                                <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>
+                                @if ((float) $line->wastage_amount > 0)
+                                    <div><span>Wastage</span><strong>{{ $money((string) $line->wastage_amount) }}</strong></div>
+                                @endif
+                                @forelse ($line->stones as $stone)
+                                    <div><span>{{ $stone->name }} · {{ $weight((string) $stone->weight) }}</span><strong>{{ $money((string) $stone->value) }}</strong></div>
+                                @empty
+                                    @if ((float) $line->stone_amount > 0)
+                                        <div><span>Stone</span><strong>{{ $money((string) $line->stone_amount) }}</strong></div>
+                                    @endif
+                                @endforelse
+                            </div>
                         </td>
                         <td>{{ $line->item?->huid ?: '—' }}</td>
                         <td class="num">{{ $weight((string) $line->gross_weight) }}</td>
@@ -162,11 +169,7 @@
             </div>
             <div class="invoice-sign">
                 <div>For {{ $company->displayName() }}</div>
-                @if ($company->signature_path)
-                    <img src="{{ '/storage/'.$company->signature_path }}" alt="Authorised signature">
-                @else
-                    <div class="invoice-sign-space"></div>
-                @endif
+                <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature">
                 <span>Authorised signatory</span>
             </div>
         </footer>

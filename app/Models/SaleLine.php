@@ -7,6 +7,7 @@ use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'company_id', 'sale_id', 'item_id', 'metal_rate_id', 'name', 'item_code', 'metal_name',
@@ -44,5 +45,10 @@ class SaleLine extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function stones(): HasMany
+    {
+        return $this->hasMany(SaleLineStone::class)->orderBy('position')->orderBy('id');
     }
 }

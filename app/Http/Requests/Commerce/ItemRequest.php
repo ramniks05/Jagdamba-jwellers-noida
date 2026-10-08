@@ -4,6 +4,8 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Models\Item;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -26,19 +28,42 @@ class ItemRequest extends FormRequest
         $itemCode = Str::upper(trim((string) $this->input('item_code')));
         $sku = Str::upper(trim((string) $this->input('sku')));
 
-        $this->merge([
+        $stones = $this->exists('stones') ? $this->stoneRows($this->input('stones')) : null;
+        $stoneWeight = $this->input('stone_weight') === '' || $this->input('stone_weight') === null ? '0' : $this->input('stone_weight');
+        $stoneValue = $this->input('stone_value') === '' || $this->input('stone_value') === null ? '0' : $this->input('stone_value');
+
+        if (is_array($stones)) {
+            $weight = BigDecimal::zero();
+            $value = BigDecimal::zero();
+
+            foreach ($stones as $stone) {
+                $weight = $weight->plus($stone['weight']);
+                $value = $value->plus($stone['value']);
+            }
+
+            $stoneWeight = (string) $weight->toScale(3, RoundingMode::HalfUp);
+            $stoneValue = (string) $value->toScale(2, RoundingMode::HalfUp);
+        }
+
+        $payload = [
             'item_code' => $itemCode,
             'sku' => $sku !== '' ? $sku : $itemCode,
             'barcode' => trim((string) $this->input('barcode')) ?: null,
-            'stone_weight' => $this->input('stone_weight') === '' || $this->input('stone_weight') === null ? '0' : $this->input('stone_weight'),
+            'stone_weight' => $stoneWeight,
             'other_weight' => $this->input('other_weight') === '' || $this->input('other_weight') === null ? '0' : $this->input('other_weight'),
             'making_value' => $this->input('making_value') === '' || $this->input('making_value') === null ? '0' : $this->input('making_value'),
             'wastage_value' => $this->input('wastage_value') === '' || $this->input('wastage_value') === null ? '0' : $this->input('wastage_value'),
-            'stone_value' => $this->input('stone_value') === '' || $this->input('stone_value') === null ? '0' : $this->input('stone_value'),
+            'stone_value' => $stoneValue,
             'cost_price' => $this->input('cost_price') === '' || $this->input('cost_price') === null ? '0' : $this->input('cost_price'),
             'selling_price' => $this->input('selling_price') === '' || $this->input('selling_price') === null ? '0' : $this->input('selling_price'),
             'mrp' => $this->input('mrp') === '' || $this->input('mrp') === null ? '0' : $this->input('mrp'),
-        ]);
+        ];
+
+        if (is_array($stones)) {
+            $payload['stones'] = $stones;
+        }
+
+        $this->merge($payload);
 
         foreach (['category_uuid', 'brand_uuid', 'collection_uuid', 'design_uuid', 'making_method_uuid', 'wastage_method_uuid', 'rfid', 'certificate_number', 'hallmark', 'huid', 'notes'] as $field) {
             if ($this->input($field) === '') {
@@ -71,6 +96,10 @@ class ItemRequest extends FormRequest
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'location_uuid' => ['required', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],
             'gross_weight' => ['required', 'numeric', 'gt:0'],
+            'stones' => ['nullable', 'array'],
+            'stones.*.name' => ['required', 'string', 'max:80'],
+            'stones.*.weight' => ['required', 'numeric', 'gte:0'],
+            'stones.*.value' => ['required', 'numeric', 'gte:0'],
             'stone_weight' => ['required', 'numeric', 'gte:0'],
             'other_weight' => ['required', 'numeric', 'gte:0'],
             'making_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Making->value))],
@@ -87,5 +116,35 @@ class ItemRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             'image' => ['nullable', 'image', 'max:2048'],
         ];
+    }
+
+    /**
+     * @return list<array{name: string, weight: string, value: string}>
+     */
+    private function stoneRows(mixed $stones): array
+    {
+        $rows = [];
+
+        foreach ((array) $stones as $stone) {
+            if (! is_array($stone)) {
+                continue;
+            }
+
+            $name = trim((string) ($stone['name'] ?? ''));
+            $weight = trim((string) ($stone['weight'] ?? ''));
+            $value = trim((string) ($stone['value'] ?? ''));
+
+            if ($name === '' && ($weight === '' || $weight === '0') && ($value === '' || $value === '0')) {
+                continue;
+            }
+
+            $rows[] = [
+                'name' => $name,
+                'weight' => $weight === '' ? '0' : $weight,
+                'value' => $value === '' ? '0' : $value,
+            ];
+        }
+
+        return $rows;
     }
 }

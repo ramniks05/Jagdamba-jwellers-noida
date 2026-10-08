@@ -79,7 +79,7 @@ class ItemController extends Controller
         $this->authorize('view', $item);
 
         return view('commerce.items.show', [
-            'item' => $item->load(['metalType', 'purity', 'category.parent', 'brand', 'collection', 'design', 'location.branch', 'makingMethod', 'wastageMethod']),
+            'item' => $item->load(['metalType', 'purity', 'category.parent', 'brand', 'collection', 'design', 'location.branch', 'makingMethod', 'wastageMethod', 'stones']),
             'movements' => $item->movements()->orderByDesc('occurred_at')->orderByDesc('id')->get(),
         ]);
     }
@@ -88,7 +88,7 @@ class ItemController extends Controller
     {
         $this->authorize('update', $item);
 
-        return view('commerce.items.form', $this->formData($item->load(['category', 'brand', 'collection', 'design', 'metalType', 'purity', 'location', 'makingMethod', 'wastageMethod'])));
+        return view('commerce.items.form', $this->formData($item->load(['category', 'brand', 'collection', 'design', 'metalType', 'purity', 'location', 'makingMethod', 'wastageMethod', 'stones'])));
     }
 
     public function update(ItemRequest $request, Item $item, ItemService $items, CompanyContext $context): RedirectResponse

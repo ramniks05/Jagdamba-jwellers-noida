@@ -91,6 +91,11 @@ class Item extends Model
         return $this->belongsTo(ChargeMethod::class, 'wastage_method_id');
     }
 
+    public function stones(): HasMany
+    {
+        return $this->hasMany(ItemStone::class)->orderBy('position')->orderBy('id');
+    }
+
     public function movements(): HasMany
     {
         return $this->hasMany(InventoryTransaction::class);

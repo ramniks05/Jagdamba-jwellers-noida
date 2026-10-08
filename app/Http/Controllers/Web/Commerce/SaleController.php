@@ -95,7 +95,7 @@ class SaleController extends Controller
         $company = $context->company();
         $search = trim((string) $request->query('search', ''));
         $items = Item::query()
-            ->with(['metalType', 'purity', 'makingMethod', 'wastageMethod'])
+            ->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones'])
             ->where('status', ItemStatus::Available)
             ->orderBy('item_code')
             ->limit(300)
@@ -133,7 +133,7 @@ class SaleController extends Controller
     {
         $this->authorize('view', $sale);
         $company = $context->company();
-        $sale->load(['lines.item', 'payments', 'customer', 'branch']);
+        $sale->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch']);
 
         return view('commerce.sales.show', [
             'sale' => $sale,

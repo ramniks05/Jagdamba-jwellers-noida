@@ -104,21 +104,53 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label" for="gross_weight">Gross weight (g)</label>
                     <input class="form-control" id="gross_weight" name="gross_weight" value="{{ old('gross_weight', $item->gross_weight) }}" required>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label" for="stone_weight">Stone weight (g)</label>
-                    <input class="form-control" id="stone_weight" name="stone_weight" value="{{ old('stone_weight', $item->stone_weight ?? '0') }}">
-                </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label" for="other_weight">Other weight (g)</label>
                     <input class="form-control" id="other_weight" name="other_weight" value="{{ old('other_weight', $item->other_weight ?? '0') }}">
                 </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label">Net metal weight</label>
                     <input class="form-control" value="{{ $item->net_weight ?: 'Calculated on save' }}" disabled>
+                </div>
+                <div class="col-12">
+                    @php
+                        $stoneRows = old('stones');
+                        if (! is_array($stoneRows)) {
+                            $stoneRows = $item->exists
+                                ? $item->stones->map(fn ($stone) => ['name' => $stone->name, 'weight' => $stone->weight, 'value' => $stone->value])->all()
+                                : [];
+                        }
+                        if ($stoneRows === []) {
+                            $stoneRows = [['name' => '', 'weight' => '', 'value' => '']];
+                        }
+                    @endphp
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="form-label mb-0">Stones</span>
+                        <button class="btn btn-outline-secondary btn-sm" id="item-stone-add" type="button">Add stone</button>
+                    </div>
+                    <div id="item-stone-list">
+                        @foreach ($stoneRows as $index => $stone)
+                            <div class="stone-row">
+                                <div>
+                                    <label for="stone-name-{{ $index }}">Name</label>
+                                    <input class="form-control" id="stone-name-{{ $index }}" name="stones[{{ $index }}][name]" value="{{ $stone['name'] ?? '' }}" placeholder="Diamond">
+                                </div>
+                                <div>
+                                    <label for="stone-weight-{{ $index }}">Weight g</label>
+                                    <input class="form-control" id="stone-weight-{{ $index }}" name="stones[{{ $index }}][weight]" value="{{ $stone['weight'] ?? '' }}" inputmode="decimal" placeholder="0.000">
+                                </div>
+                                <div>
+                                    <label for="stone-value-{{ $index }}">Value</label>
+                                    <input class="form-control" id="stone-value-{{ $index }}" name="stones[{{ $index }}][value]" value="{{ $stone['value'] ?? '' }}" inputmode="decimal" placeholder="0">
+                                </div>
+                                <button class="bill-remove" type="button" aria-label="Remove stone">×</button>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
         </div>
@@ -150,10 +182,6 @@
                 <div class="col-md-2 mb-3">
                     <label class="form-label" for="wastage_value">Wastage value</label>
                     <input class="form-control" id="wastage_value" name="wastage_value" value="{{ old('wastage_value', $item->wastage_value ?? '0') }}">
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label" for="stone_value">Stone value</label>
-                    <input class="form-control" id="stone_value" name="stone_value" value="{{ old('stone_value', $item->stone_value ?? '0') }}">
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label" for="cost_price">Cost price</label>
@@ -188,3 +216,49 @@
         <button class="btn btn-primary" type="submit">Save piece</button>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        const stoneList = document.getElementById('item-stone-list');
+
+        function bindStoneRemove(button) {
+            button.addEventListener('click', () => {
+                button.closest('.stone-row').remove();
+                if (!stoneList.querySelector('.stone-row')) addStoneRow();
+            });
+        }
+
+        function addStoneRow() {
+            const index = stoneList.querySelectorAll('.stone-row').length;
+            const row = document.createElement('div');
+            row.className = 'stone-row';
+            [
+                ['Name', 'name', 'Diamond', 'text'],
+                ['Weight g', 'weight', '0.000', 'decimal'],
+                ['Value', 'value', '0', 'decimal'],
+            ].forEach(([labelText, key, placeholder, mode]) => {
+                const field = document.createElement('div');
+                const label = document.createElement('label');
+                label.textContent = labelText;
+                const input = document.createElement('input');
+                input.className = 'form-control';
+                input.name = 'stones[' + index + '][' + key + ']';
+                input.placeholder = placeholder;
+                if (mode === 'decimal') input.inputMode = 'decimal';
+                field.append(label, input);
+                row.appendChild(field);
+            });
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'bill-remove';
+            remove.setAttribute('aria-label', 'Remove stone');
+            remove.textContent = '×';
+            bindStoneRemove(remove);
+            row.appendChild(remove);
+            stoneList.appendChild(row);
+        }
+
+        document.getElementById('item-stone-add').addEventListener('click', addStoneRow);
+        stoneList.querySelectorAll('.bill-remove').forEach(bindStoneRemove);
+    </script>
+@endpush
