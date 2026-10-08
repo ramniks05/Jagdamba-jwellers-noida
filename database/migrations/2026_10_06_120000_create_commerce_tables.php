@@ -174,7 +174,7 @@ return new class extends Migration
             $table->string('note', 200)->nullable();
             $table->timestamps();
 
-            $table->index(['company_id', 'metal_type_id', 'purity_id', 'effective_at']);
+            $table->index(['company_id', 'metal_type_id', 'purity_id', 'effective_at'], 'metal_rates_lookup_idx');
             $table->index(['company_id', 'branch_id', 'effective_at']);
         });
 

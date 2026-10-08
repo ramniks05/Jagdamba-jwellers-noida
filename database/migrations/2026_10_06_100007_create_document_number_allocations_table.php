@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('issued_by')->nullable()->constrained('users')->nullOnDelete();
 
             $table->unique(['company_id', 'number']);
-            $table->index(['company_id', 'document_type', 'issued_at']);
+            $table->index(['company_id', 'document_type', 'issued_at'], 'dna_company_type_issued_idx');
             $table->index('document_sequence_id');
         });
     }
