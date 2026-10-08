@@ -40,19 +40,24 @@ class SupplierController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', Supplier::class);
 
         return view('commerce.suppliers.form', [
             'supplier' => new Supplier(['is_active' => true, 'kyc_status' => KycStatus::Pending, 'country' => 'India']),
             'kyc' => KycStatus::cases(),
+            'forPurchase' => $request->query('for') === 'purchase',
         ]);
     }
 
     public function store(SupplierRequest $request, SupplierService $suppliers, CompanyContext $context): RedirectResponse
     {
         $supplier = $suppliers->create($context->company(), $request->validated());
+
+        if ($request->input('for') === 'purchase' && $supplier->is_active) {
+            return redirect()->route('purchases.create', ['supplier' => $supplier->uuid])->with('status', 'Supplier '.$supplier->name.' saved. Now type their bill.');
+        }
 
         return redirect()->route('suppliers.show', $supplier)->with('status', 'Supplier saved.');
     }

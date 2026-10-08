@@ -50,6 +50,7 @@ class ItemRequest extends FormRequest
             'item_code' => $itemCode,
             'sku' => $sku !== '' ? $sku : $itemCode,
             'barcode' => trim((string) $this->input('barcode')) ?: null,
+            'huid' => Str::upper(trim((string) $this->input('huid'))),
             'stone_weight' => $stoneWeight,
             'other_weight' => $this->input('other_weight') === '' || $this->input('other_weight') === null ? '0' : $this->input('other_weight'),
             'making_value' => $this->input('making_value') === '' || $this->input('making_value') === null ? '0' : $this->input('making_value'),

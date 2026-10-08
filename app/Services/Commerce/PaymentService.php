@@ -9,6 +9,7 @@ use App\Enums\PaymentMethod;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Payment;
+use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Supplier;
 use App\Services\Foundation\DocumentNumberService;
@@ -198,8 +199,42 @@ class PaymentService
                 $payment,
                 $userId,
             );
+            $this->settlePurchases($supplier, $amount);
 
             return $payment;
         });
+    }
+
+    /**
+     * A payment made from the supplier page clears that supplier's oldest purchases first.
+     */
+    private function settlePurchases(Supplier $supplier, BigDecimal $amount): void
+    {
+        $left = $amount;
+        $purchases = Purchase::query()
+            ->where('supplier_id', $supplier->id)
+            ->withSum('returns', 'amount')
+            ->orderBy('purchased_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($purchases as $purchase) {
+            if (! $left->isPositive()) {
+                break;
+            }
+
+            $due = BigDecimal::of($purchase->dueAmount());
+
+            if (! $due->isPositive()) {
+                continue;
+            }
+
+            $part = $due->isLessThan($left) ? $due : $left;
+            Purchase::query()->whereKey($purchase->id)->update([
+                'paid_amount' => (string) BigDecimal::of((string) $purchase->paid_amount)->plus($part)->toScale(2, RoundingMode::HalfUp),
+            ]);
+            $left = $left->minus($part);
+        }
     }
 }

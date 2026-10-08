@@ -52,7 +52,9 @@ class WorkshopTest extends TestCase
         $this->actingAs($owner)->post(route('purchases.store'), $this->piece($supplier, $gold, $purity, 'CHAIN02'))->assertRedirect();
         $this->seeShop($owner);
         $second = Item::query()->where('item_code', 'CHAIN02')->firstOrFail();
-        $this->actingAs($owner)->post(route('purchases.return', $second->purchaseLines()->firstOrFail()->purchase))->assertRedirect();
+        $this->actingAs($owner)->post(route('purchases.return', $second->purchaseLines()->firstOrFail()->purchase), [
+            'lines' => [$second->purchaseLines()->firstOrFail()->uuid],
+        ])->assertRedirect();
         $this->seeShop($owner);
         $second->refresh();
         $this->assertSame(ItemStatus::SentBack, $second->status);
@@ -482,9 +484,18 @@ class WorkshopTest extends TestCase
      */
     private function piece(Supplier $supplier, MetalType $gold, Purity $purity, string $code): array
     {
-        return array_merge($this->plainPiece($gold, $purity, $code), [
+        $piece = $this->plainPiece($gold, $purity, $code);
+
+        return [
             'supplier_uuid' => $supplier->uuid,
-        ]);
+            'purchased_on' => now()->toDateString(),
+            'location_uuid' => $piece['location_uuid'],
+            'pricing' => 'rate',
+            'gst_percent' => '3',
+            'lines' => [
+                array_merge($piece, ['rate_per_gram' => '5000']),
+            ],
+        ];
     }
 
     /**

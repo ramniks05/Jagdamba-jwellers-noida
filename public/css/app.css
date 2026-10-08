@@ -1732,6 +1732,12 @@ a {
     padding: 0.3rem 0;
 }
 
+.card-body.bill-sums > .bill-block:first-child,
+.card-body.bill-sums > div > .bill-block:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
 .bill-row-muted {
     color: #8a7b6e;
     font-size: 0.85rem;
@@ -1809,6 +1815,124 @@ a {
     color: #1d6b3a;
     font-weight: 700;
     white-space: nowrap;
+}
+
+#piece-form .text-uppercase::placeholder {
+    text-transform: none;
+}
+
+.piece-more summary {
+    cursor: pointer;
+}
+
+.charge-pair {
+    display: grid;
+    gap: 0.4rem;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+}
+
+.charge-pair .input-group-text {
+    font-size: 0.75rem;
+    justify-content: center;
+    min-width: 4.2rem;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+}
+
+.purchase-line + .purchase-line {
+    margin-top: 0.75rem;
+}
+
+.purchase-line .stone-box-head {
+    margin-bottom: 0.1rem;
+}
+
+.purchase-line .line-amount {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.purchase-line .metal-row.purchase-line-top {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.85fr);
+}
+
+.purchase-line .metal-row.purchase-weights {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) repeat(3, minmax(0, 0.85fr));
+}
+
+.purchase-line .metal-row.purchase-cost {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.purchase-line .metal-row.purchase-cost.is-amount {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.1fr);
+}
+
+.purchase-line .metal-row [hidden] {
+    display: none;
+}
+
+.purchase-line .line-cost {
+    font-weight: 700;
+}
+
+.purchase-line .text-uppercase::placeholder {
+    text-transform: none;
+}
+
+.purchase-selling {
+    margin-top: 0.55rem;
+}
+
+.purchase-selling summary {
+    color: var(--maroon);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
+.purchase-selling .selling-summary {
+    color: #8a7b6e;
+    font-weight: 500;
+}
+
+.purchase-selling-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.4rem;
+}
+
+.purchase-selling-grid label {
+    color: #6d6258;
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.28rem;
+    text-transform: uppercase;
+}
+
+@media (max-width: 767.98px) {
+    .purchase-line .metal-row.purchase-line-top,
+    .purchase-line .metal-row.purchase-weights,
+    .purchase-line .metal-row.purchase-cost,
+    .purchase-line .metal-row.purchase-cost.is-amount,
+    .purchase-selling-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.purchase-pick {
+    width: 2rem;
+}
+
+.piece-photo {
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    max-height: 220px;
+    max-width: 100%;
+    object-fit: cover;
 }
 
 .bill-grand {

@@ -32,6 +32,22 @@ class ItemService
         private readonly InventoryService $inventory,
     ) {}
 
+    public function nextCode(bool $lock = false): string
+    {
+        $highest = Item::withTrashed()
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->pluck('item_code')
+            ->reduce(function (int $highest, string $code): int {
+                if (preg_match('/^PC(\d+)$/', $code, $matches) !== 1) {
+                    return $highest;
+                }
+
+                return max($highest, (int) $matches[1]);
+            }, 0);
+
+        return 'PC'.str_pad((string) ($highest + 1), 4, '0', STR_PAD_LEFT);
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */

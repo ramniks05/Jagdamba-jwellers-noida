@@ -7,6 +7,10 @@
     <form method="POST" action="{{ $supplier->exists ? route('suppliers.update', $supplier) : route('suppliers.store') }}">
         @csrf
         @if ($supplier->exists) @method('PUT') @endif
+        @if (($forPurchase ?? false) || old('for') === 'purchase')
+            <input type="hidden" name="for" value="purchase">
+            <p class="text-secondary">After saving you go back to Receive purchase with this supplier chosen. <a href="{{ route('purchases.create') }}">Back without saving</a></p>
+        @endif
         <div class="card"><div class="card-body row">
             <div class="col-md-3 mb-3"><label class="form-label" for="code">Code</label><input class="form-control" id="code" name="code" value="{{ old('code', $supplier->code) }}" required></div>
             <div class="col-md-5 mb-3"><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="{{ old('name', $supplier->name) }}" required></div>

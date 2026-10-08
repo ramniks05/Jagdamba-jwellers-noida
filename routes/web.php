@@ -103,6 +103,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('items/{item}/release', [ItemController::class, 'release'])->name('items.release');
     Route::post('items/{item}/damage', [ItemController::class, 'damage'])->name('items.damage');
     Route::post('items/{item}/lost', [ItemController::class, 'lost'])->name('items.lost');
+    Route::get('items/{item}/photo', [ItemController::class, 'photo'])->name('items.photo');
 
     Route::get('rates', [RateController::class, 'index'])->name('rates.index');
     Route::post('rates/market', [RateController::class, 'refresh'])->name('rates.market');
@@ -123,6 +124,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('sales/{sale}/payments', [SaleController::class, 'payment'])->name('sales.payments.store');
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show']);
     Route::post('purchases/{purchase}/return', [PurchaseController::class, 'returnToSupplier'])->name('purchases.return');
+    Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay'])->name('purchases.payments.store');
     Route::get('old-gold', [OldGoldController::class, 'index'])->name('old-gold.index');
     Route::get('old-gold/create', [OldGoldController::class, 'create'])->name('old-gold.create');
     Route::get('old-gold/stock', [OldGoldStockController::class, 'index'])->name('old-gold.stock');

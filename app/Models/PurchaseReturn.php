@@ -7,6 +7,7 @@ use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['company_id', 'purchase_id', 'supplier_id', 'number', 'amount', 'returned_at', 'user_id'])]
 class PurchaseReturn extends Model
@@ -24,5 +25,10 @@ class PurchaseReturn extends Model
     public function purchase(): BelongsTo
     {
         return $this->belongsTo(Purchase::class);
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(PurchaseReturnLine::class);
     }
 }
