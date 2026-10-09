@@ -12,9 +12,9 @@
 <article class="invoice-sheet invoice-sheet-compact">
     <header class="invoice-head">
         <div class="invoice-head-row">
-            <div class="invoice-head-side">
-                @if ($showLogo)
-                    <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
+            <div class="invoice-head-side invoice-head-left">
+                @if ($company->gstin)
+                    <div class="invoice-head-gstin">GSTIN {{ $company->gstin }}</div>
                 @endif
             </div>
             <div class="invoice-head-title">
@@ -31,11 +31,6 @@
                 <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
                 <span>Scan to view bill</span>
             </div>
-        </div>
-        <div class="invoice-gstin">
-            <span>GSTIN {{ $company->gstin ?: '—' }}</span>
-            <span>PAN {{ $company->pan ?: '—' }}</span>
-            <span>State {{ $company->state ?: '—' }}</span>
         </div>
     </header>
 

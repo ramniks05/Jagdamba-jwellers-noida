@@ -1005,12 +1005,27 @@ a {
     align-items: center;
     display: grid;
     gap: 12px;
-    grid-template-columns: 80px minmax(0, 1fr) 80px;
+    grid-template-columns: 150px minmax(0, 1fr) 150px;
 }
 
 .invoice-head-side {
     display: flex;
     justify-content: flex-start;
+}
+
+.invoice-head-left {
+    align-items: flex-start;
+    align-self: stretch;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.invoice-head-gstin {
+    font-family: "Segoe UI", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
 }
 
 .invoice-head-title {
@@ -1029,8 +1044,9 @@ a {
     margin-top: 2px;
 }
 
-.invoice-qr-top {
-    justify-content: flex-end;
+.invoice-head-row .invoice-qr-top {
+    align-items: flex-end;
+    align-self: start;
 }
 
 .invoice-qr-top img {
