@@ -1001,6 +1001,139 @@ a {
     margin: 0;
 }
 
+.invoice-head-row {
+    align-items: flex-start;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    text-align: left;
+}
+
+.invoice-head-row .invoice-brand {
+    flex: 1;
+    justify-content: flex-start;
+    min-width: 0;
+    text-align: center;
+}
+
+.invoice-qr-top {
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.invoice-qr-top img {
+    height: 64px;
+    width: 64px;
+}
+
+.invoice-qr-top span {
+    font-size: 8px;
+    max-width: 72px;
+}
+
+.invoice-sheet-compact {
+    padding: 10px;
+}
+
+.invoice-sheet-compact .invoice-head {
+    padding-bottom: 6px;
+}
+
+.invoice-sheet-compact .invoice-logo {
+    height: 52px;
+    width: 52px;
+}
+
+.invoice-sheet-compact .invoice-head h1 {
+    font-size: 22px;
+    margin: 0 0 2px;
+}
+
+.invoice-sheet-compact .invoice-head p {
+    font-size: 10px;
+    line-height: 1.25;
+}
+
+.invoice-sheet-compact .invoice-kicker {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+}
+
+.invoice-sheet-compact .invoice-gstin {
+    font-size: 10px;
+    gap: 4px 12px;
+    margin-top: 4px;
+}
+
+.invoice-sheet-compact .invoice-parties {
+    margin-top: 6px;
+}
+
+.invoice-sheet-compact .invoice-parties th,
+.invoice-sheet-compact .invoice-parties td,
+.invoice-sheet-compact .invoice-table th,
+.invoice-sheet-compact .invoice-table td,
+.invoice-sheet-compact .invoice-totals td,
+.invoice-sheet-compact .invoice-words {
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 3px 5px;
+}
+
+.invoice-sheet-compact .invoice-table {
+    font-size: 10px;
+    margin-top: 5px;
+}
+
+.invoice-sheet-compact .invoice-table .muted {
+    font-size: 9px;
+}
+
+.invoice-sheet-compact .invoice-split {
+    margin-top: 2px;
+}
+
+.invoice-sheet-compact .invoice-split div {
+    font-size: 8px;
+    gap: 4px;
+    line-height: 1.15;
+}
+
+.invoice-sheet-compact .invoice-bottom {
+    margin-top: 5px;
+}
+
+.invoice-sheet-compact .invoice-words p {
+    margin: 0 0 4px;
+}
+
+.invoice-sheet-compact .invoice-grand td {
+    font-size: 12px;
+}
+
+.invoice-sheet-compact .invoice-foot {
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.invoice-sheet-compact .invoice-terms {
+    font-size: 9px;
+}
+
+.invoice-sheet-compact .invoice-terms p {
+    margin: 0 0 3px;
+}
+
+.invoice-sheet-compact .invoice-sign img {
+    height: 48px;
+    margin-top: 2px;
+    max-width: 140px;
+}
+
+.invoice-sheet-compact .invoice-sign span {
+    font-size: 9px;
+}
+
 .invoice-gstin {
     display: flex;
     flex-wrap: wrap;
@@ -2465,6 +2598,14 @@ a {
 }
 
 @media (max-width: 720px) {
+    .invoice-head-row {
+        flex-direction: column;
+    }
+
+    .invoice-qr-top {
+        align-self: center;
+    }
+
     .invoice-brand,
     .invoice-bottom,
     .invoice-foot {
@@ -2548,7 +2689,7 @@ a {
 @media print {
     @page {
         size: A4 portrait;
-        margin: 10mm;
+        margin: 6mm;
     }
 
     html,
@@ -2584,7 +2725,29 @@ a {
     .invoice-sheet {
         max-width: none !important;
         margin: 0 !important;
-        outline-offset: 2px;
+        outline: 2px solid #7c2430 !important;
+        outline-offset: 0;
+        padding: 4px !important;
+    }
+
+    .invoice-sheet-compact .invoice-qr-top img {
+        height: 52px;
+        width: 52px;
+    }
+
+    .invoice-sheet-compact .invoice-head h1 {
+        font-size: 18px !important;
+    }
+
+    .invoice-sheet-compact .invoice-table tbody tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .invoice-sheet-compact .invoice-bottom,
+    .invoice-sheet-compact .invoice-foot {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     .public-bill,

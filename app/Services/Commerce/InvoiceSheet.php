@@ -42,7 +42,7 @@ class InvoiceSheet
             'money' => fn (string $amount) => $this->format->money($amount, $company),
             'weight' => fn (string $amount) => $this->format->weight($amount, $company),
             'billLink' => $link,
-            'billQr' => (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 5, 'addQuietzone' => false])))->render($link),
+            'billQr' => (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 3, 'addQuietzone' => false])))->render($link),
         ];
     }
 

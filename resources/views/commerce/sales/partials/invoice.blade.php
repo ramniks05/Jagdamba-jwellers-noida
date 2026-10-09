@@ -9,19 +9,25 @@
     $phones = collect([$company->phone, $company->mobile])->filter()->implode(' · ');
     $due = $sale->balanceDue();
 @endphp
-<article class="invoice-sheet">
+<article class="invoice-sheet invoice-sheet-compact">
     <header class="invoice-head">
-        <div class="invoice-brand">
-            @if ($showLogo)
-                <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
-            @endif
-            <div>
-                <div class="invoice-kicker">Tax invoice</div>
-                <h1>{{ $company->displayName() }}</h1>
-                <p>{{ $company->formattedAddress() }}</p>
-                @if ($phones !== '')
-                    <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
+        <div class="invoice-head-row">
+            <div class="invoice-brand">
+                @if ($showLogo)
+                    <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
                 @endif
+                <div>
+                    <div class="invoice-kicker">Tax invoice</div>
+                    <h1>{{ $company->displayName() }}</h1>
+                    <p>{{ $company->formattedAddress() }}</p>
+                    @if ($phones !== '')
+                        <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
+                    @endif
+                </div>
+            </div>
+            <div class="invoice-qr invoice-qr-top">
+                <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
+                <span>Scan to view bill</span>
             </div>
         </div>
         <div class="invoice-gstin">
@@ -192,7 +198,7 @@
         </table>
     </div>
 
-    <footer class="invoice-foot has-qr">
+    <footer class="invoice-foot">
         <div class="invoice-terms">
             @if ($terms !== '')
                 <p>{{ $terms }}</p>
@@ -200,10 +206,6 @@
             @if ($footer !== '')
                 <p class="thanks">{{ $footer }}</p>
             @endif
-        </div>
-        <div class="invoice-qr">
-            <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
-            <span>Scan to view or download this bill</span>
         </div>
         <div class="invoice-sign">
             <div>For {{ $company->displayName() }}</div>
