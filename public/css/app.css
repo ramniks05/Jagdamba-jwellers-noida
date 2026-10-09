@@ -1002,23 +1002,35 @@ a {
 }
 
 .invoice-head-row {
-    align-items: flex-start;
-    display: flex;
-    gap: 10px;
-    justify-content: space-between;
-    text-align: left;
+    align-items: center;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 80px minmax(0, 1fr) 80px;
 }
 
-.invoice-head-row .invoice-brand {
-    flex: 1;
+.invoice-head-side {
+    display: flex;
     justify-content: flex-start;
-    min-width: 0;
+}
+
+.invoice-head-title {
     text-align: center;
 }
 
+.invoice-head-address {
+    border-top: 1px solid #c6a15b;
+    display: inline-block;
+    margin-top: 4px;
+    max-width: 100%;
+    padding: 4px 12px 0;
+}
+
+.invoice-head-address p + p {
+    margin-top: 2px;
+}
+
 .invoice-qr-top {
-    flex-shrink: 0;
-    padding-top: 2px;
+    justify-content: flex-end;
 }
 
 .invoice-qr-top img {
@@ -2599,11 +2611,11 @@ a {
 
 @media (max-width: 720px) {
     .invoice-head-row {
-        flex-direction: column;
+        grid-template-columns: 1fr;
     }
 
-    .invoice-qr-top {
-        align-self: center;
+    .invoice-head-side {
+        justify-content: center;
     }
 
     .invoice-brand,

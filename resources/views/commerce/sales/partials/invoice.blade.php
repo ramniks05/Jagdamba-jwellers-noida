@@ -12,20 +12,22 @@
 <article class="invoice-sheet invoice-sheet-compact">
     <header class="invoice-head">
         <div class="invoice-head-row">
-            <div class="invoice-brand">
+            <div class="invoice-head-side">
                 @if ($showLogo)
                     <img class="invoice-logo" src="{{ $company->brandLogoUrl() }}" alt="{{ $company->displayName() }}">
                 @endif
-                <div>
-                    <div class="invoice-kicker">Tax invoice</div>
-                    <h1>{{ $company->displayName() }}</h1>
+            </div>
+            <div class="invoice-head-title">
+                <div class="invoice-kicker">Tax invoice</div>
+                <h1>{{ $company->displayName() }}</h1>
+                <div class="invoice-head-address">
                     <p>{{ $company->formattedAddress() }}</p>
                     @if ($phones !== '')
                         <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
                     @endif
                 </div>
             </div>
-            <div class="invoice-qr invoice-qr-top">
+            <div class="invoice-head-side invoice-qr invoice-qr-top">
                 <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
                 <span>Scan to view bill</span>
             </div>
