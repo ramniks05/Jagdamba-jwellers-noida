@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Models\Sale;
 use App\Models\SaleReturn;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SaleReturnRequest extends FormRequest
@@ -31,7 +32,7 @@ class SaleReturnRequest extends FormRequest
         return [
             'lines' => ['required', 'array', 'min:1'],
             'lines.*' => ['required', 'uuid'],
-            'refund' => ['required', 'numeric', 'gte:0'],
+            'refund' => ['required', 'numeric', 'gte:0', Limits::MONEY],
         ];
     }
 }

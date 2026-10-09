@@ -5,6 +5,7 @@ namespace App\Http\Requests\Commerce;
 use App\Enums\ChargeAppliesTo;
 use App\Enums\PaymentMethod;
 use App\Models\Purchase;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -67,7 +68,7 @@ class PurchaseRequest extends FormRequest
             'purchased_on' => ['required', 'date', 'before_or_equal:today'],
             'location_uuid' => ['required', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],
             'pricing' => ['required', 'in:rate,amount'],
-            'discount' => ['required', 'numeric', 'gte:0'],
+            'discount' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'gst_percent' => ['required', 'numeric', 'gte:0', 'lte:28'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1', 'max:100'],
@@ -76,22 +77,22 @@ class PurchaseRequest extends FormRequest
             'lines.*.category_uuid' => ['nullable', 'uuid', Rule::exists('categories', 'uuid')->where($shop)],
             'lines.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'lines.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
-            'lines.*.gross_weight' => ['required', 'numeric', 'gt:0'],
-            'lines.*.stone_weight' => ['required', 'numeric', 'gte:0'],
-            'lines.*.other_weight' => ['required', 'numeric', 'gte:0'],
-            'lines.*.stone_value' => ['required', 'numeric', 'gte:0'],
-            'lines.*.rate_per_gram' => ['exclude_if:pricing,amount', 'required', 'numeric', 'gt:0'],
+            'lines.*.gross_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'lines.*.stone_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
+            'lines.*.other_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
+            'lines.*.stone_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'lines.*.rate_per_gram' => ['exclude_if:pricing,amount', 'required', 'numeric', 'gt:0', Limits::RATE],
             'lines.*.wastage_percent' => ['required', 'numeric', 'gte:0', 'lte:100'],
-            'lines.*.labour_per_gram' => ['required', 'numeric', 'gte:0'],
-            'lines.*.amount' => ['exclude_if:pricing,rate', 'required', 'numeric', 'gt:0'],
+            'lines.*.labour_per_gram' => ['required', 'numeric', 'gte:0', Limits::RATE],
+            'lines.*.amount' => ['exclude_if:pricing,rate', 'required', 'numeric', 'gt:0', Limits::MONEY],
             'lines.*.making_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Making->value))],
-            'lines.*.making_value' => ['required', 'numeric', 'gte:0'],
+            'lines.*.making_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'lines.*.wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
-            'lines.*.wastage_value' => ['required', 'numeric', 'gte:0'],
+            'lines.*.wastage_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'lines.*.huid' => ['nullable', 'string', 'max:32'],
             'payments' => ['array'],
             'payments.*.method' => ['required', Rule::enum(PaymentMethod::class)],
-            'payments.*.amount' => ['required', 'numeric', 'gt:0'],
+            'payments.*.amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
         ];
     }

@@ -76,7 +76,7 @@ class InventoryService
     private function quantityFor(InventoryMovement $type): string
     {
         return match ($type) {
-            InventoryMovement::Opening, InventoryMovement::Purchase, InventoryMovement::SaleReturn => '1.000',
+            InventoryMovement::Opening, InventoryMovement::Purchase, InventoryMovement::SaleReturn, InventoryMovement::AdjustmentIn => '1.000',
             InventoryMovement::Sale, InventoryMovement::Damage, InventoryMovement::Lost, InventoryMovement::PurchaseReturn => '-1.000',
             default => '0.000',
         };
@@ -125,6 +125,10 @@ class InventoryService
             InventoryMovement::RepairOut => $this->require($available, 'Only an available piece can be sent for repair.')
                 ? ItemStatus::Repair
                 : ItemStatus::Repair,
+            InventoryMovement::AdjustmentIn => $this->require(
+                in_array($item->status, [ItemStatus::Damaged, ItemStatus::Lost], true) && $onHand->isZero(),
+                'Only a damaged or lost piece can come back into stock.',
+            ) ? ItemStatus::Available : ItemStatus::Available,
             InventoryMovement::RepairIn => $this->require(
                 $item->status === ItemStatus::Repair && $onHand->isEqualTo('1'),
                 'This piece is not out for repair.',

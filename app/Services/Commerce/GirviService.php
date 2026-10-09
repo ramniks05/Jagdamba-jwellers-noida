@@ -143,6 +143,14 @@ class GirviService
             }
 
             $months = (int) $attributes['months'];
+            $owed = $this->pricer->monthsBetween($pledge->interest_from, now());
+
+            if ($months < $owed) {
+                throw ValidationException::withMessages([
+                    'months' => 'Interest is due for '.$owed.' month'.($owed === 1 ? '' : 's').' since '.$pledge->interest_from->format('d-m-Y').'.',
+                ]);
+            }
+
             $interest = $this->pricer->interest((string) $pledge->principal, (string) $pledge->interest_percent, $months);
             $release = $attributes['action'] === 'release';
             $due = $release

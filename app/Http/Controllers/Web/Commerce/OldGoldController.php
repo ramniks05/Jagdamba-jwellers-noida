@@ -65,7 +65,7 @@ class OldGoldController extends Controller
             'customers' => $customers,
             'balances' => $this->customerBalances($customers->pluck('id')->all()),
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
-            'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
+            'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'branchId' => Branch::query()->where('is_head_office', true)->value('id'),
             'methods' => PaymentMethod::cases(),
         ]);

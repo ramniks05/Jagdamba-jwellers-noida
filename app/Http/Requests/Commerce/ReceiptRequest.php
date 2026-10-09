@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\Payment;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +29,7 @@ class ReceiptRequest extends FormRequest
     {
         return [
             'method' => ['required', Rule::enum(PaymentMethod::class)],
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'reference' => ['nullable', 'string', 'max:80'],
         ];
     }

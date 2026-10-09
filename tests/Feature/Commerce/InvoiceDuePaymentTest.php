@@ -13,6 +13,9 @@ use App\Services\Commerce\LedgerService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class InvoiceDuePaymentTest extends TestCase
@@ -62,6 +65,32 @@ class InvoiceDuePaymentTest extends TestCase
         $this->actingAs($owner)->get(route('sales.index', ['status' => 'due']))
             ->assertOk()
             ->assertDontSee($sale->number);
+    }
+
+    public function test_the_printed_bill_carries_a_qr_that_opens_the_bill_without_login(): void
+    {
+        [$owner, $sale] = $this->partPaidSale();
+        $link = URL::signedRoute('bills.show', ['sale' => $sale->uuid]);
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('data:image/', false)
+            ->assertSee('Scan to view or download this bill')
+            ->assertSee('Send on WhatsApp');
+
+        Auth::logout();
+        app(CompanyContext::class)->forget();
+
+        $this->get($link)
+            ->assertOk()
+            ->assertSee($sale->number)
+            ->assertSee('Download PDF')
+            ->assertSee('Meera Shah')
+            ->assertDontSee('Receive payment');
+
+        $this->get(route('bills.show', ['sale' => $sale->uuid]))->assertForbidden();
+        $this->get($link.'x')->assertForbidden();
+        $this->get(URL::signedRoute('bills.show', ['sale' => (string) Str::uuid()]))->assertNotFound();
     }
 
     /**

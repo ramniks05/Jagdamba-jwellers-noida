@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commerce;
 
 use App\Models\MetalRate;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -40,7 +41,7 @@ class MarketRateRequest extends FormRequest
         return [
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
-            'lines.*.rate_per_gram' => ['required', 'numeric', 'gt:0'],
+            'lines.*.rate_per_gram' => ['required', 'numeric', 'gt:0', Limits::RATE],
         ];
     }
 
@@ -52,6 +53,7 @@ class MarketRateRequest extends FormRequest
         return [
             'lines.required' => 'Choose at least one rate to save.',
             'lines.min' => 'Choose at least one rate to save.',
+            'lines.*.rate_per_gram.max' => 'That rate looks too high. Check for an extra zero.',
         ];
     }
 }

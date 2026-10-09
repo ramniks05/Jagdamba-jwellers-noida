@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Access;
 
 use App\Models\User;
+use App\Support\IdentityRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -52,7 +53,7 @@ class UserRequest extends FormRequest
                 'max:160',
                 Rule::unique('users', 'email')->ignore($userId),
             ],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::PHONE],
             'password' => $creating || $this->filled('password')
                 ? [$creating ? 'required' : 'nullable', 'confirmed', Password::defaults()]
                 : ['nullable'],
@@ -61,6 +62,16 @@ class UserRequest extends FormRequest
             'roles.*' => ['uuid'],
             'branches' => ['array'],
             'branches.*' => ['uuid'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages() + [
+            'roles.required' => 'Pick at least one role.',
         ];
     }
 }

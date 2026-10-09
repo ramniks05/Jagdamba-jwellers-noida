@@ -17,18 +17,18 @@ class SettingController extends Controller
     {
         $this->authorize('viewAny', Setting::class);
         $company = $context->company();
-        $groups = [];
+        $fields = [];
 
         foreach ($settings->formFields($company) as $index => $field) {
-            $groups[$field['group']]['label'] = $field['group_label'];
-            $groups[$field['group']]['fields'][] = $field + ['index' => $index];
+            $fields[$field['key']] = $field + ['index' => $index];
         }
 
         $timezone = (string) $settings->get('datetime.timezone', $company);
         $moment = now()->timezone($timezone);
 
         return view('foundation.settings.edit', [
-            'groups' => $groups,
+            'fields' => $fields,
+            'timezones' => \DateTimeZone::listIdentifiers(),
             'currencyPreview' => $format->money('1234567.5', $company),
             'weightPreview' => $format->weight('12.346', $company),
             'datePreview' => $moment->format((string) $settings->get('datetime.date_format', $company)).' '.$moment->format((string) $settings->get('datetime.time_format', $company)),

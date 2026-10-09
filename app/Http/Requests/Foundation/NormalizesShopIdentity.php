@@ -38,11 +38,7 @@ trait NormalizesShopIdentity
      */
     public function identityMessages(): array
     {
-        return [
-            'gstin.regex' => 'Enter a valid 15-character GSTIN.',
-            'pan.regex' => 'Enter a valid 10-character PAN.',
-            'code.regex' => 'Use 2 to 20 letters or digits.',
-        ];
+        return IdentityRules::messages();
     }
 
     /**
@@ -52,8 +48,8 @@ trait NormalizesShopIdentity
     {
         return [
             'email' => ['nullable', 'email', 'max:160'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'mobile' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::PHONE],
+            'mobile' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::MOBILE],
             'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
         ];
     }

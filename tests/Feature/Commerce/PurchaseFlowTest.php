@@ -143,6 +143,19 @@ class PurchaseFlowTest extends TestCase
         $this->assertSame('0.00', $first->refresh()->dueAmount());
         $this->assertSame('5000.00', $second->refresh()->dueAmount());
         $this->actingAs($owner)->get(route('purchases.show', $first))->assertOk()->assertSee('was paid from the supplier account');
+
+        $this->actingAs($owner)->get(route('suppliers.index', ['show' => 'owed']))
+            ->assertOk()
+            ->assertSee('Mumbai Bullion')
+            ->assertSee('₹ 5,000.00')
+            ->assertSee('You owe ₹ 5,000.00 in all.');
+        $this->seeShop($owner);
+        $this->actingAs($owner)->get(route('suppliers.show', $supplier))
+            ->assertOk()
+            ->assertSeeInOrder([$second->number, 'Part paid', $first->number, 'Paid'])
+            ->assertSeeInOrder(['₹ 15,000.00', '₹ 5,000.00', '₹ 20,000.00', '₹ 10,000.00']);
+        $this->seeShop($owner);
+        $this->actingAs($owner)->get(route('suppliers.create'))->assertOk()->assertSee('value="SUP002"', false);
     }
 
     public function test_a_bill_with_repeated_or_used_codes_or_no_rate_is_refused(): void

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\GirviPledge;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +32,7 @@ class GirviSettleRequest extends FormRequest
         return [
             'action' => ['required', Rule::in(['release', 'interest'])],
             'months' => ['required', 'integer', 'min:0', 'max:120'],
-            'payment' => ['required', 'numeric', 'gt:0'],
+            'payment' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
         ];

@@ -5,6 +5,7 @@ namespace App\Http\Requests\Masters;
 use App\Models\Category;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 class CategoryRequest extends CatalogRequest
 {
@@ -41,6 +42,20 @@ class CategoryRequest extends CatalogRequest
                 ),
             ],
         ]);
+    }
+
+    /**
+     * "Rings" may sit under both Gold and Silver, but not twice under one parent.
+     */
+    protected function uniqueName(): Unique
+    {
+        $parentId = $this->input('parent_uuid')
+            ? Category::query()->where('uuid', $this->input('parent_uuid'))->value('id')
+            : null;
+
+        return parent::uniqueName()->where(fn ($query) => $parentId
+            ? $query->where('parent_id', $parentId)
+            : $query->whereNull('parent_id'));
     }
 
     public function existing(): ?Model

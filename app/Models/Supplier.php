@@ -7,6 +7,7 @@ use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -24,5 +25,10 @@ class Supplier extends Model
             'kyc_status' => KycStatus::class,
             'is_active' => 'boolean',
         ];
+    }
+
+    public function purchases(): HasMany
+    {
+        return $this->hasMany(Purchase::class);
     }
 }

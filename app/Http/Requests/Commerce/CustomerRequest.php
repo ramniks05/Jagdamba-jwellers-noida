@@ -6,6 +6,7 @@ use App\Enums\CustomerType;
 use App\Enums\KycStatus;
 use App\Models\Customer;
 use App\Support\IdentityRules;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -26,6 +27,7 @@ class CustomerRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'mobile' => preg_replace('/[\s-]+/', '', trim((string) $this->input('mobile'))),
             'pan' => Str::upper(trim((string) $this->input('pan'))),
             'gstin' => Str::upper(trim((string) $this->input('gstin'))),
         ]);
@@ -44,7 +46,7 @@ class CustomerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:160'],
-            'mobile' => ['nullable', 'string', 'max:20'],
+            'mobile' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::MOBILE, $this->uniqueMobile()],
             'email' => ['nullable', 'email', 'max:160'],
             'address_line1' => ['nullable', 'string', 'max:200'],
             'address_line2' => ['nullable', 'string', 'max:200'],
@@ -52,7 +54,7 @@ class CustomerRequest extends FormRequest
             'state' => ['nullable', 'string', 'max:100'],
             'postal_code' => ['nullable', 'string', 'max:12'],
             'country' => ['nullable', 'string', 'max:100'],
-            'dob' => ['nullable', 'date'],
+            'dob' => ['nullable', 'date', 'before_or_equal:today'],
             'anniversary' => ['nullable', 'date'],
             'pan' => ['nullable', 'regex:'.IdentityRules::PAN],
             'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
@@ -63,5 +65,43 @@ class CustomerRequest extends FormRequest
             'is_active' => ['required', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages() + [
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+        ];
+    }
+
+    /**
+     * The QR form finds customers by mobile, so two customers cannot share one.
+     */
+    private function uniqueMobile(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $key = IdentityRules::mobileKey((string) $value);
+
+            if (strlen($key) < 10) {
+                return;
+            }
+
+            $current = $this->route('customer');
+
+            $other = Customer::query()
+                ->where('company_id', $this->user()->company_id)
+                ->where('is_system', false)
+                ->where('mobile', 'like', '%'.$key)
+                ->when($current instanceof Customer, fn ($query) => $query->whereKeyNot($current->id))
+                ->get(['id', 'code', 'name', 'mobile'])
+                ->first(fn (Customer $customer) => IdentityRules::mobileKey($customer->mobile) === $key);
+
+            if ($other) {
+                $fail("This mobile already belongs to {$other->name} ({$other->code}).");
+            }
+        };
     }
 }

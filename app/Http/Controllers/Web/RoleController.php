@@ -18,7 +18,8 @@ class RoleController extends Controller
         $this->authorize('viewAny', Role::class);
 
         return view('access.roles.index', [
-            'roles' => Role::query()->withCount('users')->orderByDesc('is_system')->orderBy('name')->get(),
+            'roles' => Role::query()->withCount(['users', 'permissions'])->orderByDesc('is_system')->orderBy('name')->get(),
+            'permissionTotal' => Permission::query()->count(),
         ]);
     }
 

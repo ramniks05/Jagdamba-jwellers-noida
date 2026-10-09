@@ -12,7 +12,6 @@ use App\Http\Requests\Commerce\SaleReturnRequest;
 use App\Models\AdvanceOrder;
 use App\Models\Category;
 use App\Models\ChargeMethod;
-use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
 use App\Models\MetalRate;
@@ -20,6 +19,7 @@ use App\Models\MetalType;
 use App\Models\Sale;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
+use App\Services\Commerce\InvoiceSheet;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
 use App\Services\Commerce\SaleReturnService;
@@ -27,9 +27,8 @@ use App\Services\Commerce\SaleService;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
-use App\Support\RupeesInWords;
+use App\Support\CustomerShare;
 use Brick\Math\BigDecimal;
-use Brick\Math\RoundingMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -124,7 +123,7 @@ class SaleController extends Controller
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
-            'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
+            'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
             'makingMode' => (string) old('making_mode', $settings->get('pricing.making_mode', $company) ?? 'inside'),
             'makingGstPercent' => (string) ($settings->get('pricing.making_gst_percent', $company) ?? '0'),
@@ -142,79 +141,16 @@ class SaleController extends Controller
         return redirect()->route('sales.show', $sale)->with('status', 'Invoice '.$sale->number.' saved.');
     }
 
-    public function show(Sale $sale, NumberFormatService $format, SettingService $settings, CompanyContext $context): View
+    public function show(Sale $sale, InvoiceSheet $invoice, CompanyContext $context): View
     {
         $this->authorize('view', $sale);
-        $company = $context->company();
-        $sale->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
+        $data = $invoice->data($sale, $context->company());
 
-        return view('commerce.sales.show', [
-            'sale' => $sale,
+        return view('commerce.sales.show', $data + [
             'returned' => SaleReturnLine::query()->whereIn('sale_line_id', $sale->lines->modelKeys())->pluck('sale_line_id'),
-            'company' => $company,
-            'terms' => (string) ($settings->get('invoice.terms', $company) ?? ''),
-            'footer' => (string) ($settings->get('invoice.footer_note', $company) ?? ''),
-            'showLogo' => (bool) $settings->get('invoice.show_logo', $company),
-            'amountWords' => RupeesInWords::format((string) $sale->total),
-            'taxes' => $this->taxRows($sale, $company),
-            'makingLines' => (string) $sale->lines->reduce(fn (BigDecimal $sum, $line) => $sum->plus((string) $line->making_amount), BigDecimal::zero()),
             'methods' => PaymentMethod::cases(),
-            'money' => fn (string $amount) => $format->money($amount, $company),
-            'weight' => fn (string $amount) => $format->weight($amount, $company),
+            'shareUrl' => CustomerShare::whatsapp($sale->customer?->mobile, 'Your bill '.$sale->number.' from '.$data['company']->displayName().': '.$data['billLink']),
         ]);
-    }
-
-    /**
-     * @return list<array{label: string, amount: string}>
-     */
-    private function taxRows(Sale $sale, Company $company): array
-    {
-        $makingTax = BigDecimal::of((string) $sale->making_tax_amount);
-        $split = $sale->making_mode !== 'inside';
-        $rows = $this->taxPair(
-            $sale,
-            $company,
-            BigDecimal::of((string) $sale->tax_amount)->minus($makingTax),
-            (float) $sale->tax_percent,
-            $split ? ' on jewellery' : '',
-        );
-
-        if ($makingTax->isPositive()) {
-            $rows = array_merge($rows, $this->taxPair($sale, $company, $makingTax, (float) $sale->making_tax_percent, ' on making'));
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array{label: string, amount: string}>
-     */
-    private function taxPair(Sale $sale, Company $company, BigDecimal $tax, float $percent, string $suffix): array
-    {
-        $customerState = mb_strtolower(trim((string) $sale->customer?->state));
-        $shopState = mb_strtolower(trim((string) $company->state));
-        $interstate = $customerState !== '' && $shopState !== '' && $customerState !== $shopState;
-
-        if ($interstate) {
-            return [[
-                'label' => 'IGST '.$this->percentLabel($percent).'%'.$suffix,
-                'amount' => (string) $tax,
-            ]];
-        }
-
-        $half = $tax->dividedBy(2, 2, RoundingMode::HalfUp);
-
-        return [
-            ['label' => 'CGST '.$this->percentLabel($percent / 2).'%'.$suffix, 'amount' => (string) $half],
-            ['label' => 'SGST '.$this->percentLabel($percent / 2).'%'.$suffix, 'amount' => (string) $tax->minus($half)],
-        ];
-    }
-
-    private function percentLabel(float $percent): string
-    {
-        $label = rtrim(rtrim(number_format($percent, 2, '.', ''), '0'), '.');
-
-        return $label === '' ? '0' : $label;
     }
 
     public function payment(ReceiptRequest $request, Sale $sale, PaymentService $payments): RedirectResponse

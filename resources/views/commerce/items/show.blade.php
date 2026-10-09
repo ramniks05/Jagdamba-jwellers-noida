@@ -173,6 +173,10 @@
                     <form method="POST" action="{{ route('items.release', $item) }}">@csrf<button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-bookmark-x"></i> Release reservation</button></form>
                 @endif
             </div>
+        @elseif (in_array($item->status->value, ['damaged', 'lost'], true))
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <form method="POST" action="{{ route('items.restore', $item) }}" onsubmit="return confirm('Put {{ $item->item_code }} back in saleable stock?')">@csrf<button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-arrow-counterclockwise"></i> {{ $item->status->value === 'lost' ? 'Found · back in stock' : 'Mended · back in stock' }}</button></form>
+            </div>
         @endif
     @endcan
 

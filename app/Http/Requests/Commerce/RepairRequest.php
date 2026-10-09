@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commerce;
 
 use App\Models\RepairOrder;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -34,11 +35,21 @@ class RepairRequest extends FormRequest
             'item_uuid' => ['nullable', 'uuid', Rule::exists('items', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
             'description' => ['required', 'string', 'max:160'],
             'problem' => ['required', 'string', 'max:500'],
-            'gross_weight' => ['required', 'numeric', 'gt:0'],
+            'gross_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'technician' => ['nullable', 'string', 'max:80'],
-            'estimated_cost' => ['required', 'numeric', 'gte:0'],
-            'expected_on' => ['nullable', 'date'],
+            'estimated_cost' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'expected_on' => ['nullable', 'date', 'after_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'expected_on.after_or_equal' => 'The ready-by date cannot be in the past.',
         ];
     }
 }

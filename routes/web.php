@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\PasswordResetController;
 use App\Http\Controllers\Web\BranchController;
 use App\Http\Controllers\Web\Commerce\AdvanceOrderController;
+use App\Http\Controllers\Web\Commerce\BillLinkController;
 use App\Http\Controllers\Web\Commerce\CustomerController as ShopCustomerController;
 use App\Http\Controllers\Web\Commerce\CustomerFormController;
 use App\Http\Controllers\Web\Commerce\CustomerIntakeController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('customer-form/{company}', [CustomerFormController::class, 'create'])->name('customer-form.create');
+Route::get('bill/{sale}', [BillLinkController::class, 'show'])->middleware(['signed', 'throttle:60,1'])->name('bills.show');
 Route::post('customer-form/{company}', [CustomerFormController::class, 'store'])->middleware('throttle:customer-form')->name('customer-form.store');
 
 Route::middleware('guest')->group(function () {
@@ -103,6 +105,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('items/{item}/release', [ItemController::class, 'release'])->name('items.release');
     Route::post('items/{item}/damage', [ItemController::class, 'damage'])->name('items.damage');
     Route::post('items/{item}/lost', [ItemController::class, 'lost'])->name('items.lost');
+    Route::post('items/{item}/restore', [ItemController::class, 'restore'])->name('items.restore');
     Route::get('items/{item}/photo', [ItemController::class, 'photo'])->name('items.photo');
 
     Route::get('rates', [RateController::class, 'index'])->name('rates.index');

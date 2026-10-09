@@ -27,7 +27,7 @@ enum InventoryMovement: string
             self::SaleReturn => 'Sales return',
             self::Purchase => 'Purchase',
             self::PurchaseReturn => 'Purchase return',
-            self::AdjustmentIn => 'Adjustment in',
+            self::AdjustmentIn => 'Back in stock',
             self::AdjustmentOut => 'Adjustment out',
             self::Transfer => 'Transfer',
             self::Damage => 'Damage',

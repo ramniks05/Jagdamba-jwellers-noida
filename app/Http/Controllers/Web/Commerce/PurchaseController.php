@@ -86,7 +86,7 @@ class PurchaseController extends Controller
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
             'methods' => PaymentMethod::cases(),
-            'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
+            'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
             'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
         ]);

@@ -19,6 +19,7 @@ class CompanyProfileController extends Controller
         return view('foundation.company.edit', [
             'company' => $company,
             'months' => $this->months(),
+            'timezones' => \DateTimeZone::listIdentifiers(),
         ]);
     }
 

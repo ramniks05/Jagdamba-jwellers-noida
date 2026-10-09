@@ -223,6 +223,14 @@ class ItemController extends Controller
         return back()->with('status', 'Piece is available again.');
     }
 
+    public function restore(Item $item, InventoryService $inventory): RedirectResponse
+    {
+        $this->authorize('inventory.adjust');
+        $inventory->apply($item, InventoryMovement::AdjustmentIn, null, null, null, 'Back in stock', auth()->id());
+
+        return back()->with('status', 'Piece is back in stock.');
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -243,7 +251,7 @@ class ItemController extends Controller
             'stoneTypes' => StoneType::query()->active()->orderBy('sort_order')->orderBy('name')->pluck('name'),
             'makingMethods' => ChargeMethod::query()->where('applies_to', 'making')->where('is_active', true)->orderBy('sort_order')->get(),
             'wastageMethods' => ChargeMethod::query()->where('applies_to', 'wastage')->where('is_active', true)->orderBy('sort_order')->get(),
-            'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
+            'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
         ];
     }
 }

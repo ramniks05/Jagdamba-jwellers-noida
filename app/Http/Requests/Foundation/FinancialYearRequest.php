@@ -3,7 +3,10 @@
 namespace App\Http\Requests\Foundation;
 
 use App\Models\FinancialYear;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
+use Throwable;
 
 class FinancialYearRequest extends FormRequest
 {
@@ -26,7 +29,18 @@ class FinancialYearRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:30'],
             'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', function (string $attribute, mixed $value, Closure $fail): void {
+                try {
+                    $start = Carbon::parse((string) $this->input('start_date'));
+                    $end = Carbon::parse((string) $value);
+                } catch (Throwable) {
+                    return;
+                }
+
+                if ($end->gte($start->copy()->addYear())) {
+                    $fail('A financial year can be at most 12 months long.');
+                }
+            }],
             'is_current' => ['sometimes', 'boolean'],
         ];
     }

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Models\Item;
+use App\Support\Limits;
 use App\Support\StoneRate;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -97,23 +98,23 @@ class ItemRequest extends FormRequest
             'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'location_uuid' => ['required', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],
-            'gross_weight' => ['required', 'numeric', 'gt:0'],
+            'gross_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'stones' => ['nullable', 'array'],
             'stones.*.name' => ['required', 'string', 'max:80'],
-            'stones.*.weight' => ['required', 'numeric', 'gte:0'],
-            'stones.*.value' => ['required', 'numeric', 'gte:0'],
-            'stones.*.rate' => ['nullable', 'numeric', 'gte:0'],
+            'stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
+            'stones.*.value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'stones.*.rate' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
-            'stone_weight' => ['required', 'numeric', 'gte:0'],
-            'other_weight' => ['required', 'numeric', 'gte:0'],
+            'stone_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
+            'other_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
             'making_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Making->value))],
-            'making_value' => ['required', 'numeric', 'gte:0'],
+            'making_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
-            'wastage_value' => ['required', 'numeric', 'gte:0'],
-            'stone_value' => ['required', 'numeric', 'gte:0'],
-            'cost_price' => ['required', 'numeric', 'gte:0'],
-            'selling_price' => ['required', 'numeric', 'gte:0'],
-            'mrp' => ['required', 'numeric', 'gte:0'],
+            'wastage_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'stone_value' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'cost_price' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'selling_price' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'mrp' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'certificate_number' => ['nullable', 'string', 'max:40'],
             'hallmark' => ['nullable', 'string', 'max:40'],
             'huid' => ['nullable', 'string', 'max:32'],

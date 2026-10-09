@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enums\SequenceResetPolicy;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Foundation\DocumentSequenceRequest;
 use App\Models\DocumentSequence;
+use App\Models\FinancialYear;
 use App\Services\Foundation\DocumentNumberService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -48,10 +50,22 @@ class DocumentSequenceController extends Controller
             $previewError = collect($exception->errors())->flatten()->first();
         }
 
+        $today = now()->toDateString();
+        $yearName = FinancialYear::query()
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->value('name');
+
         return view('foundation.sequences.edit', [
             'sequence' => $documentSequence,
             'preview' => $preview,
             'previewError' => $previewError,
+            'periodTokens' => [
+                SequenceResetPolicy::Never->value => null,
+                SequenceResetPolicy::Yearly->value => now()->format('Y'),
+                SequenceResetPolicy::Monthly->value => now()->format('Ym'),
+                SequenceResetPolicy::FinancialYear->value => $yearName,
+            ],
         ]);
     }
 

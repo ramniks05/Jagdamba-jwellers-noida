@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commerce;
 
 use App\Models\GirviPledge;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -60,12 +61,12 @@ class GirviRequest extends FormRequest
             'pieces.*.description' => ['required', 'string', 'max:160'],
             'pieces.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'pieces.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
-            'pieces.*.gross_weight' => ['required', 'numeric', 'gt:0'],
-            'pieces.*.stone_weight' => ['required', 'numeric', 'gte:0'],
-            'pieces.*.rate_per_gram' => ['required', 'numeric', 'gt:0'],
+            'pieces.*.gross_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'pieces.*.stone_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
+            'pieces.*.rate_per_gram' => ['required', 'numeric', 'gt:0', Limits::RATE],
             'loan_mode' => ['required', Rule::in(['percent', 'amount'])],
             'loan_percent' => ['required_if:loan_mode,percent', 'nullable', 'numeric', 'gt:0', 'lte:100'],
-            'loan_amount' => ['required_if:loan_mode,amount', 'nullable', 'numeric', 'gt:0'],
+            'loan_amount' => ['required_if:loan_mode,amount', 'nullable', 'numeric', 'gt:0', Limits::MONEY],
             'interest_percent' => ['required', 'numeric', 'gt:0', 'lte:100'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

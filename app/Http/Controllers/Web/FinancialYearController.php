@@ -18,13 +18,15 @@ class FinancialYearController extends Controller
 
         return view('foundation.financial-years.index', [
             'years' => FinancialYear::query()->with('closedBy:id,name')->orderByDesc('start_date')->paginate(20),
+            'today' => now()->startOfDay(),
         ]);
     }
 
     public function create(FinancialYearService $years, CompanyContext $context): View
     {
         $this->authorize('create', FinancialYear::class);
-        $suggestion = $years->suggestRange($context->company());
+        $latest = FinancialYear::query()->orderByDesc('end_date')->first();
+        $suggestion = $years->suggestRange($context->company(), $latest?->end_date->copy()->addDay());
 
         return view('foundation.financial-years.form', [
             'year' => new FinancialYear([

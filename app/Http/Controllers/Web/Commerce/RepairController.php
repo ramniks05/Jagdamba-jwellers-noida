@@ -108,7 +108,7 @@ class RepairController extends Controller
         $this->authorize('update', $repair);
         $repairs->advance($repair, (string) $request->input('status'));
 
-        return redirect()->route('repairs.show', $repair)->with('status', 'Repair '.$repair->number.' is now '.strtolower($repair->statusLabel()).'.');
+        return redirect()->route('repairs.show', $repair)->with('status', 'Repair '.$repair->number.' moved to: '.$repair->statusLabel().'.');
     }
 
     public function deliver(RepairDeliveryRequest $request, RepairOrder $repair, RepairService $repairs): RedirectResponse

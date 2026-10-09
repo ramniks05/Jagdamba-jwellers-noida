@@ -3,35 +3,32 @@
 @section('title', 'Profile')
 
 @section('content')
-    <h1 class="page-title h3 mb-4">Your profile</h1>
-    <div class="row g-4">
+    @include('masters.partials.head', [
+        'title' => 'Your profile',
+        'intro' => 'Your name is printed on the bills you make. Change your password here.',
+    ])
+    <div class="row g-3 align-items-start">
         <div class="col-lg-6">
             <form method="POST" action="{{ route('profile.update') }}">
                 @csrf
                 @method('PUT')
                 <div class="card">
                     <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label" for="name">Name</label>
-                            <input class="form-control" id="name" name="name" value="{{ old('name', $user->name) }}" required>
+                        <div class="weigh-section-title"><i class="bi bi-person"></i> About you</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'name', 'label' => 'Name', 'value' => $user->name, 'col' => 'col-12'])
+                            @include('masters.partials.field', ['name' => 'email', 'label' => 'Email (used to log in)', 'value' => $user->email, 'col' => 'col-md-7', 'type' => 'email', 'autocomplete' => 'username'])
+                            @include('masters.partials.field', ['name' => 'phone', 'label' => 'Phone', 'value' => $user->phone, 'col' => 'col-md-5', 'inputmode' => 'tel', 'required' => false])
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="email">Email</label>
-                            <input class="form-control" id="email" name="email" type="email" value="{{ old('email', $user->email) }}" required autocomplete="username">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="phone">Phone</label>
-                            <input class="form-control" id="phone" name="phone" value="{{ old('phone', $user->phone) }}">
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-label">Roles</div>
+                        <div class="mt-3">
+                            <div class="stat-label mb-1">Your role</div>
                             @forelse ($user->roles as $role)
-                                <span class="badge text-bg-secondary">{{ $role->name }}</span>
+                                <span class="order-status is-active">{{ $role->name }}</span>
                             @empty
-                                <span class="text-secondary">No role assigned.</span>
+                                <span class="text-secondary">No role yet. Ask the owner to give you one.</span>
                             @endforelse
                         </div>
-                        <button class="btn btn-primary" type="submit">Save profile</button>
+                        @include('masters.partials.form-foot', ['label' => 'Save profile', 'backUrl' => route('overview')])
                     </div>
                 </div>
             </form>
@@ -41,22 +38,16 @@
                 @csrf
                 @method('PUT')
                 <div class="card">
-                    <div class="card-header bg-white">Change password</div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label" for="current_password">Current password</label>
-                            <input class="form-control" id="current_password" name="current_password" type="password" required autocomplete="current-password">
+                        <div class="weigh-section-title"><i class="bi bi-key"></i> Change password</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'current_password', 'label' => 'Current password', 'col' => 'col-12', 'type' => 'password', 'autocomplete' => 'current-password'])
+                            @include('masters.partials.field', ['name' => 'password', 'label' => 'New password', 'col' => 'col-md-6', 'type' => 'password', 'autocomplete' => 'new-password', 'help' => 'At least 10 characters with upper and lower case, a number and a symbol.'])
+                            @include('masters.partials.field', ['name' => 'password_confirmation', 'label' => 'Type it again', 'col' => 'col-md-6', 'type' => 'password', 'autocomplete' => 'new-password'])
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="password">New password</label>
-                            <input class="form-control" id="password" name="password" type="password" required autocomplete="new-password">
-                            <div class="form-text">At least 10 characters, with upper and lower case letters, a number, and a symbol.</div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-shield-check"></i> Update password</button>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="password_confirmation">Confirm password</label>
-                            <input class="form-control" id="password_confirmation" name="password_confirmation" type="password" required autocomplete="new-password">
-                        </div>
-                        <button class="btn btn-primary" type="submit">Update password</button>
                     </div>
                 </div>
             </form>

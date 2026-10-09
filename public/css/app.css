@@ -1107,6 +1107,62 @@ a {
     margin-top: 12px;
 }
 
+.invoice-foot.has-qr {
+    grid-template-columns: 1.4fr auto 0.8fr;
+}
+
+.invoice-qr {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+}
+
+.invoice-qr img {
+    height: 92px;
+    image-rendering: pixelated;
+    width: 92px;
+}
+
+.invoice-qr span {
+    font-size: 10px;
+    line-height: 1.2;
+    max-width: 110px;
+}
+
+.public-bill {
+    background: #f6f1ea;
+    padding: 12px;
+}
+
+.public-bill-bar {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line, #e2d8cc);
+    border-radius: 10px;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin: 0 auto 8px;
+    max-width: 900px;
+    padding: 10px 14px;
+}
+
+.public-bill-hint {
+    color: #6d6258;
+    font-size: 0.85rem;
+    margin: 0 auto 10px;
+    max-width: 900px;
+    text-align: center;
+}
+
+.public-bill-sheet {
+    margin: 0 auto;
+    max-width: 900px;
+    overflow-x: auto;
+}
+
 .invoice-terms {
     font-size: 12px;
 }
@@ -1956,6 +2012,48 @@ a {
     width: 2rem;
 }
 
+.settings-example {
+    background: #fbf8f2;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    max-width: 26rem;
+    padding: 0.7rem 0.9rem;
+}
+
+.shop-bill-head {
+    align-items: center;
+    border-bottom: 2px solid var(--maroon);
+    display: flex;
+    gap: 0.8rem;
+    padding-bottom: 0.6rem;
+}
+
+.shop-bill-logo {
+    border-radius: 0.5rem;
+    flex: 0 0 auto;
+    height: 3.5rem;
+    object-fit: contain;
+    width: 3.5rem;
+}
+
+.permission-group-head {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.sequence-sample {
+    background: #fbf8f2;
+    border: 1px dashed var(--gold);
+    border-radius: 0.6rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 0.5rem 0.8rem;
+}
+
 .piece-photo {
     border: 1px solid var(--line);
     border-radius: 0.6rem;
@@ -2343,6 +2441,10 @@ a {
         border-right: 1px solid #2a211c;
         margin-bottom: 8px;
     }
+
+    .invoice-qr {
+        margin: 8px 0;
+    }
 }
 
 @media (min-width: 992px) {
@@ -2449,5 +2551,13 @@ a {
         max-width: none !important;
         margin: 0 !important;
         outline-offset: 2px;
+    }
+
+    .public-bill,
+    .public-bill-sheet {
+        background: #fff !important;
+        max-width: none !important;
+        overflow: visible !important;
+        padding: 0 !important;
     }
 }

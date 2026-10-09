@@ -3,34 +3,76 @@
 @section('title', 'Suppliers')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="page-title h3 mb-0">Suppliers</h1>
-        @can('create', App\Models\Supplier::class)
-            <a class="btn btn-primary" href="{{ route('suppliers.create') }}">Add supplier</a>
-        @endcan
-    </div>
-    <form class="row g-2 mb-3" method="GET" action="{{ route('suppliers.index') }}">
-        <div class="col-md-4"><input class="form-control" name="search" value="{{ $search }}" placeholder="Name, code, or mobile"></div>
-        <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Search</button></div>
+    @include('masters.partials.head', [
+        'title' => 'Suppliers',
+        'intro' => 'Karigars and wholesalers you buy from. You owe '.$money($owedTotal).' in all.',
+        'actions' => array_values(array_filter([
+            auth()->user()->can('viewAny', App\Models\Purchase::class) ? ['url' => route('purchases.index'), 'label' => 'Purchases', 'icon' => 'bag'] : null,
+            auth()->user()->can('create', App\Models\Supplier::class) ? ['url' => route('suppliers.create'), 'label' => 'Add supplier', 'icon' => 'plus-lg', 'primary' => true] : null,
+        ])),
+    ])
+    <form class="d-flex flex-wrap align-items-center gap-2 mb-3" method="GET" action="{{ route('suppliers.index') }}">
+        @if ($show !== 'all')
+            <input type="hidden" name="show" value="{{ $show }}">
+        @endif
+        <input class="form-control master-search" name="search" value="{{ $search }}" placeholder="Name, code, mobile or GSTIN" aria-label="Search">
+        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Search</button>
+        @if ($search !== '')
+            <a class="btn btn-outline-secondary" href="{{ route('suppliers.index', array_filter(['show' => $show === 'all' ? null : $show])) }}">Clear</a>
+        @endif
+        <div class="d-flex flex-wrap gap-2 ms-md-auto">
+            @foreach (['all' => 'All', 'owed' => 'We owe', 'hidden' => 'Hidden'] as $key => $label)
+                <a class="btn btn-sm {{ $show === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('suppliers.index', array_filter(['search' => $search, 'show' => $key === 'all' ? null : $key])) }}">{{ $label }} <span class="opacity-75">{{ $counts[$key] }}</span></a>
+            @endforeach
+        </div>
     </form>
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
-                <thead><tr><th>Code</th><th>Name</th><th>Mobile</th><th></th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Supplier</th>
+                        <th>Contact</th>
+                        <th>GSTIN</th>
+                        <th class="num">Purchases</th>
+                        <th class="num">We owe</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
                 <tbody>
                     @forelse ($suppliers as $supplier)
+                        @php($owe = $payable[$supplier->id] ?? '0.00')
                         <tr>
-                            <td>{{ $supplier->code }}</td>
-                            <td>{{ $supplier->name }}</td>
-                            <td>{{ $supplier->mobile }}</td>
-                            <td class="text-end"><a href="{{ route('suppliers.show', $supplier) }}">Open</a></td>
+                            <td>
+                                <a class="fw-semibold" href="{{ route('suppliers.show', $supplier) }}">{{ $supplier->name }}</a>
+                                <div class="small text-secondary">{{ $supplier->code }}{{ $supplier->city ? ' · '.$supplier->city : '' }}</div>
+                            </td>
+                            <td>
+                                {{ $supplier->mobile ?: '—' }}
+                                @if ($supplier->contact_name)
+                                    <div class="small text-secondary">{{ $supplier->contact_name }}</div>
+                                @endif
+                            </td>
+                            <td class="text-nowrap">{{ $supplier->gstin ?: '—' }}</td>
+                            <td class="num">{{ $supplier->purchases_count }}</td>
+                            <td class="num {{ (float) $owe > 0 ? 'text-danger fw-semibold' : 'text-secondary' }}">{{ (float) $owe > 0 ? $money($owe) : ((float) $owe < 0 ? 'Advance '.$money(ltrim($owe, '-')) : '—') }}</td>
+                            <td>@include('masters.partials.status', ['active' => $supplier->is_active])</td>
+                            <td class="text-end text-nowrap">
+                                @if ($supplier->is_active)
+                                    @can('create', App\Models\Purchase::class)
+                                        <a href="{{ route('purchases.create', ['supplier' => $supplier->uuid]) }}">New purchase</a>
+                                    @endcan
+                                @endif
+                                <a class="ms-2" href="{{ route('suppliers.show', $supplier) }}">Open</a>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4">No suppliers yet.</td></tr>
+                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No supplier matches this search.' : 'No suppliers yet. Add one, or add them while receiving a purchase.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $suppliers->links() }}</div>
+    @include('masters.partials.pager', ['rows' => $suppliers])
 @endsection

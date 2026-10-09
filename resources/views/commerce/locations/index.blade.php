@@ -3,29 +3,60 @@
 @section('title', 'Stock locations')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="page-title h3 mb-0">Stock locations</h1>
-        @can('create', App\Models\StockLocation::class)
-            <a class="btn btn-primary" href="{{ route('locations.create') }}">Add location</a>
-        @endcan
-    </div>
+    @include('masters.partials.head', [
+        'title' => 'Stock locations',
+        'intro' => 'Where pieces are kept: counter, tray, locker or safe. Put one inside another, like Tray 1 inside Counter A.',
+        'actions' => auth()->user()->can('create', App\Models\StockLocation::class)
+            ? [['url' => route('locations.create'), 'label' => 'Add location', 'icon' => 'plus-lg', 'primary' => true]]
+            : [],
+    ])
+    @include('masters.partials.filters', ['action' => route('locations.index')])
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
-                <thead><tr><th>Name</th><th>Kind</th><th>Branch</th><th>Pieces</th><th></th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Code</th>
+                        <th>Kind</th>
+                        <th>Branch</th>
+                        <th class="num">In stock</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
                 <tbody>
-                    @foreach ($locations as $location)
+                    @forelse ($locations as $location)
                         <tr>
-                            <td>{{ $location->label() }} <span class="text-secondary">{{ $location->code }}</span></td>
+                            <td>
+                                <span class="fw-semibold">{{ $location->name }}</span>
+                                @if ($location->parent)
+                                    <div class="small text-secondary">Inside {{ $location->parent->name }}</div>
+                                @endif
+                            </td>
+                            <td class="text-nowrap">{{ $location->code }}</td>
                             <td>{{ $location->kind->label() }}</td>
-                            <td>{{ $location->branch?->name }}</td>
-                            <td>{{ $location->items_count }}</td>
-                            <td class="text-end">@can('update', $location)<a href="{{ route('locations.edit', $location) }}">Edit</a>@endcan</td>
+                            <td>{{ $location->branch?->name ?? '—' }}</td>
+                            <td class="num">
+                                @if ($location->stock_count > 0 && auth()->user()->can('reports.view'))
+                                    <a href="{{ route('reports.stock', ['location' => $location->uuid]) }}">{{ $location->stock_count }}</a>
+                                @else
+                                    {{ $location->stock_count ?: '—' }}
+                                @endif
+                            </td>
+                            <td>@include('masters.partials.status', ['active' => $location->is_active])</td>
+                            <td class="text-end">
+                                @can('update', $location)
+                                    <a href="{{ route('locations.edit', $location) }}">Edit</a>
+                                @endcan
+                            </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No location matches this search.' : 'No locations yet.' }}</td></tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $locations->links() }}</div>
+    @include('masters.partials.pager', ['rows' => $locations])
 @endsection

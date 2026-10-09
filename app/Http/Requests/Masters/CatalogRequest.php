@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 class CatalogRequest extends FormRequest
 {
@@ -42,7 +43,7 @@ class CatalogRequest extends FormRequest
         $record = $this->existing();
 
         return [
-            'name' => ['required', 'string', 'max:80'],
+            'name' => ['required', 'string', 'max:80', $this->uniqueName()],
             'code' => [
                 'required',
                 'regex:'.IdentityRules::CODE,
@@ -61,9 +62,18 @@ class CatalogRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'name.unique' => 'This name is already in the list.',
+            'code.unique' => 'Another entry already uses this code.',
             'code.regex' => 'Use 2 to 20 letters or numbers for the code, with no spaces.',
             'design_number.regex' => 'Start the design number with a letter or number. Use up to 40 letters, numbers, dots, dashes or slashes.',
         ];
+    }
+
+    protected function uniqueName(): Unique
+    {
+        return Rule::unique($this->table(), 'name')
+            ->where(fn ($query) => $query->where('company_id', $this->user()->company_id)->whereNull('deleted_at'))
+            ->ignore($this->existing()?->id);
     }
 
     /**

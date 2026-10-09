@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\OldGoldExchange;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,14 +37,14 @@ class OldGoldRequest extends FormRequest
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
             'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
-            'gross_weight' => ['required', 'numeric', 'gt:0'],
-            'stone_weight' => ['required', 'numeric', 'gte:0'],
+            'gross_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'stone_weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
             'melting_loss_percent' => ['required', 'numeric', 'gte:0', 'lte:100'],
-            'rate_per_gram' => ['required', 'numeric', 'gt:0'],
-            'deduction_amount' => ['required', 'numeric', 'gte:0'],
+            'rate_per_gram' => ['required', 'numeric', 'gt:0', Limits::RATE],
+            'deduction_amount' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'testing_result' => ['nullable', 'string', 'max:200'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'refund' => ['required', 'numeric', 'gte:0'],
+            'refund' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'method' => ['nullable', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
         ];

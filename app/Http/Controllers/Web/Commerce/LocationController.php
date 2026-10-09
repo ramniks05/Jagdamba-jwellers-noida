@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Commerce;
 
+use App\Enums\ItemStatus;
 use App\Enums\LocationKind;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\LocationRequest;
@@ -10,16 +11,30 @@ use App\Models\StockLocation;
 use App\Services\Commerce\LocationService;
 use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class LocationController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $this->authorize('viewAny', StockLocation::class);
+        $search = trim((string) $request->query('search', ''));
+        $show = in_array($request->query('show'), ['active', 'hidden'], true) ? $request->query('show') : 'all';
+        $like = '%'.addcslashes($search, '%_\\').'%';
 
         return view('commerce.locations.index', [
-            'locations' => StockLocation::query()->with(['branch', 'parent'])->withCount('items')->orderBy('name')->paginate(30),
+            'search' => $search,
+            'show' => $show,
+            'locations' => StockLocation::query()
+                ->with(['branch', 'parent'])
+                ->withCount(['items as stock_count' => fn ($items) => $items->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved])])
+                ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query->where('name', 'like', $like)->orWhere('code', 'like', $like)))
+                ->when($show !== 'all', fn ($query) => $query->where('is_active', $show === 'active'))
+                ->orderByDesc('is_active')
+                ->orderBy('name')
+                ->paginate(30)
+                ->withQueryString(),
         ]);
     }
 

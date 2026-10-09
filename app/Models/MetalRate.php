@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RuntimeException;
@@ -34,6 +35,14 @@ class MetalRate extends Model
             'rate_per_gram' => 'decimal:2',
             'effective_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Rates saved for a later date are not used until that date comes.
+     */
+    public function scopeInForce(Builder $query): void
+    {
+        $query->where('effective_at', '<=', now());
     }
 
     public function branch(): BelongsTo

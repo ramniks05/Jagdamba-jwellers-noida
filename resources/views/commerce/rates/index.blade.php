@@ -83,6 +83,11 @@
         @endif
     </section>
     @if ($canEnter)
+        @php
+            $counterPurity = $purities->first(fn ($purity) => strtoupper($purity->name) === '22K');
+            $pickedPurity = old('purity_uuid', $counterPurity?->uuid);
+            $pickedMetal = old('metal_uuid', $counterPurity?->metalType?->uuid);
+        @endphp
         <form class="card mb-4" method="POST" action="{{ route('rates.store') }}">
             @csrf
             <div class="card-body row">
@@ -90,7 +95,7 @@
                     <label class="form-label" for="metal_uuid">Metal</label>
                     <select class="form-select" id="metal_uuid" name="metal_uuid" required>
                         @foreach ($metals as $metal)
-                            <option value="{{ $metal->uuid }}" @selected(old('metal_uuid') === $metal->uuid)>{{ $metal->name }}</option>
+                            <option value="{{ $metal->uuid }}" @selected($pickedMetal === $metal->uuid)>{{ $metal->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -98,7 +103,7 @@
                     <label class="form-label" for="purity_uuid">Purity</label>
                     <select class="form-select" id="purity_uuid" name="purity_uuid" required>
                         @foreach ($purities as $purity)
-                            <option value="{{ $purity->uuid }}" @selected(old('purity_uuid') === $purity->uuid)>{{ $purity->metalType?->name }} {{ $purity->name }}</option>
+                            <option value="{{ $purity->uuid }}" @selected($pickedPurity === $purity->uuid)>{{ $purity->metalType?->name }} {{ $purity->name }}</option>
                         @endforeach
                     </select>
                 </div>

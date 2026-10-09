@@ -38,7 +38,7 @@ class CustomerFormRequest extends FormRequest
 
         return [
             'intent' => ['required', Rule::in(['known', 'new', 'confirm', 'update'])],
-            'mobile' => ['required', 'string', 'max:20', 'regex:/^(?:\+?91[\s-]?)?[6-9][0-9]{9}$/'],
+            'mobile' => ['required', 'string', 'max:20', 'regex:'.IdentityRules::MOBILE],
             'name' => [Rule::requiredIf($newCustomer), 'nullable', 'string', 'max:160'],
             'email' => ['nullable', 'email', 'max:160'],
             'address_line1' => [Rule::requiredIf($newCustomer), 'nullable', 'string', 'max:200'],
@@ -50,6 +50,16 @@ class CustomerFormRequest extends FormRequest
             'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
             'dob' => ['nullable', 'date', 'before_or_equal:today'],
             'anniversary' => ['nullable', 'date'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages() + [
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ];
     }
 }

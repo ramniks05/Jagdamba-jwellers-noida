@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\RepairOrder;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,8 +31,8 @@ class RepairDeliveryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'final_charge' => ['required', 'numeric', 'gte:0'],
-            'payment' => ['required', 'numeric', 'gte:0'],
+            'final_charge' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'payment' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
         ];

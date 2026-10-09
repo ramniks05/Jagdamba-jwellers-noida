@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Access;
 
+use App\Support\IdentityRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -35,7 +36,15 @@ class ProfileRequest extends FormRequest
                 'max:160',
                 Rule::unique('users', 'email')->ignore($this->user()?->id),
             ],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::PHONE],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages();
     }
 }

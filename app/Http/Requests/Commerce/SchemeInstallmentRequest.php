@@ -5,6 +5,7 @@ namespace App\Http\Requests\Commerce;
 use App\Enums\PaymentMethod;
 use App\Models\GoldScheme;
 use App\Models\SchemeEnrollment;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,7 +24,7 @@ class SchemeInstallmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
         ];

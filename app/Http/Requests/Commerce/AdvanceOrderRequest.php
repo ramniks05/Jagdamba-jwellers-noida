@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\AdvanceOrder;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,10 +37,10 @@ class AdvanceOrderRequest extends FormRequest
             'design_notes' => ['nullable', 'string', 'max:1000'],
             'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
-            'expected_weight' => ['required', 'numeric', 'gt:0'],
-            'estimated_making' => ['required', 'numeric', 'gte:0'],
+            'expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'estimated_making' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'due_on' => ['nullable', 'date', 'after_or_equal:today'],
-            'advance' => ['required', 'numeric', 'gt:0'],
+            'advance' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
             'notes' => ['nullable', 'string', 'max:1000'],

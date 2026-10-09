@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\PaymentMethod;
 use App\Models\AdvanceOrder;
+use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,7 +31,7 @@ class AdvanceOrderActionRequest extends FormRequest
     {
         if ($this->routeIs('orders.cancel')) {
             return [
-                'refund' => ['required', 'numeric', 'gte:0'],
+                'refund' => ['required', 'numeric', 'gte:0', Limits::MONEY],
                 'method' => ['required', Rule::enum(PaymentMethod::class)],
                 'reference' => ['nullable', 'string', 'max:80'],
             ];
@@ -38,7 +39,7 @@ class AdvanceOrderActionRequest extends FormRequest
 
         if ($this->routeIs('orders.advance')) {
             return [
-                'amount' => ['required', 'numeric', 'gt:0'],
+                'amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
                 'method' => ['required', Rule::enum(PaymentMethod::class)],
                 'reference' => ['nullable', 'string', 'max:80'],
             ];

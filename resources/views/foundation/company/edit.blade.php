@@ -3,153 +3,168 @@
 @section('title', 'Shop profile')
 
 @section('content')
-    <h1 class="page-title h3 mb-4">Shop profile</h1>
-    <form method="POST" action="{{ route('company.update') }}" enctype="multipart/form-data">
+    @include('masters.partials.head', [
+        'title' => 'Shop profile',
+        'intro' => 'Your shop name, GSTIN and address are printed at the top of every bill.',
+        'actions' => [
+            ['url' => route('settings.edit'), 'label' => 'Settings', 'icon' => 'sliders'],
+            ['url' => route('branches.index'), 'label' => 'Branches', 'icon' => 'diagram-3'],
+        ],
+    ])
+    <form method="POST" action="{{ route('company.update') }}" enctype="multipart/form-data" id="company-form">
         @csrf
         @method('PUT')
-        <div class="row g-4">
-            <div class="col-lg-8">
-                <div class="card mb-4">
-                    <div class="card-header bg-white">Identity</div>
-                    <div class="card-body row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="name">Shop name</label>
-                            <input class="form-control" id="name" name="name" value="{{ old('name', $company->name) }}" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="legal_name">Legal name</label>
-                            <input class="form-control" id="legal_name" name="legal_name" value="{{ old('legal_name', $company->legal_name) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="code">Shop code</label>
-                            <input class="form-control" id="code" name="code" value="{{ old('code', $company->code) }}" required>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="gstin">GSTIN</label>
-                            <input class="form-control" id="gstin" name="gstin" value="{{ old('gstin', $company->gstin) }}" maxlength="15">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="pan">PAN</label>
-                            <input class="form-control" id="pan" name="pan" value="{{ old('pan', $company->pan) }}" maxlength="10">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="email">Email</label>
-                            <input class="form-control" id="email" name="email" type="email" value="{{ old('email', $company->email) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="phone">Phone</label>
-                            <input class="form-control" id="phone" name="phone" value="{{ old('phone', $company->phone) }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label" for="mobile">Mobile</label>
-                            <input class="form-control" id="mobile" name="mobile" value="{{ old('mobile', $company->mobile) }}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label" for="website">Website</label>
-                            <input class="form-control" id="website" name="website" value="{{ old('website', $company->website) }}">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label" for="currency_code">Currency</label>
-                            <input class="form-control" id="currency_code" name="currency_code" value="{{ old('currency_code', $company->currency_code) }}" required maxlength="3">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label" for="fy_start_month">Financial year starts</label>
-                            <select class="form-select" id="fy_start_month" name="fy_start_month" required>
-                                @foreach ($months as $number => $label)
-                                    <option value="{{ $number }}" @selected((int) old('fy_start_month', $company->fy_start_month) === $number)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <label class="form-label" for="timezone">Timezone</label>
-                            <input class="form-control" id="timezone" name="timezone" value="{{ old('timezone', $company->timezone) }}" required>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header bg-white">Address</div>
+        <div class="row g-3 align-items-start">
+            <div class="col-xl-8">
+                <div class="card mb-3">
                     <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label" for="address_line1">Address line 1</label>
-                            <input class="form-control" id="address_line1" name="address_line1" value="{{ old('address_line1', $company->address_line1) }}" required>
+                        <div class="weigh-section-title"><i class="bi bi-shop"></i> Shop</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'name', 'label' => 'Shop name', 'value' => $company->name, 'col' => 'col-md-6'])
+                            @include('masters.partials.field', ['name' => 'legal_name', 'label' => 'Legal name', 'value' => $company->legal_name, 'col' => 'col-md-6', 'required' => false, 'help' => 'Only if the firm name on GST is different.'])
+                            @include('masters.partials.field', ['name' => 'code', 'label' => 'Shop code', 'value' => $company->code, 'col' => 'col-md-4', 'class' => 'text-uppercase'])
+                            @include('masters.partials.field', ['name' => 'gstin', 'label' => 'GSTIN', 'value' => $company->gstin, 'col' => 'col-md-4', 'class' => 'text-uppercase', 'maxlength' => 15, 'required' => false, 'placeholder' => '09ABCDE1234F1Z5'])
+                            @include('masters.partials.field', ['name' => 'pan', 'label' => 'PAN', 'value' => $company->pan, 'col' => 'col-md-4', 'class' => 'text-uppercase', 'maxlength' => 10, 'required' => false, 'placeholder' => 'ABCDE1234F'])
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="address_line2">Address line 2</label>
-                            <input class="form-control" id="address_line2" name="address_line2" value="{{ old('address_line2', $company->address_line2) }}">
+
+                        <div class="weigh-section-title mt-4"><i class="bi bi-telephone"></i> Contact</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'mobile', 'label' => 'Mobile', 'value' => $company->mobile, 'col' => 'col-md-4', 'inputmode' => 'tel', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'phone', 'label' => 'Phone', 'value' => $company->phone, 'col' => 'col-md-4', 'inputmode' => 'tel', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'email', 'label' => 'Email', 'value' => $company->email, 'col' => 'col-md-4', 'type' => 'email', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'website', 'label' => 'Website', 'value' => $company->website, 'col' => 'col-md-8', 'type' => 'url', 'required' => false, 'placeholder' => 'https://'])
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="city">City</label>
-                                <input class="form-control" id="city" name="city" value="{{ old('city', $company->city) }}" required>
+
+                        <div class="weigh-section-title mt-4"><i class="bi bi-geo-alt"></i> Address</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'address_line1', 'label' => 'Address line 1', 'value' => $company->address_line1, 'col' => 'col-md-6'])
+                            @include('masters.partials.field', ['name' => 'address_line2', 'label' => 'Address line 2', 'value' => $company->address_line2, 'col' => 'col-md-6', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'city', 'label' => 'City', 'value' => $company->city, 'col' => 'col-6 col-md-3'])
+                            @include('masters.partials.field', ['name' => 'state', 'label' => 'State', 'value' => $company->state, 'col' => 'col-6 col-md-3'])
+                            @include('masters.partials.field', ['name' => 'postal_code', 'label' => 'PIN code', 'value' => $company->postal_code, 'col' => 'col-6 col-md-3', 'inputmode' => 'numeric', 'maxlength' => 10])
+                            @include('masters.partials.field', ['name' => 'country', 'label' => 'Country', 'value' => $company->country, 'col' => 'col-6 col-md-3'])
+                        </div>
+
+                        <div class="weigh-section-title mt-4"><i class="bi bi-globe2"></i> Region and books</div>
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label class="form-label" for="timezone">Timezone</label>
+                                <input class="form-control @error('timezone') is-invalid @enderror" id="timezone" name="timezone" value="{{ old('timezone', $company->timezone) }}" list="timezone-list" required>
+                                <datalist id="timezone-list">
+                                    @foreach ($timezones as $zone)
+                                        <option value="{{ $zone }}">
+                                    @endforeach
+                                </datalist>
+                                @error('timezone')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="state">State</label>
-                                <input class="form-control" id="state" name="state" value="{{ old('state', $company->state) }}" required>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="postal_code">Postal code</label>
-                                <input class="form-control" id="postal_code" name="postal_code" value="{{ old('postal_code', $company->postal_code) }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="country">Country</label>
-                                <input class="form-control" id="country" name="country" value="{{ old('country', $company->country) }}" required>
+                            @include('masters.partials.field', ['name' => 'currency_code', 'label' => 'Currency', 'value' => $company->currency_code, 'col' => 'col-6 col-md-3', 'class' => 'text-uppercase', 'maxlength' => 3])
+                            <div class="col-6 col-md-4">
+                                <label class="form-label" for="fy_start_month">Financial year starts</label>
+                                <select class="form-select @error('fy_start_month') is-invalid @enderror" id="fy_start_month" name="fy_start_month" required>
+                                    @foreach ($months as $number => $label)
+                                        <option value="{{ $number }}" @selected((int) old('fy_start_month', $company->fy_start_month) === $number)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">Used when the next year is suggested.</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-4">
-                <div class="card">
-                    <div class="card-header bg-white">Logo</div>
+
+            <div class="col-xl-4 bill-side">
+                <div class="card mb-3">
                     <div class="card-body">
-                        <img src="{{ $company->brandLogoUrl() }}" alt="Shop logo" class="img-fluid rounded mb-3" style="max-height: 140px;">
-                        @if ($company->logo_path)
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="remove_logo" name="remove_logo" value="1">
-                                <label class="form-check-label" for="remove_logo">Remove logo</label>
+                        <div class="weigh-section-title"><i class="bi bi-receipt"></i> On the bill</div>
+                        <div class="shop-bill-head">
+                            <img src="{{ $company->brandLogoUrl() }}" alt="" class="shop-bill-logo" id="logo-preview">
+                            <div>
+                                <div class="fw-bold" id="head-name">{{ $company->name }}</div>
+                                <div class="small text-secondary" id="head-address"></div>
+                                <div class="small" id="head-contact"></div>
+                                <div class="small fw-semibold" id="head-gstin"></div>
                             </div>
-                        @else
-                            <div class="form-text mb-3">The JD mark is used until you upload another logo.</div>
-                        @endif
-                        <label class="form-label" for="logo">Upload JPEG, PNG, or WebP (max 2 MB)</label>
-                        <input class="form-control" id="logo" name="logo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                        <div class="form-text">Shown at the top of the invoice when “Show shop logo” is on in Settings.</div>
+                        </div>
                     </div>
                 </div>
-                <div class="card mt-4">
-                    <div class="card-header bg-white">Invoice signature</div>
+
+                <div class="card mb-3">
                     <div class="card-body">
-                        <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature" class="shop-signature">
-                        @if ($company->signature_path)
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="remove_signature" name="remove_signature" value="1">
-                                <label class="form-check-label" for="remove_signature">Remove signature</label>
+                        <div class="weigh-section-title"><i class="bi bi-image"></i> Logo</div>
+                        @if ($company->logo_path)
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="remove_logo" name="remove_logo" value="1">
+                                <label class="form-check-label" for="remove_logo">Remove this logo</label>
                             </div>
                         @else
-                            <div class="form-text mb-3">This is a dummy signature. Upload your own to replace it.</div>
+                            <div class="form-text mb-2">The JD mark is used until you upload your own logo.</div>
                         @endif
-                        <button class="btn btn-primary" id="signature-open" type="button"><i class="bi bi-upload"></i> Upload signature</button>
+                        <input class="form-control @error('logo') is-invalid @enderror" id="logo" name="logo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" aria-label="Upload logo">
+                        @error('logo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">JPEG, PNG or WebP, up to 2 MB. Printed when “Show the shop logo” is on in <a href="{{ route('settings.edit') }}">Settings</a>.</div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="weigh-section-title"><i class="bi bi-pen"></i> Signature on the bill</div>
+                        <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature" class="shop-signature" id="signature-preview">
+                        @if ($company->signature_path)
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="remove_signature" name="remove_signature" value="1">
+                                <label class="form-check-label" for="remove_signature">Remove this signature</label>
+                            </div>
+                        @else
+                            <div class="form-text mb-2">This is a sample signature. Upload your own to replace it.</div>
+                        @endif
+                        <button class="btn btn-outline-secondary" id="signature-open" type="button"><i class="bi bi-upload"></i> Choose signature</button>
                         <input class="d-none" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                        <div class="form-text mt-2" id="signature-picked">JPEG, PNG, or WebP, max 2 MB. A white or plain paper background is removed, so only the signature ink is printed. Choose the file, then click Save profile.</div>
+                        @error('signature')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                        <div class="form-text mt-2" id="signature-picked">Sign on plain white paper and take a photo. The white background is removed so only the ink prints.</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body d-grid">
+                        <button class="btn btn-primary btn-lg" type="submit"><i class="bi bi-check2"></i> Save profile</button>
                     </div>
                 </div>
             </div>
         </div>
-        <button class="btn btn-primary mt-4" type="submit">Save profile</button>
     </form>
 @endsection
 
 @push('scripts')
     <script>
-        document.getElementById('signature-open').addEventListener('click', function () {
-            document.getElementById('signature').click();
-        });
-        document.getElementById('signature').addEventListener('change', function () {
-            const picked = document.getElementById('signature-picked');
-            const file = this.files && this.files[0];
-            picked.textContent = file
-                ? 'Selected ' + file.name + '. Click Save profile to put it on the invoice.'
-                : 'JPEG, PNG, or WebP, max 2 MB. A white or plain paper background is removed, so only the signature ink is printed.';
-        });
+        (() => {
+            const form = document.getElementById('company-form');
+            const val = (name) => (form.elements[name]?.value || '').trim();
+
+            const refresh = () => {
+                document.getElementById('head-name').textContent = val('name') || 'Shop name';
+                document.getElementById('head-address').textContent = [val('address_line1'), val('address_line2'), [val('city'), val('state'), val('postal_code')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+                document.getElementById('head-contact').textContent = [val('mobile'), val('phone'), val('email')].filter(Boolean).join(' · ');
+                const gstin = val('gstin').toUpperCase();
+                document.getElementById('head-gstin').textContent = gstin ? `GSTIN ${gstin}` : '';
+            };
+            form.addEventListener('input', refresh);
+            refresh();
+
+            const showPicked = (input, img) => {
+                const file = input.files && input.files[0];
+                if (file && file.type.startsWith('image/')) img.src = URL.createObjectURL(file);
+                return file;
+            };
+            document.getElementById('logo').addEventListener('change', function () {
+                showPicked(this, document.getElementById('logo-preview'));
+            });
+            document.getElementById('signature-open').addEventListener('click', () => document.getElementById('signature').click());
+            document.getElementById('signature').addEventListener('change', function () {
+                const file = showPicked(this, document.getElementById('signature-preview'));
+                document.getElementById('signature-picked').textContent = file
+                    ? `Selected ${file.name}. Click Save profile to put it on the bill.`
+                    : 'Sign on plain white paper and take a photo. The white background is removed so only the ink prints.';
+            });
+        })();
     </script>
 @endpush

@@ -3,39 +3,78 @@
 @section('title', $supplier->exists ? 'Edit supplier' : 'Add supplier')
 
 @section('content')
-    <h1 class="page-title h3 mb-4">{{ $supplier->exists ? 'Edit supplier' : 'Add supplier' }}</h1>
+    @php
+        $forPurchase = ($forPurchase ?? false) || old('for') === 'purchase';
+        $backUrl = $forPurchase ? route('purchases.create') : ($supplier->exists ? route('suppliers.show', $supplier) : route('suppliers.index'));
+    @endphp
+    @include('masters.partials.head', [
+        'title' => $supplier->exists ? 'Edit '.$supplier->name : 'Add supplier',
+        'intro' => $forPurchase
+            ? 'After saving you go straight back to the purchase with this supplier chosen.'
+            : 'Only the name is needed now. GST, PAN and bank details can be added later.',
+    ])
     <form method="POST" action="{{ $supplier->exists ? route('suppliers.update', $supplier) : route('suppliers.store') }}">
         @csrf
-        @if ($supplier->exists) @method('PUT') @endif
-        @if (($forPurchase ?? false) || old('for') === 'purchase')
-            <input type="hidden" name="for" value="purchase">
-            <p class="text-secondary">After saving you go back to Receive purchase with this supplier chosen. <a href="{{ route('purchases.create') }}">Back without saving</a></p>
+        @if ($supplier->exists)
+            @method('PUT')
         @endif
-        <div class="card"><div class="card-body row">
-            <div class="col-md-3 mb-3"><label class="form-label" for="code">Code</label><input class="form-control" id="code" name="code" value="{{ old('code', $supplier->code) }}" required></div>
-            <div class="col-md-5 mb-3"><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="{{ old('name', $supplier->name) }}" required></div>
-            <div class="col-md-4 mb-3"><label class="form-label" for="contact_name">Contact</label><input class="form-control" id="contact_name" name="contact_name" value="{{ old('contact_name', $supplier->contact_name) }}"></div>
-            <div class="col-md-4 mb-3"><label class="form-label" for="mobile">Mobile</label><input class="form-control" id="mobile" name="mobile" value="{{ old('mobile', $supplier->mobile) }}"></div>
-            <div class="col-md-4 mb-3"><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" value="{{ old('email', $supplier->email) }}"></div>
-            <div class="col-md-4 mb-3">
-                <label class="form-label" for="kyc_status">KYC</label>
-                <select class="form-select" id="kyc_status" name="kyc_status">
-                    @foreach ($kyc as $status)
-                        <option value="{{ $status->value }}" @selected(old('kyc_status', $supplier->kyc_status?->value) === $status->value)>{{ $status->label() }}</option>
-                    @endforeach
-                </select>
+        @if ($forPurchase)
+            <input type="hidden" name="for" value="purchase">
+        @endif
+        <input type="hidden" name="country" value="{{ old('country', $supplier->country ?: 'India') }}">
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="weigh-section-title"><i class="bi bi-truck"></i> Supplier</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'name', 'label' => 'Firm or karigar name', 'value' => $supplier->name, 'col' => 'col-md-6', 'autofocus' => ! $supplier->exists])
+                            @include('masters.partials.field', ['name' => 'code', 'label' => 'Code', 'value' => $supplier->code, 'col' => 'col-6 col-md-3', 'class' => 'text-uppercase', 'maxlength' => 20, 'help' => 'Filled for you'])
+                            <div class="col-6 col-md-3">
+                                <label class="form-label" for="kyc_status">KYC</label>
+                                <select class="form-select" id="kyc_status" name="kyc_status">
+                                    @foreach ($kyc as $status)
+                                        <option value="{{ $status->value }}" @selected(old('kyc_status', $supplier->kyc_status?->value) === $status->value)>{{ $status->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @include('masters.partials.field', ['name' => 'contact_name', 'label' => 'Contact person', 'value' => $supplier->contact_name, 'col' => 'col-md-4', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'mobile', 'label' => 'Mobile', 'value' => $supplier->mobile, 'col' => 'col-md-4', 'inputmode' => 'tel', 'maxlength' => 20, 'required' => false])
+                            @include('masters.partials.field', ['name' => 'email', 'label' => 'Email', 'value' => $supplier->email, 'col' => 'col-md-4', 'type' => 'email', 'required' => false])
+                        </div>
+
+                        <div class="weigh-section-title mt-4"><i class="bi bi-geo-alt"></i> Address</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'address_line1', 'label' => 'Address', 'value' => $supplier->address_line1, 'col' => 'col-md-6', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'city', 'label' => 'City', 'value' => $supplier->city, 'col' => 'col-6 col-md-3', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'state', 'label' => 'State', 'value' => $supplier->state, 'col' => 'col-6 col-md-3', 'required' => false])
+                        </div>
+
+                        <div class="weigh-section-title mt-4"><i class="bi bi-bank"></i> Tax and bank</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'gstin', 'label' => 'GSTIN', 'value' => $supplier->gstin, 'col' => 'col-md-4', 'class' => 'text-uppercase', 'maxlength' => 15, 'required' => false])
+                            @include('masters.partials.field', ['name' => 'pan', 'label' => 'PAN', 'value' => $supplier->pan, 'col' => 'col-md-4', 'class' => 'text-uppercase', 'maxlength' => 10, 'required' => false])
+                            @include('masters.partials.field', ['name' => 'bank_name', 'label' => 'Bank', 'value' => $supplier->bank_name, 'col' => 'col-md-4', 'required' => false])
+                            @include('masters.partials.field', ['name' => 'account_number', 'label' => 'Account number', 'value' => $supplier->account_number, 'col' => 'col-md-6', 'inputmode' => 'numeric', 'maxlength' => 40, 'required' => false])
+                            @include('masters.partials.field', ['name' => 'ifsc', 'label' => 'IFSC', 'value' => $supplier->ifsc, 'col' => 'col-md-6', 'class' => 'text-uppercase', 'maxlength' => 11, 'required' => false])
+                            <div class="col-12">
+                                <label class="form-label" for="notes">Notes</label>
+                                <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="2" maxlength="1000">{{ old('notes', $supplier->notes) }}</textarea>
+                                @error('notes')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <input type="hidden" name="is_active" value="0">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" id="is_active" name="is_active" type="checkbox" role="switch" value="1" @checked(filter_var(old('is_active', $supplier->is_active ?? true), FILTER_VALIDATE_BOOLEAN))>
+                                <label class="form-check-label" for="is_active">Show in the purchase supplier list</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @include('masters.partials.form-foot', ['label' => $forPurchase ? 'Save and go to purchase' : 'Save supplier', 'backUrl' => $backUrl])
             </div>
-            <div class="col-md-6 mb-3"><label class="form-label" for="address_line1">Address</label><input class="form-control" id="address_line1" name="address_line1" value="{{ old('address_line1', $supplier->address_line1) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="city">City</label><input class="form-control" id="city" name="city" value="{{ old('city', $supplier->city) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="pan">PAN</label><input class="form-control" id="pan" name="pan" value="{{ old('pan', $supplier->pan) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="gstin">GSTIN</label><input class="form-control" id="gstin" name="gstin" value="{{ old('gstin', $supplier->gstin) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="bank_name">Bank</label><input class="form-control" id="bank_name" name="bank_name" value="{{ old('bank_name', $supplier->bank_name) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="account_number">Account</label><input class="form-control" id="account_number" name="account_number" value="{{ old('account_number', $supplier->account_number) }}"></div>
-            <div class="col-md-3 mb-3"><label class="form-label" for="ifsc">IFSC</label><input class="form-control" id="ifsc" name="ifsc" value="{{ old('ifsc', $supplier->ifsc) }}"></div>
-            <input type="hidden" name="country" value="{{ old('country', $supplier->country ?: 'India') }}">
-            <input type="hidden" name="is_active" value="0">
-            <div class="col-12"><div class="form-check"><input class="form-check-input" id="is_active" name="is_active" type="checkbox" value="1" @checked(filter_var(old('is_active', $supplier->is_active ?? true), FILTER_VALIDATE_BOOLEAN))><label class="form-check-label" for="is_active">Active</label></div></div>
-        </div></div>
-        <button class="btn btn-primary mt-4" type="submit">Save supplier</button>
+        </div>
     </form>
 @endsection

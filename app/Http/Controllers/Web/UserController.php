@@ -20,16 +20,21 @@ class UserController extends Controller
         $this->authorize('viewAny', User::class);
 
         $search = trim((string) $request->query('search', ''));
+        $show = in_array($request->query('show'), ['active', 'inactive'], true) ? $request->query('show') : 'all';
         $like = '%'.addcslashes($search, '%_\\').'%';
+        $base = User::query()->where('company_id', $context->id());
 
-        $users = User::query()
-            ->where('company_id', $context->id())
+        $users = (clone $base)
             ->with(['roles', 'branches'])
             ->when($search !== '', function ($query) use ($like) {
                 $query->where(function ($query) use ($like) {
-                    $query->where('name', 'like', $like)->orWhere('email', 'like', $like);
+                    $query->where('name', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('phone', 'like', $like);
                 });
             })
+            ->when($show !== 'all', fn ($query) => $query->where('is_active', $show === 'active'))
+            ->orderByDesc('is_active')
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -37,6 +42,12 @@ class UserController extends Controller
         return view('access.users.index', [
             'users' => $users,
             'search' => $search,
+            'show' => $show,
+            'counts' => [
+                'all' => (clone $base)->count(),
+                'active' => (clone $base)->where('is_active', true)->count(),
+                'inactive' => (clone $base)->where('is_active', false)->count(),
+            ],
         ]);
     }
 

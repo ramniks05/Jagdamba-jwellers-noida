@@ -26,6 +26,7 @@ class SupplierRequest extends FormRequest
     {
         $this->merge([
             'code' => Str::upper(trim((string) $this->input('code'))),
+            'mobile' => preg_replace('/[\s-]+/', '', trim((string) $this->input('mobile'))),
             'pan' => Str::upper(trim((string) $this->input('pan'))),
             'gstin' => Str::upper(trim((string) $this->input('gstin'))),
             'ifsc' => Str::upper(trim((string) $this->input('ifsc'))),
@@ -50,7 +51,7 @@ class SupplierRequest extends FormRequest
             'code' => ['required', 'regex:'.IdentityRules::CODE, Rule::unique('suppliers', 'code')->where(fn ($query) => $query->where('company_id', $this->user()->company_id))->ignore($ignore)],
             'name' => ['required', 'string', 'max:160'],
             'contact_name' => ['nullable', 'string', 'max:160'],
-            'mobile' => ['nullable', 'string', 'max:20'],
+            'mobile' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::MOBILE],
             'email' => ['nullable', 'email', 'max:160'],
             'address_line1' => ['nullable', 'string', 'max:200'],
             'address_line2' => ['nullable', 'string', 'max:200'],
@@ -62,10 +63,20 @@ class SupplierRequest extends FormRequest
             'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
             'bank_name' => ['nullable', 'string', 'max:120'],
             'account_number' => ['nullable', 'string', 'max:40'],
-            'ifsc' => ['nullable', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'ifsc' => ['nullable', 'regex:'.IdentityRules::IFSC],
             'kyc_status' => ['required', Rule::enum(KycStatus::class)],
             'is_active' => ['required', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages() + [
+            'code.unique' => 'Another supplier already uses this code.',
         ];
     }
 }

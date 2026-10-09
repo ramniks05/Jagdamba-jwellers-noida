@@ -208,6 +208,7 @@ class OverviewController extends Controller
 
         return MetalRate::query()
             ->with(['metalType', 'purity'])
+            ->inForce()
             ->orderByDesc('effective_at')
             ->orderByDesc('id')
             ->get()

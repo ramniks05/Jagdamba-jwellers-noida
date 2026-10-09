@@ -10,6 +10,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Models\CustomerIntake;
 use App\Support\CompanyContext;
+use App\Support\IdentityRules;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -169,13 +170,7 @@ class CustomerIntakeService
 
     public function mobileKey(string $mobile): string
     {
-        $digits = preg_replace('/\D+/', '', $mobile) ?? '';
-
-        if (str_starts_with($digits, '91') && strlen($digits) > 10) {
-            $digits = substr($digits, -10);
-        }
-
-        return $digits;
+        return IdentityRules::mobileKey($mobile);
     }
 
     /**
