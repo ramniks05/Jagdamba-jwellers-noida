@@ -125,6 +125,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
     Route::post('sales/{sale}/returns', [SaleController::class, 'returnSale'])->name('sales.returns.store');
     Route::post('sales/{sale}/payments', [SaleController::class, 'payment'])->name('sales.payments.store');
+    Route::post('sales/{sale}/whatsapp', [SaleController::class, 'whatsapp'])->middleware('throttle:10,1')->name('sales.whatsapp.store');
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show']);
     Route::post('purchases/{purchase}/return', [PurchaseController::class, 'returnToSupplier'])->name('purchases.return');
     Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay'])->name('purchases.payments.store');

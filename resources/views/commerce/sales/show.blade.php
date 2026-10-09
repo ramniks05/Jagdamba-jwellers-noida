@@ -6,10 +6,37 @@
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3 no-print">
         <a href="{{ route('sales.create') }}">New bill</a>
         <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-outline-success" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send on WhatsApp</a>
+            @if ($whatsappReady)
+                <form method="POST" action="{{ route('sales.whatsapp.store', $sale) }}" onsubmit="this.querySelector('button').disabled = true">
+                    @csrf
+                    <button class="btn btn-outline-success" type="submit" @disabled($whatsappNumber === null) @if ($whatsappNumber === null) title="Add the customer's mobile number first" @endif>
+                        <i class="bi bi-whatsapp"></i> {{ $whatsappMessages->isEmpty() ? 'Send on WhatsApp' : 'Send again on WhatsApp' }}
+                    </button>
+                </form>
+                <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener" title="Open WhatsApp on this device instead"><i class="bi bi-box-arrow-up-right"></i></a>
+            @else
+                <a class="btn btn-outline-success" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send on WhatsApp</a>
+            @endif
             <button class="btn btn-primary" type="button" onclick="window.print()">Print invoice</button>
         </div>
     </div>
+    @if ($whatsappMessages->isNotEmpty())
+        <div class="card mb-3 no-print wa-log">
+            <div class="card-body py-2">
+                <div class="stat-label mb-1"><i class="bi bi-whatsapp"></i> WhatsApp</div>
+                @foreach ($whatsappMessages as $message)
+                    <div class="wa-log-row">
+                        <span class="badge wa-status-{{ $message->status }}">{{ $message->statusLabel() }}</span>
+                        <span>+{{ $message->recipient }}</span>
+                        <span class="text-secondary">{{ ($message->status_at ?? $message->created_at)->format('d-m-Y h:i A') }}{{ $message->user ? ' · '.$message->user->name : '' }}</span>
+                        @if ($message->status === 'failed' && $message->error)
+                            <span class="text-danger small">{{ $message->error }}</span>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
     @php($due = $sale->balanceDue())
     @if ((float) $due > 0)
         @can('create', App\Models\Payment::class)

@@ -21,7 +21,11 @@ use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\WhatsappWebhookController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('webhooks/whatsapp', [WhatsappWebhookController::class, 'verify'])->name('webhooks.whatsapp.verify');
+Route::post('webhooks/whatsapp', [WhatsappWebhookController::class, 'receive'])->name('webhooks.whatsapp.receive');
 
 Route::prefix('v1')->name('api.')->group(function () {
     Route::post('auth/token', [AuthTokenController::class, 'store'])->middleware('throttle:login');
