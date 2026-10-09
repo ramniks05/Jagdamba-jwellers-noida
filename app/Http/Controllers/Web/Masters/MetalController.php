@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web\Masters;
 
 use App\Models\MetalType;
-use Illuminate\Http\Request;
 
 class MetalController extends SimpleCatalogController
 {
@@ -22,6 +21,11 @@ class MetalController extends SimpleCatalogController
         return 'Metals';
     }
 
+    protected function intro(): string
+    {
+        return 'Each metal has its purities. Rates, pieces and girvi use the purity.';
+    }
+
     protected function routeName(): string
     {
         return 'metals';
@@ -32,8 +36,8 @@ class MetalController extends SimpleCatalogController
         return 'metal';
     }
 
-    protected function newQuery(Request $request)
+    protected function counts(): array
     {
-        return parent::newQuery($request)->withCount('purities');
+        return ['purities' => 'Purities'];
     }
 }

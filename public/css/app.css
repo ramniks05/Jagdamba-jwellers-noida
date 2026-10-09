@@ -465,6 +465,35 @@ a {
     margin: 0;
 }
 
+.report-pager {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+
+.report-pager .pagination {
+    margin: 0;
+}
+
+.report-pager nav p {
+    display: none;
+}
+
+.master-search {
+    flex: 1 1 14rem;
+    max-width: 22rem;
+}
+
+.report-ranges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
 .pagination {
     gap: 0.25rem;
 }
@@ -2010,9 +2039,22 @@ a {
     grid-template-columns: 1fr 1fr 0.9fr 1.1fr auto;
 }
 
+.due-pay-row.is-four {
+    grid-template-columns: 0.8fr 1fr 0.9fr 1.1fr;
+}
+
+.due-pay-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
 @media (max-width: 767.98px) {
     .due-pay-row,
-    .due-pay-row.repair-deliver-row {
+    .due-pay-row.repair-deliver-row,
+    .due-pay-row.is-four {
         grid-template-columns: 1fr 1fr;
     }
 
@@ -2054,23 +2096,30 @@ a {
 }
 
 .order-status.is-booked,
-.order-status.is-received {
+.order-status.is-received,
+.order-status.is-open,
+.order-status.is-reserved {
     background: #fff3dc;
     color: #8a5a00;
 }
 
 .order-status.is-inspection,
-.order-status.is-repairing {
+.order-status.is-repairing,
+.order-status.is-active {
     background: #e6eefb;
     color: #24508f;
 }
 
-.order-status.is-ready {
+.order-status.is-ready,
+.order-status.is-matured,
+.order-status.is-available {
     background: #e3f4e8;
     color: #1d6b3a;
 }
 
-.order-status.is-delivered {
+.order-status.is-delivered,
+.order-status.is-released,
+.order-status.is-closed {
     background: #ece8e2;
     color: #5c5148;
 }

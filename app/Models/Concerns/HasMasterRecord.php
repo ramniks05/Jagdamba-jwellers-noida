@@ -5,6 +5,8 @@ namespace App\Models\Concerns;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 trait HasMasterRecord
 {
@@ -38,6 +40,33 @@ trait HasMasterRecord
     public function masterCodesAreUppercase(): bool
     {
         return true;
+    }
+
+    /**
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where($query->qualifyColumn('is_active'), true);
+    }
+
+    /**
+     * Soft deletes skip the database foreign keys, so removal checks every table that points here.
+     *
+     * @param  array<string, array{0: string, 1: string}>  $uses  table => [column, singular label]
+     */
+    protected function usageBlocker(string $noun, array $uses): ?string
+    {
+        foreach ($uses as $table => [$column, $label]) {
+            $count = DB::table($table)->where($column, $this->getKey())->count();
+
+            if ($count > 0) {
+                return 'This '.$noun.' is used by '.$count.' '.Str::plural($label, $count).'. Untick Active to hide it instead.';
+            }
+        }
+
+        return null;
     }
 
     /**

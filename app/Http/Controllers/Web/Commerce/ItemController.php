@@ -17,6 +17,7 @@ use App\Models\MetalType;
 use App\Models\OldGoldExchange;
 use App\Models\Purity;
 use App\Models\StockLocation;
+use App\Models\StoneType;
 use App\Services\Commerce\InventoryService;
 use App\Services\Commerce\ItemService;
 use App\Services\Commerce\JewelleryPricer;
@@ -30,8 +31,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ItemController extends Controller
 {
@@ -229,12 +230,17 @@ class ItemController extends Controller
     {
         return [
             'item' => $item,
-            'categories' => Category::query()->with('parent')->orderBy('sort_order')->orderBy('name')->get(),
-            'brands' => Brand::query()->orderBy('name')->get(),
-            'collections' => Collection::query()->orderBy('name')->get(),
-            'designs' => Design::query()->orderBy('name')->get(),
-            'metals' => MetalType::query()->with('purities')->orderBy('name')->get(),
+            'categories' => Category::query()->with('parent')->where(fn ($rows) => $rows->active()->orWhere('id', $item->category_id))->orderBy('sort_order')->orderBy('name')->get(),
+            'brands' => Brand::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->brand_id))->orderBy('name')->get(),
+            'collections' => Collection::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->collection_id))->orderBy('name')->get(),
+            'designs' => Design::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->design_id))->orderBy('name')->get(),
+            'metals' => MetalType::query()
+                ->with(['purities' => fn ($purities) => $purities->where(fn ($rows) => $rows->active()->orWhere('id', $item->purity_id))])
+                ->where(fn ($rows) => $rows->active()->orWhere('id', $item->metal_type_id))
+                ->orderBy('name')
+                ->get(),
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
+            'stoneTypes' => StoneType::query()->active()->orderBy('sort_order')->orderBy('name')->pluck('name'),
             'makingMethods' => ChargeMethod::query()->where('applies_to', 'making')->where('is_active', true)->orderBy('sort_order')->get(),
             'wastageMethods' => ChargeMethod::query()->where('applies_to', 'wastage')->where('is_active', true)->orderBy('sort_order')->get(),
             'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),

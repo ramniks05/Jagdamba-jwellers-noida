@@ -3,20 +3,14 @@
 @section('title', $title)
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="page-title h3 mb-0">{{ $title }}</h1>
-        @can('create', $modelClass)
-            <a class="btn btn-primary" href="{{ route($routeName.'.create') }}">Add {{ strtolower($singular) }}</a>
-        @endcan
-    </div>
-    <form class="row g-2 mb-3" method="GET" action="{{ route($routeName.'.index') }}">
-        <div class="col-md-4">
-            <input class="form-control" name="search" value="{{ $search }}" placeholder="Search name or code">
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
-    </form>
+    @include('masters.partials.head', [
+        'title' => $title,
+        'intro' => $intro,
+        'actions' => auth()->user()->can('create', $modelClass)
+            ? [['url' => route($routeName.'.create'), 'label' => 'Add '.strtolower($singular), 'icon' => 'plus-lg', 'primary' => true]]
+            : [],
+    ])
+    @include('masters.partials.filters', ['action' => route($routeName.'.index')])
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
@@ -24,6 +18,9 @@
                     <tr>
                         <th>Name</th>
                         <th>Code</th>
+                        @foreach ($counts as $heading)
+                            <th class="num">{{ $heading }}</th>
+                        @endforeach
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -31,31 +28,30 @@
                 <tbody>
                     @forelse ($records as $record)
                         <tr>
-                            <td>{{ $record->name }}</td>
-                            <td>{{ $record->code }}</td>
-                            <td>{{ $record->is_active ? 'Active' : 'Inactive' }}</td>
-                            <td class="text-end">
-                                @if (isset($record->purities_count))
-                                    <a href="{{ route('metals.purities.index', $record) }}">Purities ({{ $record->purities_count }})</a>
-                                @endif
-                                @can('update', $record)
-                                    <a class="ms-2" href="{{ route($routeName.'.edit', $record) }}">Edit</a>
-                                @endcan
-                                @can('delete', $record)
-                                    <form class="d-inline" method="POST" action="{{ route($routeName.'.destroy', $record) }}" onsubmit="return confirm('Remove this {{ strtolower($singular) }}?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-link text-danger p-0 ms-2" type="submit">Remove</button>
-                                    </form>
-                                @endcan
-                            </td>
+                            <td class="fw-semibold">{{ $record->name }}</td>
+                            <td class="text-nowrap">{{ $record->code }}</td>
+                            @foreach ($counts as $relation => $heading)
+                                <td class="num">
+                                    @if ($relation === 'purities')
+                                        <a href="{{ route('metals.purities.index', $record) }}">{{ $record->purities_count }} {{ Str::plural('purity', $record->purities_count) }}</a>
+                                    @else
+                                        {{ $record->{$relation.'_count'} }}
+                                    @endif
+                                </td>
+                            @endforeach
+                            <td>@include('masters.partials.status', ['active' => $record->is_active])</td>
+                            @include('masters.partials.row-actions', [
+                                'record' => $record,
+                                'editUrl' => route($routeName.'.edit', $record),
+                                'deleteUrl' => route($routeName.'.destroy', $record),
+                            ])
                         </tr>
                     @empty
-                        <tr><td colspan="4">Nothing here yet.</td></tr>
+                        <tr><td colspan="{{ 4 + count($counts) }}">{{ $search !== '' || $show !== 'all' ? 'Nothing matches this search.' : 'Nothing here yet.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $records->links() }}</div>
+    @include('masters.partials.pager', ['rows' => $records])
 @endsection

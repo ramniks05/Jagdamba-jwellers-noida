@@ -22,17 +22,27 @@ use App\Support\RupeesInWords;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class GirviController extends Controller
 {
-    public function index(NumberFormatService $format, CompanyContext $context): View
+    public function index(Request $request, NumberFormatService $format, CompanyContext $context): View
     {
         $this->authorize('viewAny', GirviPledge::class);
+        $show = in_array($request->query('show'), ['open', 'released', 'all'], true) ? (string) $request->query('show') : 'open';
 
         return view('commerce.girvi.index', [
-            'pledges' => GirviPledge::query()->with('customer')->orderByDesc('pledged_at')->paginate(20),
+            'pledges' => GirviPledge::query()
+                ->with(['customer', 'items.metalType', 'items.purity', 'metalType', 'purity'])
+                ->when($show !== 'all', fn ($query) => $query->where('status', $show))
+                ->orderByDesc('pledged_at')
+                ->orderByDesc('id')
+                ->paginate(20)
+                ->withQueryString(),
+            'show' => $show,
             'money' => fn (string $amount) => $format->money($amount, $context->company()),
+            'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
         ]);
     }
 
@@ -42,7 +52,7 @@ class GirviController extends Controller
 
         return view('commerce.girvi.create', [
             'customers' => Customer::query()->where('is_active', true)->where('is_system', false)->orderBy('name')->get(),
-            'metals' => MetalType::query()->with('purities')->where('is_active', true)->orderBy('name')->get(),
+            'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'categories' => Category::query()->where('is_active', true)->orderBy('name')->get(),
             'rates' => MetalRate::query()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'branchId' => Branch::query()->where('is_head_office', true)->value('id'),
@@ -86,15 +96,12 @@ class GirviController extends Controller
 
             return $item->description."\n".$metal.' · '.$weight((string) $item->net_weight).' · '.$money((string) $item->rate_per_gram).'/g · '.$money((string) $item->gold_value);
         })->implode("\n");
-        $weightLines = $pieces->groupBy(fn ($item) => trim(($item->metalType?->name).' '.($item->purity?->name)))
-            ->map(function ($rows, $name) use ($weight) {
-                $net = $rows->reduce(
-                    fn (BigDecimal $sum, $item) => $sum->plus((string) $item->net_weight),
-                    BigDecimal::zero(),
-                )->toScale(3, RoundingMode::HalfUp);
-
-                return $name.' weight '.$weight((string) $net);
-            })->implode("\n");
+        $metalWeights = $pieces->groupBy(fn ($item) => trim(($item->metalType?->name).' '.($item->purity?->name)))
+            ->map(fn ($rows) => $weight((string) $rows->reduce(
+                fn (BigDecimal $sum, $item) => $sum->plus((string) $item->net_weight),
+                BigDecimal::zero(),
+            )->toScale(3, RoundingMode::HalfUp)));
+        $weightLines = $metalWeights->map(fn ($net, $name) => $name.' weight '.$net)->implode("\n");
         $share = $company->displayName()."\n"
             .'Girvi receipt '.$pledge->number."\n"
             .'Date '.$pledge->pledged_at?->timezone(config('app.timezone'))->format('d-m-Y')."\n"
@@ -112,6 +119,8 @@ class GirviController extends Controller
         return view('commerce.girvi.show', [
             'pledge' => $pledge,
             'company' => $company,
+            'metalWeights' => $metalWeights,
+            'receipts' => $pledge->payments->where('direction', 'in')->sortBy('received_at')->values(),
             'months' => $months,
             'interest' => $interest,
             'release' => $release,

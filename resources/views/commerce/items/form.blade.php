@@ -149,12 +149,17 @@
                                 <button class="btn btn-link btn-sm p-0" id="item-stone-add" type="button"><i class="bi bi-plus-lg"></i> Add stone</button>
                             </div>
                             <input type="hidden" name="stones" value="">
+                            <datalist id="stone-type-names">
+                                @foreach ($stoneTypes as $stoneType)
+                                    <option value="{{ $stoneType }}"></option>
+                                @endforeach
+                            </datalist>
                             <div id="item-stone-list">
                                 @foreach ($stoneRows as $index => $stone)
                                     <div class="stone-row">
                                         <div>
                                             <label for="stone-name-{{ $index }}">Name</label>
-                                            <input class="form-control" id="stone-name-{{ $index }}" name="stones[{{ $index }}][name]" value="{{ $stone['name'] ?? '' }}" placeholder="Diamond">
+                                            <input class="form-control" id="stone-name-{{ $index }}" name="stones[{{ $index }}][name]" value="{{ $stone['name'] ?? '' }}" placeholder="Diamond" list="stone-type-names" autocomplete="off">
                                         </div>
                                         <div>
                                             <label for="stone-weight-{{ $index }}">Weight g</label>
@@ -463,6 +468,10 @@
                         input.className = 'form-control' + (key === 'name' ? '' : ' stone-' + key);
                         input.placeholder = placeholder;
                         if (mode === 'decimal') input.inputMode = 'decimal';
+                        if (key === 'name') {
+                            input.setAttribute('list', 'stone-type-names');
+                            input.autocomplete = 'off';
+                        }
                     }
                     input.name = 'stones[0][' + key + ']';
                     field.append(label, input);

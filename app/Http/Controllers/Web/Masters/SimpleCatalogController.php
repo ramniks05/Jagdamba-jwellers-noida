@@ -13,6 +13,8 @@ use Illuminate\View\View;
 
 abstract class SimpleCatalogController extends Controller
 {
+    use ListsMasterRecords;
+
     abstract public static function modelClass(): string;
 
     abstract protected function singular(): string;
@@ -24,14 +26,18 @@ abstract class SimpleCatalogController extends Controller
     public function index(Request $request): View
     {
         $this->authorize('viewAny', static::modelClass());
+        $show = $this->visibility($request);
 
         return view('masters.catalog.index', [
             'title' => $this->title(),
+            'intro' => $this->intro(),
             'singular' => $this->singular(),
             'routeName' => $this->routeName(),
             'modelClass' => static::modelClass(),
-            'search' => trim((string) $request->query('search', '')),
-            'records' => $this->newQuery($request)->paginate(20)->withQueryString(),
+            'search' => $this->search($request),
+            'show' => $show,
+            'counts' => $this->counts(),
+            'records' => $this->visible($this->newQuery($request), $show)->paginate(20)->withQueryString(),
         ]);
     }
 
@@ -40,9 +46,10 @@ abstract class SimpleCatalogController extends Controller
         $this->authorize('create', static::modelClass());
 
         return view('masters.catalog.form', [
-            'title' => 'Add '.$this->singular(),
+            'title' => 'Add '.strtolower($this->singular()),
             'singular' => $this->singular(),
             'routeName' => $this->routeName(),
+            'backUrl' => $this->redirectTo(),
             'record' => new (static::modelClass())(['is_active' => true, 'sort_order' => 0]),
         ]);
     }
@@ -60,9 +67,10 @@ abstract class SimpleCatalogController extends Controller
         $this->authorize('update', $record);
 
         return view('masters.catalog.form', [
-            'title' => 'Edit '.$this->singular(),
+            'title' => 'Edit '.strtolower($this->singular()),
             'singular' => $this->singular(),
             'routeName' => $this->routeName(),
+            'backUrl' => $this->redirectTo(),
             'record' => $record,
         ]);
     }
@@ -88,6 +96,19 @@ abstract class SimpleCatalogController extends Controller
         return $this->singular().'s';
     }
 
+    protected function intro(): string
+    {
+        return '';
+    }
+
+    /**
+     * @return array<string, string> relation => column heading
+     */
+    protected function counts(): array
+    {
+        return [];
+    }
+
     protected function redirectTo(): string
     {
         return route($this->routeName().'.index');
@@ -98,7 +119,8 @@ abstract class SimpleCatalogController extends Controller
         $class = static::modelClass();
 
         return $class::query()
-            ->matching(trim((string) $request->query('search', '')))
+            ->withCount(array_keys($this->counts()))
+            ->matching($this->search($request))
             ->orderBy('sort_order')
             ->orderBy('name');
     }

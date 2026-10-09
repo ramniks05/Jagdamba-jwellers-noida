@@ -3,10 +3,13 @@
 namespace Tests\Feature\Masters;
 
 use App\Enums\ChargeAppliesTo;
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ChargeMethod;
+use App\Models\Item;
 use App\Models\MetalType;
 use App\Models\Purity;
+use App\Models\StockLocation;
 use App\Models\User;
 use App\Services\Access\AccessProvisioner;
 use App\Support\CompanyContext;
@@ -30,7 +33,7 @@ class MasterDataTest extends TestCase
             ->get(route('metals.index'))
             ->assertOk()
             ->assertSee('Gold')
-            ->assertSee('Purities (6)');
+            ->assertSee('6 purities');
 
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
@@ -169,6 +172,66 @@ class MasterDataTest extends TestCase
         $this->actingAs($manager)
             ->delete(route('categories.destroy', $ring))
             ->assertForbidden();
+    }
+
+    public function test_master_lists_can_filter_by_active_and_block_removal_when_in_use(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $this->actingAs($owner)->post(route('brands.store'), [
+            'name' => 'House brand',
+            'code' => 'HOUSE',
+            'sort_order' => 0,
+            'is_active' => '1',
+        ])->assertRedirect(route('brands.index'));
+
+        $this->seeShop($owner);
+        $brand = Brand::query()->where('code', 'HOUSE')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $branch = $owner->company->branches()->firstOrFail();
+
+        $this->actingAs($owner)->put(route('brands.update', $brand), [
+            'name' => $brand->name,
+            'code' => $brand->code,
+            'sort_order' => 0,
+            'is_active' => '0',
+        ])->assertRedirect(route('brands.index'));
+
+        $this->actingAs($owner)
+            ->get(route('brands.index', ['show' => 'hidden']))
+            ->assertOk()
+            ->assertSee('Hidden')
+            ->assertSee($brand->name);
+
+        $this->actingAs($owner)
+            ->get(route('brands.index', ['show' => 'active']))
+            ->assertOk()
+            ->assertDontSee($brand->name);
+
+        Item::query()->create([
+            'company_id' => $owner->company_id,
+            'branch_id' => $branch->id,
+            'stock_location_id' => $location->id,
+            'brand_id' => $brand->id,
+            'metal_type_id' => $gold->id,
+            'purity_id' => $purity->id,
+            'item_code' => 'TSTBR1',
+            'sku' => 'TSTBR1',
+            'name' => 'Brand test ring',
+            'status' => 'available',
+            'gross_weight' => 10,
+            'net_weight' => 10,
+            'stone_weight' => 0,
+            'other_weight' => 0,
+        ]);
+
+        $this->actingAs($owner)
+            ->from(route('brands.index'))
+            ->delete(route('brands.destroy', $brand))
+            ->assertRedirect(route('brands.index'))
+            ->assertSessionHasErrors('record');
     }
 
     public function test_another_shop_cannot_open_this_shops_category(): void

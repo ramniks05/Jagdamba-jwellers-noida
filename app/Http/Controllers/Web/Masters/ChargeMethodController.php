@@ -6,6 +6,7 @@ use App\Enums\ChargeAppliesTo;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Masters\ChargeMethodRequest;
 use App\Models\ChargeMethod;
+use App\Models\Item;
 use App\Services\Masters\ChargeMethodService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -20,12 +21,20 @@ class ChargeMethodController extends Controller
             fn (ChargeMethod $method) => $method->applies_to->value,
         );
 
+        $pieces = fn (string $column) => Item::query()->toBase()
+            ->whereNotNull($column)
+            ->groupBy($column)
+            ->selectRaw($column.' as method_id, count(*) as pieces')
+            ->pluck('pieces', 'method_id')
+            ->all();
+
         return view('masters.charges.index', [
             'groups' => [
                 ChargeAppliesTo::Making->value => ChargeAppliesTo::Making->label(),
                 ChargeAppliesTo::Wastage->value => ChargeAppliesTo::Wastage->label(),
             ],
             'methods' => $methods,
+            'pieces' => $pieces('making_method_id') + $pieces('wastage_method_id'),
         ]);
     }
 

@@ -3,31 +3,23 @@
 @section('title', 'Categories')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="page-title h3 mb-1">Categories</h1>
-            <p class="text-secondary mb-0">Choose a parent when you save to make a subcategory.</p>
-        </div>
-        @can('create', App\Models\Category::class)
-            <a class="btn btn-primary" href="{{ route('categories.create') }}">Add category</a>
-        @endcan
-    </div>
-    <form class="row g-2 mb-3" method="GET" action="{{ route('categories.index') }}">
-        <div class="col-md-4">
-            <input class="form-control" name="search" value="{{ $search }}" placeholder="Search name or code">
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
-    </form>
+    @include('masters.partials.head', [
+        'title' => 'Categories',
+        'intro' => 'Ring, chain, bangle and so on. Choose a parent when you save to make a subcategory.',
+        'actions' => auth()->user()->can('create', App\Models\Category::class)
+            ? [['url' => route('categories.create'), 'label' => 'Add category', 'icon' => 'plus-lg', 'primary' => true]]
+            : [],
+    ])
+    @include('masters.partials.filters', ['action' => route('categories.index')])
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Parent</th>
                         <th>Code</th>
+                        <th class="num">Subcategories</th>
+                        <th class="num">Pieces</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -35,29 +27,28 @@
                 <tbody>
                     @forelse ($categories as $category)
                         <tr>
-                            <td>{{ $category->name }}</td>
-                            <td>{{ $category->parent?->name ?: '—' }}</td>
-                            <td>{{ $category->code }}</td>
-                            <td>{{ $category->is_active ? 'Active' : 'Inactive' }}</td>
-                            <td class="text-end">
-                                @can('update', $category)
-                                    <a href="{{ route('categories.edit', $category) }}">Edit</a>
-                                @endcan
-                                @can('delete', $category)
-                                    <form class="d-inline" method="POST" action="{{ route('categories.destroy', $category) }}" onsubmit="return confirm('Remove this category?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-link text-danger p-0 ms-2" type="submit">Remove</button>
-                                    </form>
-                                @endcan
+                            <td>
+                                <span class="fw-semibold">{{ $category->name }}</span>
+                                @if ($category->parent)
+                                    <div class="small text-secondary">Under {{ $category->parent->name }}</div>
+                                @endif
                             </td>
+                            <td class="text-nowrap">{{ $category->code }}</td>
+                            <td class="num">{{ $category->children_count ?: '—' }}</td>
+                            <td class="num">{{ $category->items_count }}</td>
+                            <td>@include('masters.partials.status', ['active' => $category->is_active])</td>
+                            @include('masters.partials.row-actions', [
+                                'record' => $category,
+                                'editUrl' => route('categories.edit', $category),
+                                'deleteUrl' => route('categories.destroy', $category),
+                            ])
                         </tr>
                     @empty
-                        <tr><td colspan="5">No categories yet.</td></tr>
+                        <tr><td colspan="6">{{ $search !== '' || $show !== 'all' ? 'No category matches this search.' : 'No categories yet.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $categories->links() }}</div>
+    @include('masters.partials.pager', ['rows' => $categories])
 @endsection

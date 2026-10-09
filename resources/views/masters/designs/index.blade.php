@@ -3,20 +3,14 @@
 @section('title', 'Designs')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="page-title h3 mb-0">Designs</h1>
-        @can('create', App\Models\Design::class)
-            <a class="btn btn-primary" href="{{ route('designs.create') }}">Add design</a>
-        @endcan
-    </div>
-    <form class="row g-2 mb-3" method="GET" action="{{ route('designs.index') }}">
-        <div class="col-md-4">
-            <input class="form-control" name="search" value="{{ $search }}" placeholder="Search name or number">
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
-    </form>
+    @include('masters.partials.head', [
+        'title' => 'Designs',
+        'intro' => 'Your design numbers, so a piece can be matched to its pattern.',
+        'actions' => auth()->user()->can('create', App\Models\Design::class)
+            ? [['url' => route('designs.create'), 'label' => 'Add design', 'icon' => 'plus-lg', 'primary' => true]]
+            : [],
+    ])
+    @include('masters.partials.filters', ['action' => route('designs.index'), 'placeholder' => 'Search name or design number'])
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
@@ -26,6 +20,7 @@
                         <th>Name</th>
                         <th>Collection</th>
                         <th>Category</th>
+                        <th class="num">Pieces</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -33,30 +28,29 @@
                 <tbody>
                     @forelse ($designs as $design)
                         <tr>
-                            <td>{{ $design->design_number }}</td>
-                            <td>{{ $design->name }}</td>
+                            <td class="text-nowrap fw-semibold">{{ $design->design_number }}</td>
+                            <td>
+                                {{ $design->name }}
+                                @if ($design->description)
+                                    <div class="small text-secondary">{{ Str::limit($design->description, 70) }}</div>
+                                @endif
+                            </td>
                             <td>{{ $design->collection?->name ?: '—' }}</td>
                             <td>{{ $design->category?->name ?: '—' }}</td>
-                            <td>{{ $design->is_active ? 'Active' : 'Inactive' }}</td>
-                            <td class="text-end">
-                                @can('update', $design)
-                                    <a href="{{ route('designs.edit', $design) }}">Edit</a>
-                                @endcan
-                                @can('delete', $design)
-                                    <form class="d-inline" method="POST" action="{{ route('designs.destroy', $design) }}" onsubmit="return confirm('Remove this design?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-link text-danger p-0 ms-2" type="submit">Remove</button>
-                                    </form>
-                                @endcan
-                            </td>
+                            <td class="num">{{ $design->items_count }}</td>
+                            <td>@include('masters.partials.status', ['active' => $design->is_active])</td>
+                            @include('masters.partials.row-actions', [
+                                'record' => $design,
+                                'editUrl' => route('designs.edit', $design),
+                                'deleteUrl' => route('designs.destroy', $design),
+                            ])
                         </tr>
                     @empty
-                        <tr><td colspan="6">No designs yet.</td></tr>
+                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No design matches this search.' : 'No designs yet.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $designs->links() }}</div>
+    @include('masters.partials.pager', ['rows' => $designs])
 @endsection

@@ -3,35 +3,27 @@
 @section('title', $title)
 
 @section('content')
-    <h1 class="page-title h3 mb-4">{{ $title }}</h1>
-    <form method="POST" action="{{ $record->exists ? route($routeName.'.update', $record) : route($routeName.'.store') }}">
+    <h1 class="page-title h3 mb-1">{{ $title }}</h1>
+    <p class="text-secondary mb-3">{{ $record->exists ? 'Changes show on new pieces and bills straight away.' : 'Give it a name and a short code you will recognise in lists.' }}</p>
+    <form method="POST" action="{{ $record->exists ? route($routeName.'.update', $record) : route($routeName.'.store') }}" autocomplete="off">
         @csrf
         @if ($record->exists)
             @method('PUT')
         @endif
-        <div class="card">
-            <div class="card-body row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label" for="name">Name</label>
-                    <input class="form-control" id="name" name="name" value="{{ old('name', $record->name) }}" required>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label" for="code">Code</label>
-                    <input class="form-control" id="code" name="code" value="{{ old('code', $record->code) }}" required>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label" for="sort_order">Sort order</label>
-                    <input class="form-control" id="sort_order" name="sort_order" type="number" min="0" max="9999" value="{{ old('sort_order', $record->sort_order ?? 0) }}" required>
-                </div>
-                <div class="col-12">
-                    <input type="hidden" name="is_active" value="0">
-                    <div class="form-check">
-                        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" value="1" @checked(filter_var(old('is_active', $record->is_active ?? true), FILTER_VALIDATE_BOOLEAN))>
-                        <label class="form-check-label" for="is_active">Active</label>
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="weigh-section-title">{{ $singular }}</div>
+                        <div class="row g-3">
+                            @include('masters.partials.field', ['name' => 'name', 'label' => 'Name', 'value' => $record->name, 'col' => 'col-md-8', 'maxlength' => 80, 'autofocus' => ! $record->exists])
+                            @include('masters.partials.field', ['name' => 'code', 'label' => 'Code', 'value' => $record->code, 'col' => 'col-md-4', 'class' => 'text-uppercase', 'maxlength' => 20, 'help' => '2 to 20 letters or numbers.'])
+                        </div>
+                        @include('masters.partials.visibility', ['record' => $record, 'noun' => strtolower($singular)])
                     </div>
                 </div>
+                @include('masters.partials.form-foot', ['label' => 'Save '.strtolower($singular), 'backUrl' => $backUrl])
             </div>
         </div>
-        <button class="btn btn-primary mt-4" type="submit">Save {{ strtolower($singular) }}</button>
     </form>
 @endsection

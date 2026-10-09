@@ -14,14 +14,25 @@ use Illuminate\View\View;
 
 class CategoryController extends Controller
 {
+    use ListsMasterRecords;
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Category::class);
-        $search = trim((string) $request->query('search', ''));
+        $search = $this->search($request);
+        $show = $this->visibility($request);
 
         return view('masters.categories.index', [
             'search' => $search,
-            'categories' => Category::query()->with('parent')->matching($search)->orderBy('sort_order')->orderBy('name')->paginate(20)->withQueryString(),
+            'show' => $show,
+            'categories' => $this->visible(Category::query(), $show)
+                ->with('parent')
+                ->withCount(['children', 'items'])
+                ->matching($search)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->paginate(20)
+                ->withQueryString(),
         ]);
     }
 

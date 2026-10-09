@@ -29,7 +29,11 @@ class SchemeController extends Controller
         $this->authorize('viewAny', GoldScheme::class);
 
         return view('commerce.schemes.index', [
-            'schemes' => GoldScheme::query()->withCount('enrollments')->orderBy('name')->paginate(20),
+            'schemes' => GoldScheme::query()
+                ->withCount(['enrollments', 'enrollments as paying_count' => fn ($query) => $query->where('status', 'active')])
+                ->orderByDesc('is_active')
+                ->orderBy('name')
+                ->paginate(20),
             'bonuses' => config('schemes.bonus_types'),
             'money' => fn (string $amount) => $format->money($amount, $context->company()),
         ]);
@@ -55,7 +59,14 @@ class SchemeController extends Controller
     {
         $this->authorize('view', $scheme);
         $company = $context->company();
-        $scheme->load('enrollments.customer');
+        $scheme->load(['enrollments' => fn ($query) => $query
+            ->with('customer')
+            ->withCount(['installments', 'installments as paid_count' => fn ($rows) => $rows->whereNotNull('paid_at')])
+            ->withSum(['installments as collected' => fn ($rows) => $rows->whereNotNull('paid_at')], 'amount')
+            ->withMin(['installments as next_due' => fn ($rows) => $rows->whereNull('paid_at')], 'due_on')
+            ->orderByRaw("status = 'active' desc")
+            ->orderByDesc('started_on')
+            ->orderByDesc('id')]);
         $money = fn (string $amount) => $format->money($amount, $company);
         $payable = $this->fixedPayable($scheme);
         $maturity = $this->fixedMaturity($scheme, $benefit);

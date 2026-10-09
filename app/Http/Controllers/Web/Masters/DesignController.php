@@ -15,14 +15,25 @@ use Illuminate\View\View;
 
 class DesignController extends Controller
 {
+    use ListsMasterRecords;
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Design::class);
-        $search = trim((string) $request->query('search', ''));
+        $search = $this->search($request);
+        $show = $this->visibility($request);
 
         return view('masters.designs.index', [
             'search' => $search,
-            'designs' => Design::query()->with(['collection', 'category'])->matching($search)->orderBy('sort_order')->orderBy('name')->paginate(20)->withQueryString(),
+            'show' => $show,
+            'designs' => $this->visible(Design::query(), $show)
+                ->with(['collection', 'category'])
+                ->withCount('items')
+                ->matching($search)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->paginate(20)
+                ->withQueryString(),
         ]);
     }
 
@@ -72,8 +83,8 @@ class DesignController extends Controller
     {
         return [
             'design' => $design,
-            'collections' => Collection::query()->orderBy('name')->get(),
-            'categories' => Category::query()->orderBy('name')->get(),
+            'collections' => Collection::query()->where(fn ($rows) => $rows->active()->orWhere('id', $design->collection_id))->orderBy('name')->get(),
+            'categories' => Category::query()->where(fn ($rows) => $rows->active()->orWhere('id', $design->category_id))->orderBy('name')->get(),
         ];
     }
 }

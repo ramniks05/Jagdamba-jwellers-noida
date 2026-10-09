@@ -28,16 +28,20 @@ class Category extends Model
         return $this->hasMany(Design::class);
     }
 
+    public function items(): HasMany
+    {
+        return $this->hasMany(Item::class);
+    }
+
     public function deletionBlocker(): ?string
     {
         if ($this->children()->exists()) {
             return 'Remove the subcategories first.';
         }
 
-        if ($this->designs()->exists()) {
-            return 'This category is used by a design.';
-        }
-
-        return null;
+        return $this->usageBlocker('category', [
+            'items' => ['category_id', 'piece'],
+            'designs' => ['category_id', 'design'],
+        ]);
     }
 }

@@ -58,6 +58,17 @@ class PurityRequest extends FormRequest
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'code.regex' => 'Use 2 to 20 letters or numbers for the code, with no spaces.',
+            'fineness_percent.regex' => 'Enter the fineness as a percent, such as 91.6.',
+        ];
+    }
+
     public function metal(): ?MetalType
     {
         $value = $this->route('metal');

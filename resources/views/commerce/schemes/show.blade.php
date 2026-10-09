@@ -3,41 +3,129 @@
 @section('title', $scheme->name)
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-start mb-3 no-print">
-        <div>
-            <h1 class="page-title h3 mb-1">{{ $scheme->name }}</h1>
-            <p class="text-secondary mb-0">{{ $scheme->code }} · {{ $scheme->duration_months }} months · {{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</p>
-        </div>
+    @php
+        $paying = $scheme->enrollments->where('status', 'active')->count();
+        $collectedAll = $scheme->enrollments->reduce(fn ($sum, $row) => $sum + (float) $row->collected, 0.0);
+        $canEnroll = $scheme->is_active && auth()->user()?->can('create', App\Models\GoldScheme::class);
+    @endphp
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+        <a href="{{ route('schemes.index') }}"><i class="bi bi-arrow-left"></i> All schemes</a>
         <div class="d-flex flex-wrap gap-2">
-            @can('create', App\Models\GoldScheme::class)
-                @if ($scheme->is_active)
-                    <a class="btn btn-primary" href="#add-member"><i class="bi bi-person-plus"></i> Add member</a>
-                @endif
-            @endcan
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
-            <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print scheme</button>
+            <button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print scheme</button>
+            @if ($canEnroll)
+                <a class="btn btn-primary" href="#add-member"><i class="bi bi-person-plus"></i> Add member</a>
+            @endif
         </div>
     </div>
-    @can('create', App\Models\GoldScheme::class)
-        @if ($scheme->is_active)
-            <form class="card mb-4 no-print" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form">
-                @csrf
-                <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center" id="add-member">
-                    <span>Add a member</span>
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#customer-modal"><i class="bi bi-person-plus"></i> New customer</button>
+
+    <div class="card order-panel mb-3 no-print">
+        <div class="card-body">
+            <div class="order-panel-head">
+                <div>
+                    <div class="stat-label">Scheme {{ $scheme->code }} · {{ $scheme->duration_months }} months</div>
+                    <div class="order-panel-title">
+                        {{ $scheme->name }}
+                        <span class="order-status {{ $scheme->is_active ? 'is-active' : 'is-closed' }}">{{ $scheme->is_active ? 'Open to join' : 'Closed' }}</span>
+                    </div>
+                    <div class="text-secondary small">{{ $scheme->installment_mode === 'fixed' ? 'Fixed monthly amount' : 'Customer chooses the amount' }} · {{ $bonuses[$scheme->bonus_type] ?? $scheme->bonus_type }}</div>
                 </div>
-                <div class="card-body">
-                    <label class="form-label" for="customer-search">Search by mobile number or name</label>
-                    <input class="form-control" id="customer-search" placeholder="Mobile, name, or code" autocomplete="off">
-                    <div class="bill-results mt-2 d-none" id="customer-results"></div>
-                    <div class="alert alert-warning mt-3 mb-3 d-none" id="customer-chosen"></div>
-                    <div class="text-danger small mb-3 d-none" id="customer-error">Choose a customer. A walk-in cannot join a scheme.</div>
-                    <button class="btn btn-primary" type="submit"><i class="bi bi-person-check"></i> Enroll</button>
+                <div class="order-due"><i class="bi bi-people"></i> {{ $scheme->enrollments->count() }} {{ $scheme->enrollments->count() === 1 ? 'member' : 'members' }} · {{ $paying }} paying</div>
+            </div>
+            <div class="customer-stats mb-0 mt-3">
+                <div class="customer-stat"><div class="stat-label">Each month</div><div>{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</div></div>
+                <div class="customer-stat"><div class="stat-label">Customer pays</div><div>{{ $payable !== null ? $money($payable) : 'Depends on each month' }}</div></div>
+                <div class="customer-stat is-due"><div class="stat-label">Customer gets at the end</div><div>{{ $maturity !== null ? $money($maturity) : 'After every month is paid' }}</div></div>
+            </div>
+        </div>
+    </div>
+
+    @if ($canEnroll)
+        <form class="row g-3 mb-3 no-print" method="POST" action="{{ route('schemes.enroll', $scheme) }}" id="enroll-form" autocomplete="off">
+            @csrf
+            <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
+            <div class="col-lg-7" id="add-member">
+                @include('commerce.partials.customer-picker', ['title' => 'Add a member', 'addLabel' => 'Choose', 'errorText' => 'Choose a customer. A walk-in cannot join a scheme.'])
+                @error('customer_uuid')
+                    <div class="text-danger small">{{ $message }}</div>
+                @enderror
+                @error('scheme')
+                    <div class="text-danger small">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="col-lg-5">
+                <div class="card due-pay h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="stat-label">Joining today</div>
+                        <div class="bill-sums">
+                            <div class="bill-row"><span>Month 1 due</span><span>{{ now()->format('d-m-Y') }}</span></div>
+                            <div class="bill-row"><span>Last month due</span><span>{{ now()->addMonths(max(0, $scheme->duration_months - 1))->format('d-m-Y') }}</span></div>
+                            <div class="bill-row"><span>Each month</span><span>{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</span></div>
+                        </div>
+                        <p class="small text-secondary mb-3">The passbook opens after enrolling. Collect month 1 there.</p>
+                        <button class="btn btn-primary w-100 mt-auto" type="submit"><i class="bi bi-person-check"></i> Enroll member</button>
+                    </div>
                 </div>
-            </form>
-        @endif
-    @endcan
+            </div>
+        </form>
+    @elseif (! $scheme->is_active)
+        <div class="alert alert-secondary no-print">This scheme is closed to new members. Existing members can still pay and mature.</div>
+    @endif
+
+    <div class="card mb-3 no-print">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span>Members</span>
+            @if ($collectedAll > 0)
+                <span class="small text-secondary">Collected {{ $money(number_format($collectedAll, 2, '.', '')) }}</span>
+            @endif
+        </div>
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Passbook</th>
+                        <th>Customer</th>
+                        <th>Started</th>
+                        <th class="num">Paid</th>
+                        <th class="num">Collected</th>
+                        <th>Next due</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($scheme->enrollments as $enrollment)
+                        @php
+                            $nextDue = $enrollment->status === 'active' && $enrollment->next_due ? \Illuminate\Support\Carbon::parse($enrollment->next_due) : null;
+                            $late = $nextDue && $nextDue->lt(today());
+                            $allPaid = $enrollment->status === 'active' && $enrollment->paid_count >= $enrollment->installments_count;
+                        @endphp
+                        <tr>
+                            <td class="text-nowrap">{{ $enrollment->number }}</td>
+                            <td>{{ $enrollment->customer?->name }}<div class="small text-secondary">{{ $enrollment->customer?->mobile }}</div></td>
+                            <td class="text-nowrap">{{ $enrollment->started_on?->format('d-m-Y') }}</td>
+                            <td class="num">{{ $enrollment->paid_count }} of {{ $enrollment->installments_count }}</td>
+                            <td class="num">{{ $money(number_format((float) $enrollment->collected, 2, '.', '')) }}</td>
+                            <td class="text-nowrap {{ $late ? 'is-late' : '' }}">{{ $nextDue?->format('d-m-Y') ?? '—' }}</td>
+                            <td>
+                                @if ($enrollment->status === 'matured')
+                                    <span class="order-status is-matured">Matured</span>
+                                @elseif ($allPaid)
+                                    <span class="order-status is-ready">Ready to mature</span>
+                                @else
+                                    <span class="order-status is-active">Paying</span>
+                                @endif
+                            </td>
+                            <td class="text-end"><a href="{{ route('enrollments.show', $enrollment) }}">Passbook</a></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8">No members yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <article class="invoice-sheet">
         @include('commerce.partials.shop-document-head', ['kicker' => 'Scheme details'])
         <table class="invoice-parties">
@@ -85,166 +173,39 @@
             </div>
         </footer>
     </article>
-    <div class="row g-3 mb-4 no-print">
-        <div class="col-md-4">
-            <div class="card h-100"><div class="card-body">
-                <div class="text-secondary">Monthly</div>
-                <div class="h4 mb-0">{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</div>
-            </div></div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100"><div class="card-body">
-                <div class="text-secondary">Customer pays</div>
-                <div class="h4 mb-0">{{ $payable !== null ? $money($payable) : 'Depends on each month' }}</div>
-            </div></div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100"><div class="card-body">
-                <div class="text-secondary">Customer gets at the end</div>
-                <div class="h4 mb-0">{{ $maturity !== null ? $money($maturity) : 'After every month is paid' }}</div>
-            </div></div>
-        </div>
-    </div>
-    <div class="card no-print">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>Number</th>
-                        <th>Customer</th>
-                        <th>Mobile</th>
-                        <th>Started</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($scheme->enrollments as $enrollment)
-                        <tr>
-                            <td>{{ $enrollment->number }}</td>
-                            <td>{{ $enrollment->customer?->name }}</td>
-                            <td>{{ $enrollment->customer?->mobile ?: '—' }}</td>
-                            <td>{{ $enrollment->started_on?->format('d M Y') }}</td>
-                            <td>{{ $enrollment->status === 'matured' ? 'Matured' : 'Open' }}</td>
-                            <td class="text-end"><a href="{{ route('enrollments.show', $enrollment) }}">Passbook</a></td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6">No members yet.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
 
-    <div class="modal fade" id="customer-modal" tabindex="-1" aria-labelledby="customer-modal-title" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title h5" id="customer-modal-title">New customer</h2>
-                    <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-secondary">The customer code is assigned when you save. A walk-in cannot join a scheme.</p>
-                    <div class="mb-3">
-                        <label class="form-label" for="new-customer-name">Name</label>
-                        <input class="form-control" id="new-customer-name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="new-customer-mobile">Mobile</label>
-                        <input class="form-control" id="new-customer-mobile" inputmode="numeric">
-                    </div>
-                    <div class="text-danger small d-none" id="customer-modal-error"></div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary" id="save-customer" type="button">Save and enroll</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script type="application/json" id="enroll-config">{!! json_encode([
-        'csrf' => csrf_token(),
-        'customerUrl' => route('customers.store'),
-        'customers' => $customers->map(fn ($customer) => [
-            'uuid' => $customer->uuid,
-            'name' => $customer->name,
-            'code' => $customer->code,
-            'mobile' => $customer->mobile,
-        ])->values(),
-    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+    @if ($canEnroll)
+        @include('commerce.partials.customer-modals', ['document' => 'scheme', 'note' => 'The customer code is assigned when you save. A walk-in cannot join a scheme.'])
+        <script type="application/json" id="enroll-config">{!! json_encode([
+            'csrf' => csrf_token(),
+            'customerUrl' => route('customers.store'),
+            'customerShowUrl' => auth()->user()?->can('viewAny', App\Models\Customer::class) ? route('customers.show', '__customer__') : null,
+            'customers' => $customers->map(fn ($customer) => [
+                'uuid' => $customer->uuid,
+                'name' => $customer->name,
+                'code' => $customer->code,
+                'mobile' => $customer->mobile,
+            ])->values(),
+        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+    @endif
 @endsection
 
 @push('scripts')
-    <script>
-        const enroll = JSON.parse(document.getElementById('enroll-config').textContent);
-        const form = document.getElementById('enroll-form');
-        if (form && enroll) {
-            function chooseCustomer(customer) {
-                document.getElementById('customer-uuid').value = customer.uuid;
-                document.getElementById('customer-error').classList.add('d-none');
-                document.getElementById('customer-results').classList.add('d-none');
-                const box = document.getElementById('customer-chosen');
-                box.classList.remove('d-none');
-                box.textContent = customer.name + (customer.mobile ? ' · ' + customer.mobile : '') + (customer.code ? ' · ' + customer.code : '');
-            }
-            document.getElementById('customer-search').addEventListener('input', () => {
-                const query = document.getElementById('customer-search').value.trim().toLowerCase();
-                const box = document.getElementById('customer-results');
-                if (query.length < 1) {
-                    box.classList.add('d-none');
-                    box.innerHTML = '';
-                    return;
-                }
-                const rows = enroll.customers.filter((customer) => [customer.name, customer.mobile, customer.code].join(' ').toLowerCase().includes(query)).slice(0, 8);
-                box.classList.remove('d-none');
-                box.innerHTML = rows.length
-                    ? rows.map((customer) => '<button type="button" data-uuid="' + customer.uuid + '">' + customer.name + (customer.mobile ? ' · ' + customer.mobile : '') + '</button>').join('')
-                    : '<div class="p-2 text-secondary">No customer found. Add one with New customer.</div>';
+    @if ($scheme->is_active && auth()->user()?->can('create', App\Models\GoldScheme::class))
+        <script src="{{ asset('js/customer-picker.js') }}?v={{ filemtime(public_path('js/customer-picker.js')) }}"></script>
+        <script>
+            const enroll = JSON.parse(document.getElementById('enroll-config').textContent);
+            const picker = customerPicker({
+                customers: enroll.customers,
+                createUrl: enroll.customerUrl,
+                showUrl: enroll.customerShowUrl,
+                csrf: enroll.csrf,
+                addLabel: 'Choose',
+                chipLabel: 'New member',
             });
-            document.getElementById('customer-results').addEventListener('click', (event) => {
-                const button = event.target.closest('button');
-                if (!button) return;
-                const customer = enroll.customers.find((row) => row.uuid === button.dataset.uuid);
-                if (customer) chooseCustomer(customer);
+            document.getElementById('enroll-form').addEventListener('submit', (event) => {
+                if (!picker.ensure()) event.preventDefault();
             });
-            form.addEventListener('submit', (event) => {
-                if (!document.getElementById('customer-uuid').value) {
-                    event.preventDefault();
-                    document.getElementById('customer-error').classList.remove('d-none');
-                    document.getElementById('customer-search').focus();
-                }
-            });
-            document.getElementById('save-customer').addEventListener('click', async () => {
-                const error = document.getElementById('customer-modal-error');
-                error.classList.add('d-none');
-                const response = await fetch(enroll.customerUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': enroll.csrf,
-                    },
-                    body: JSON.stringify({
-                        name: document.getElementById('new-customer-name').value,
-                        mobile: document.getElementById('new-customer-mobile').value,
-                        customer_type: 'retail',
-                        kyc_status: 'pending',
-                        is_active: true,
-                    }),
-                });
-                const payload = await response.json();
-                if (!response.ok) {
-                    error.textContent = Object.values(payload.errors || {}).flat().join(' ') || 'The customer could not be saved.';
-                    error.classList.remove('d-none');
-                    return;
-                }
-                enroll.customers.push(payload);
-                chooseCustomer(payload);
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('customer-modal')).hide();
-                document.getElementById('new-customer-name').value = '';
-                document.getElementById('new-customer-mobile').value = '';
-            });
-            const preset = enroll.customers.find((customer) => customer.uuid === document.getElementById('customer-uuid').value);
-            if (preset) chooseCustomer(preset);
-        }
-    </script>
+        </script>
+    @endif
 @endpush

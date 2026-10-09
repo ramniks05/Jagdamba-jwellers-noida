@@ -3,54 +3,45 @@
 @section('title', 'Stones')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="page-title h3 mb-0">Stones</h1>
-        <div class="d-flex gap-2">
-            @can('create', App\Models\StoneType::class)
-                <a class="btn btn-primary" href="{{ route('stone-types.create') }}">Add stone type</a>
-            @endcan
-            @can('create', App\Models\StoneGrade::class)
-                <a class="btn btn-outline-secondary" href="{{ route('stone-grades.create') }}">Add grade</a>
-            @endcan
-        </div>
-    </div>
-    <form class="row g-2 mb-3" method="GET" action="{{ route('stones.index') }}">
-        <div class="col-md-4">
-            <input class="form-control" name="search" value="{{ $search }}" placeholder="Search stones">
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
-    </form>
-    <div class="row g-4">
+    @include('masters.partials.head', [
+        'title' => 'Stones',
+        'intro' => 'Active stone types are suggested when you type a stone name on a piece. Grades describe cut, colour and clarity.',
+        'actions' => array_values(array_filter([
+            auth()->user()->can('create', App\Models\StoneGrade::class)
+                ? ['url' => route('stone-grades.create'), 'label' => 'Add grade', 'icon' => 'plus-lg']
+                : null,
+            auth()->user()->can('create', App\Models\StoneType::class)
+                ? ['url' => route('stone-types.create'), 'label' => 'Add stone type', 'icon' => 'plus-lg', 'primary' => true]
+                : null,
+        ])),
+    ])
+    @include('masters.partials.filters', ['action' => route('stones.index'), 'placeholder' => 'Search stones or grades'])
+    <div class="row g-3">
         <div class="col-lg-5">
             <div class="card">
-                <div class="card-header bg-white">Stone types</div>
+                <div class="card-header bg-white d-flex justify-content-between">
+                    <span>Stone types</span>
+                    <span class="text-secondary small">{{ $types->count() }}</span>
+                </div>
                 <div class="table-responsive">
                     <table class="table mb-0">
                         <thead>
-                            <tr><th>Name</th><th>Code</th><th></th></tr>
+                            <tr><th>Name</th><th>Code</th><th>Status</th><th></th></tr>
                         </thead>
                         <tbody>
                             @forelse ($types as $type)
                                 <tr>
-                                    <td>{{ $type->name }}</td>
-                                    <td>{{ $type->code }}</td>
-                                    <td class="text-end">
-                                        @can('update', $type)
-                                            <a href="{{ route('stone-types.edit', $type) }}">Edit</a>
-                                        @endcan
-                                        @can('delete', $type)
-                                            <form class="d-inline" method="POST" action="{{ route('stone-types.destroy', $type) }}" onsubmit="return confirm('Remove this stone type?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="btn btn-link text-danger p-0 ms-2" type="submit">Remove</button>
-                                            </form>
-                                        @endcan
-                                    </td>
+                                    <td class="fw-semibold">{{ $type->name }}</td>
+                                    <td class="text-nowrap">{{ $type->code }}</td>
+                                    <td>@include('masters.partials.status', ['active' => $type->is_active])</td>
+                                    @include('masters.partials.row-actions', [
+                                        'record' => $type,
+                                        'editUrl' => route('stone-types.edit', $type),
+                                        'deleteUrl' => route('stone-types.destroy', $type),
+                                    ])
                                 </tr>
                             @empty
-                                <tr><td colspan="3">No stone types yet.</td></tr>
+                                <tr><td colspan="4">{{ $search !== '' || $show !== 'all' ? 'No stone type matches.' : 'No stone types yet.' }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -59,33 +50,30 @@
         </div>
         <div class="col-lg-7">
             <div class="card">
-                <div class="card-header bg-white">Grades</div>
+                <div class="card-header bg-white d-flex justify-content-between">
+                    <span>Grades</span>
+                    <span class="text-secondary small">{{ $grades->count() }}</span>
+                </div>
                 <div class="table-responsive">
                     <table class="table mb-0">
                         <thead>
-                            <tr><th>Kind</th><th>Name</th><th>Code</th><th></th></tr>
+                            <tr><th>Kind</th><th>Name</th><th>Code</th><th>Status</th><th></th></tr>
                         </thead>
                         <tbody>
                             @forelse ($grades as $grade)
                                 <tr>
-                                    <td>{{ $grade->kind->label() }}</td>
-                                    <td>{{ $grade->name }}</td>
-                                    <td>{{ $grade->code }}</td>
-                                    <td class="text-end">
-                                        @can('update', $grade)
-                                            <a href="{{ route('stone-grades.edit', $grade) }}">Edit</a>
-                                        @endcan
-                                        @can('delete', $grade)
-                                            <form class="d-inline" method="POST" action="{{ route('stone-grades.destroy', $grade) }}" onsubmit="return confirm('Remove this grade?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="btn btn-link text-danger p-0 ms-2" type="submit">Remove</button>
-                                            </form>
-                                        @endcan
-                                    </td>
+                                    <td class="text-nowrap">{{ $grade->kind->label() }}</td>
+                                    <td class="fw-semibold">{{ $grade->name }}</td>
+                                    <td class="text-nowrap">{{ $grade->code }}</td>
+                                    <td>@include('masters.partials.status', ['active' => $grade->is_active])</td>
+                                    @include('masters.partials.row-actions', [
+                                        'record' => $grade,
+                                        'editUrl' => route('stone-grades.edit', $grade),
+                                        'deleteUrl' => route('stone-grades.destroy', $grade),
+                                    ])
                                 </tr>
                             @empty
-                                <tr><td colspan="4">No grades yet.</td></tr>
+                                <tr><td colspan="5">{{ $search !== '' || $show !== 'all' ? 'No grade matches.' : 'No grades yet.' }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>

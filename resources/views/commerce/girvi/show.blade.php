@@ -7,54 +7,114 @@
     $loanLabel = $pledge->loan_percent !== null
         ? rtrim(rtrim(number_format((float) $pledge->loan_percent, 2, '.', ''), '0'), '.').'% of the gold value'
         : 'One loan amount';
+    $open = $pledge->status === 'open';
+    $given = $pledge->pledged_at?->timezone(config('app.timezone'))->format('d-m-Y');
+    $released = $pledge->released_at?->timezone(config('app.timezone'))->format('d-m-Y');
 @endphp
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-start mb-3 no-print">
-        <div>
-            <h1 class="page-title h3 mb-1">{{ $pledge->number }}</h1>
-            <div class="text-secondary">{{ $pledge->customer?->name }} · {{ $pledge->status === 'open' ? 'Open' : 'Released' }}</div>
-        </div>
+    @php
+        $dueNote = $open
+            ? 'Interest from '.$pledge->interest_from->format('d-m-Y').' · '.$months.' '.($months === 1 ? 'month' : 'months')
+            : 'Released on '.$released;
+        $steps = [
+            ['Loan given', $given, 'done'],
+            ['Interest paid', $receipts->where('narration', 'Girvi interest '.$pledge->number)->last()?->received_at?->timezone(config('app.timezone'))->format('d-m-Y'), (float) $pledge->interest_charged > 0 ? 'done' : ($open ? 'next' : '')],
+            ['Released', $released, $open ? '' : 'done'],
+        ];
+    @endphp
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+        <a href="{{ route('girvi.index') }}"><i class="bi bi-arrow-left"></i> All girvi</a>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
-            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print receipt</button>
+            <button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print receipt</button>
         </div>
     </div>
 
-    @if ($pledge->status === 'open')
+    <div class="card order-panel mb-3 no-print">
+        <div class="card-body">
+            <div class="order-panel-head">
+                <div>
+                    <div class="stat-label">Girvi {{ $pledge->number }} · {{ $pledge->description }}</div>
+                    <div class="order-panel-title">
+                        {{ $pledge->customer?->name }}
+                        <span class="order-status is-{{ $pledge->status }}">{{ $open ? 'Gold in shop' : 'Released' }}</span>
+                    </div>
+                    <div class="text-secondary small">
+                        {{ $metalWeights->map(fn ($net, $name) => $name.' '.$net)->implode(' · ') }} · value {{ $money((string) $pledge->gold_value) }} · {{ $percentLabel }}% a month
+                    </div>
+                </div>
+                <div class="order-due"><i class="bi bi-calendar-event"></i> {{ $dueNote }}</div>
+            </div>
+            <ol class="order-steps">
+                @foreach ($steps as [$label, $date, $state])
+                    <li class="{{ $state ? 'is-'.$state : '' }}">
+                        <span class="order-step-dot"></span>
+                        <strong>{{ $label }}</strong>
+                        <small>{{ $date ?? ($state === 'next' ? 'Next' : '—') }}</small>
+                    </li>
+                @endforeach
+            </ol>
+            <div class="customer-stats mb-0">
+                <div class="customer-stat"><div class="stat-label">Loan given</div><div>{{ $money((string) $pledge->principal) }}</div></div>
+                @if ($open)
+                    <div class="customer-stat"><div class="stat-label">Interest due now</div><div>{{ $money($interest) }}</div></div>
+                    <div class="customer-stat is-due"><div class="stat-label">To release today</div><div>{{ $money($release) }}</div></div>
+                @else
+                    <div class="customer-stat"><div class="stat-label">Interest collected</div><div>{{ $money((string) $pledge->interest_charged) }}</div></div>
+                    <div class="customer-stat"><div class="stat-label">Released on</div><div>{{ $released }}</div></div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    @if ($open)
         @can('update', $pledge)
-            <form class="card mb-3 no-print" id="settle-form" method="POST" action="{{ route('girvi.settle', $pledge) }}" data-principal="{{ $pledge->principal }}" data-percent="{{ $pledge->interest_percent }}">
+            <form class="card due-pay mb-3 no-print" id="settle-form" method="POST" action="{{ route('girvi.settle', $pledge) }}" data-principal="{{ $pledge->principal }}" data-percent="{{ $pledge->interest_percent }}">
                 @csrf
-                <div class="card-header bg-white">Interest and release</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label" for="months">Months to charge</label>
-                        <input class="form-control" id="months" name="months" value="{{ old('months', $months) }}" required>
-                        <div class="form-text">Counted from {{ $pledge->interest_from->format('d M Y') }}. A part month is one month.</div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="settle-payment">Amount received</label>
-                        <input class="form-control" id="settle-payment" name="payment" value="{{ old('payment') }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="method">Method</label>
-                        <select class="form-select" id="method" name="method">
-                            @foreach ($methods as $method)
-                                <option value="{{ $method->value }}">{{ $method->label() }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="reference">Reference</label>
-                        <input class="form-control" id="reference" name="reference" value="{{ old('reference') }}">
-                    </div>
-                    <div class="col-12">
-                        <p class="mb-1">Interest now <strong id="interest-figure"></strong></p>
-                        <p class="mb-3">To release the gold <strong id="release-figure"></strong></p>
-                        <div class="d-flex flex-wrap gap-2">
-                            <button class="btn btn-outline-primary" name="action" value="interest" type="submit" id="interest-button">Take interest only</button>
-                            <button class="btn btn-primary" name="action" value="release" type="submit" id="release-button">Release the gold</button>
+                <div class="card-body">
+                    <div class="due-pay-head">
+                        <div>
+                            <div class="stat-label">Collect interest or release</div>
+                            <div class="text-secondary small">Interest counted from {{ $pledge->interest_from->format('d-m-Y') }}. A part of a month is one full month.</div>
                         </div>
+                        <div class="text-end">
+                            <div class="small text-secondary">Interest <strong id="interest-figure"></strong> · to release</div>
+                            <div class="due-pay-amount" id="release-figure"></div>
+                        </div>
+                    </div>
+                    <div class="due-pay-row is-four">
+                        <div>
+                            <label class="form-label" for="months">Months</label>
+                            <input class="form-control @error('months') is-invalid @enderror" id="months" name="months" value="{{ old('months', $months) }}" inputmode="numeric" required>
+                            @error('months')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="form-label" for="settle-payment">Amount ₹</label>
+                            <input class="form-control @error('payment') is-invalid @enderror" id="settle-payment" name="payment" value="{{ old('payment') }}" inputmode="decimal" placeholder="Filled by the button">
+                            @error('payment')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="form-label" for="method">Paid by</label>
+                            <select class="form-select" id="method" name="method">
+                                @foreach ($methods as $method)
+                                    <option value="{{ $method->value }}" @selected(old('method') === $method->value)>{{ $method->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" for="reference">Reference</label>
+                            <input class="form-control" id="reference" name="reference" value="{{ old('reference') }}" maxlength="80" placeholder="UPI ref, cheque no.">
+                        </div>
+                    </div>
+                    <div class="due-pay-actions">
+                        <button class="btn btn-outline-primary" name="action" value="interest" type="submit" id="interest-button"><i class="bi bi-cash-coin"></i> Take interest only</button>
+                        <button class="btn btn-primary" name="action" value="release" type="submit" id="release-button"><i class="bi bi-unlock"></i> Release the gold</button>
+                        <span class="small text-secondary">Interest only keeps the gold in girvi and starts the month count again from today.</span>
                     </div>
                 </div>
             </form>
@@ -79,8 +139,8 @@
                     </td>
                     <td>
                         <div><span>Number</span><strong>{{ $pledge->number }}</strong></div>
-                        <div><span>Date</span><strong>{{ $pledge->pledged_at?->timezone(config('app.timezone'))->format('d-m-Y') }}</strong></div>
-                        <div><span>Status</span>{{ $pledge->status === 'open' ? 'Gold is in the shop' : 'Released '.($pledge->released_at?->timezone(config('app.timezone'))->format('d-m-Y') ?? '') }}</div>
+                        <div><span>Date</span><strong>{{ $given }}</strong></div>
+                        <div><span>Status</span>{{ $open ? 'Gold is in the shop' : 'Released '.$released }}</div>
                     </td>
                 </tr>
             </tbody>
@@ -127,6 +187,12 @@
                 <p>{{ $loanWords }}</p>
                 <div class="invoice-kicker">Cash given to the customer</div>
                 <div>{{ $money((string) $pledge->principal) }} · {{ $loanLabel }}</div>
+                @if ($receipts->isNotEmpty())
+                    <div class="invoice-kicker mt-2">Received</div>
+                    @foreach ($receipts as $payment)
+                        <div>{{ $payment->received_at?->timezone(config('app.timezone'))->format('d-m-Y') }} · {{ $payment->number }} · {{ $payment->method->label() }} {{ $money((string) $payment->amount) }}@if ($payment->reference) · {{ $payment->reference }}@endif</div>
+                    @endforeach
+                @endif
             </div>
             <table class="invoice-totals">
                 <tr><td>Total value</td><td>{{ $money((string) $pledge->gold_value) }}</td></tr>
@@ -135,7 +201,7 @@
                 @if ((float) $pledge->interest_charged > 0)
                     <tr><td>Interest collected</td><td>{{ $money((string) $pledge->interest_charged) }}</td></tr>
                 @endif
-                @if ($pledge->status === 'open')
+                @if ($open)
                     <tr><td>Interest due now</td><td>{{ $money($interest) }} · {{ $months }} {{ $months === 1 ? 'month' : 'months' }}</td></tr>
                     <tr class="invoice-grand"><td>To release today</td><td>{{ $money($release) }}</td></tr>
                 @endif

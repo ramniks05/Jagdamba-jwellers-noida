@@ -12,6 +12,7 @@ use App\Http\Requests\Commerce\SaleReturnRequest;
 use App\Models\AdvanceOrder;
 use App\Models\Category;
 use App\Models\ChargeMethod;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
 use App\Models\MetalRate;
@@ -19,7 +20,6 @@ use App\Models\MetalType;
 use App\Models\Sale;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
-use App\Models\Company;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
 use App\Services\Commerce\SaleReturnService;
@@ -120,7 +120,7 @@ class SaleController extends Controller
                 'quote' => $sales->quote($item, $order),
             ]),
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
-            'metals' => MetalType::query()->with('purities')->where('is_active', true)->orderBy('name')->get(),
+            'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),

@@ -346,17 +346,30 @@ class WorkshopTest extends TestCase
 
         $this->seeShop($owner);
         $scheme = GoldScheme::query()->where('code', 'GOLD11')->firstOrFail();
+        $this->actingAs($owner)->get(route('schemes.show', $scheme))
+            ->assertOk()
+            ->assertSee('Add a member')
+            ->assertSee('Open to join')
+            ->assertSee('No members yet.');
         $this->actingAs($owner)->post(route('schemes.enroll', $scheme), [
             'customer_uuid' => $customer->uuid,
         ])->assertRedirect();
 
         $this->seeShop($owner);
         $enrollment = $scheme->enrollments()->firstOrFail();
+        $this->actingAs($owner)->get(route('enrollments.show', $enrollment))
+            ->assertOk()
+            ->assertSee('Collect month 1 of 2');
         $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
             'amount' => '5000',
             'method' => 'cash',
         ])->assertRedirect();
         $this->actingAs($owner)->post(route('enrollments.mature', $enrollment))->assertSessionHasErrors('scheme');
+        $this->actingAs($owner)->get(route('schemes.show', $scheme))
+            ->assertOk()
+            ->assertSee($customer->name)
+            ->assertSee('1 of 2')
+            ->assertSee('Paying');
 
         $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
             'amount' => '5000',
@@ -369,6 +382,11 @@ class WorkshopTest extends TestCase
         $this->assertSame('matured', $enrollment->status);
         $this->assertSame('15000.00', (string) $enrollment->maturity_amount);
         $this->assertSame('-15000.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->actingAs($owner)->get(route('enrollments.show', $enrollment))
+            ->assertOk()
+            ->assertSee('Matured')
+            ->assertSee('15,000.00')
+            ->assertDontSee('Collect month');
     }
 
     public function test_girvi_lends_a_percentage_of_the_gold_and_charges_monthly_interest(): void
@@ -407,6 +425,14 @@ class WorkshopTest extends TestCase
         $this->assertSame('90000.00', (string) $pledge->gold_value);
         $this->assertSame('63000.00', (string) $pledge->principal);
         $this->assertSame('63000.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->actingAs($owner)->get(route('girvi.show', $pledge))
+            ->assertOk()
+            ->assertSee('Gold in shop')
+            ->assertSee('Collect interest or release')
+            ->assertSee('63,000.00')
+            ->assertSee('64,260.00');
+        $this->actingAs($owner)->get(route('girvi.index'))->assertOk()->assertSee($pledge->number);
+        $this->actingAs($owner)->get(route('girvi.index', ['show' => 'released']))->assertOk()->assertDontSee($pledge->number);
 
         $this->actingAs($owner)->post(route('girvi.settle', $pledge), [
             'action' => 'interest',
@@ -432,6 +458,12 @@ class WorkshopTest extends TestCase
         $this->assertSame('released', $pledge->status);
         $this->assertSame('2520.00', (string) $pledge->interest_charged);
         $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->actingAs($owner)->get(route('girvi.show', $pledge))
+            ->assertOk()
+            ->assertSee('Interest collected')
+            ->assertSee('2,520.00')
+            ->assertDontSee('Collect interest or release');
+        $this->actingAs($owner)->get(route('girvi.index', ['show' => 'released']))->assertOk()->assertSee($pledge->number);
     }
 
     /**

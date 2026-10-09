@@ -1,6 +1,6 @@
 <div class="card mb-3">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <span>Customer</span>
+        <span>{{ $title ?? 'Customer' }}</span>
         <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#customer-modal"><i class="bi bi-person-plus"></i> New customer</button>
     </div>
     <div class="card-body">

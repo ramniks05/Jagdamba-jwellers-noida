@@ -31,6 +31,8 @@ class ChargeMethod extends Model
             return 'This calculation method is part of the shop setup and cannot be removed.';
         }
 
-        return null;
+        return $this->usageBlocker('method', [
+            'items' => [$this->applies_to === ChargeAppliesTo::Wastage ? 'wastage_method_id' : 'making_method_id', 'piece'],
+        ]);
     }
 }

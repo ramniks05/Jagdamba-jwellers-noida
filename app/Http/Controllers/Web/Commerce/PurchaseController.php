@@ -80,7 +80,7 @@ class PurchaseController extends Controller
             ]),
             'chosenSupplier' => (string) $request->query('supplier', ''),
             'nextCode' => $items->nextCode(),
-            'metals' => MetalType::query()->with('purities')->where('is_active', true)->orderBy('name')->get(),
+            'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'categories' => Category::query()->with('parent')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),

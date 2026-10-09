@@ -35,8 +35,8 @@ class RateController extends Controller
         return view('commerce.rates.index', [
             'money' => fn (string $amount) => $format->money($amount, $context->company()),
             'rates' => MetalRate::query()->with(['metalType', 'purity', 'branch'])->orderByDesc('effective_at')->orderByDesc('id')->paginate(30),
-            'metals' => MetalType::query()->orderBy('name')->get(),
-            'purities' => Purity::query()->with('metalType')->orderBy('name')->get(),
+            'metals' => MetalType::query()->active()->orderBy('name')->get(),
+            'purities' => Purity::query()->with('metalType')->active()->whereHas('metalType', fn ($metals) => $metals->active())->orderBy('name')->get(),
             'branches' => Branch::query()->visibleTo(auth()->user())->orderBy('name')->get(),
             'canEnter' => auth()->user()->can('create', MetalRate::class),
             'quote' => $quote,

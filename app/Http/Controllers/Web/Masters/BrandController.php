@@ -25,4 +25,14 @@ class BrandController extends SimpleCatalogController
     {
         return 'brand';
     }
+
+    protected function intro(): string
+    {
+        return 'Maker or label shown on a piece, such as your own house brand.';
+    }
+
+    protected function counts(): array
+    {
+        return ['items' => 'Pieces'];
+    }
 }

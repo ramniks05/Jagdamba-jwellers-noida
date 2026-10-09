@@ -10,15 +10,19 @@ use Illuminate\View\View;
 
 class StoneDirectoryController extends Controller
 {
+    use ListsMasterRecords;
+
     public function index(Request $request): View
     {
         $this->authorize('viewAny', StoneType::class);
-        $search = trim((string) $request->query('search', ''));
+        $search = $this->search($request);
+        $show = $this->visibility($request);
 
         return view('masters.stones.index', [
             'search' => $search,
-            'types' => StoneType::query()->matching($search)->orderBy('sort_order')->orderBy('name')->get(),
-            'grades' => StoneGrade::query()->matching($search)->orderBy('kind')->orderBy('sort_order')->orderBy('name')->get(),
+            'show' => $show,
+            'types' => $this->visible(StoneType::query(), $show)->matching($search)->orderBy('sort_order')->orderBy('name')->get(),
+            'grades' => $this->visible(StoneGrade::query(), $show)->matching($search)->orderBy('kind')->orderBy('sort_order')->orderBy('name')->get(),
         ]);
     }
 }

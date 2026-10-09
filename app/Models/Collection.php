@@ -17,12 +17,16 @@ class Collection extends Model
         return $this->hasMany(Design::class);
     }
 
+    public function items(): HasMany
+    {
+        return $this->hasMany(Item::class);
+    }
+
     public function deletionBlocker(): ?string
     {
-        if ($this->designs()->exists()) {
-            return 'This collection is used by a design.';
-        }
-
-        return null;
+        return $this->usageBlocker('collection', [
+            'items' => ['collection_id', 'piece'],
+            'designs' => ['collection_id', 'design'],
+        ]);
     }
 }

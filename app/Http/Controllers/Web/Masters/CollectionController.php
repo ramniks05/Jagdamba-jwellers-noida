@@ -25,4 +25,14 @@ class CollectionController extends SimpleCatalogController
     {
         return 'collection';
     }
+
+    protected function intro(): string
+    {
+        return 'Group designs and pieces into a range, such as Bridal or Daily wear.';
+    }
+
+    protected function counts(): array
+    {
+        return ['designs' => 'Designs', 'items' => 'Pieces'];
+    }
 }

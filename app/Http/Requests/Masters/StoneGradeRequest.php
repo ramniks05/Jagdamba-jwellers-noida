@@ -57,6 +57,16 @@ class StoneGradeRequest extends FormRequest
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'code.regex' => 'Use 2 to 20 letters or numbers for the code, with no spaces.',
+        ];
+    }
+
     public function existing(): ?StoneGrade
     {
         $value = $this->route('stoneGrade');

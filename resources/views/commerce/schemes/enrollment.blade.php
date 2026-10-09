@@ -3,49 +3,113 @@
 @section('title', $enrollment->number)
 
 @php
-    $remaining = $enrollment->installments->count() - $paidCount;
+    $total = $enrollment->installments->count();
+    $remaining = $total - $paidCount;
     $open = $enrollment->status === 'active';
+    $fixed = $enrollment->scheme?->installment_mode === 'fixed';
 @endphp
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-start mb-3 no-print">
-        <div>
-            <h1 class="page-title h3 mb-1">{{ $enrollment->number }}</h1>
-            <div class="text-secondary">{{ $enrollment->customer?->name }} · {{ $enrollment->scheme?->name }} · {{ $open ? 'Open' : 'Matured' }}</div>
-        </div>
+    @php
+        $daysLeft = $open && $nextInstallment ? (int) now()->startOfDay()->diffInDays($nextInstallment->due_on->copy()->startOfDay(), false) : null;
+        $dueNote = match (true) {
+            ! $open => 'Matured on '.$enrollment->matured_at?->timezone(config('app.timezone'))->format('d-m-Y'),
+            $nextInstallment === null => 'Every month paid · ready to mature',
+            $daysLeft > 1 => 'Month '.($paidCount + 1).' due '.$nextInstallment->due_on->format('d-m-Y').' · in '.$daysLeft.' days',
+            $daysLeft === 1 => 'Month '.($paidCount + 1).' due tomorrow',
+            $daysLeft === 0 => 'Month '.($paidCount + 1).' due today',
+            default => 'Month '.($paidCount + 1).' is '.abs($daysLeft).' '.(abs($daysLeft) === 1 ? 'day' : 'days').' late',
+        };
+        $dueTone = $daysLeft !== null ? ($daysLeft < 0 ? 'is-late' : ($daysLeft <= 1 ? 'is-soon' : '')) : '';
+        $statusClass = ! $open ? 'is-matured' : ($nextInstallment ? 'is-active' : 'is-ready');
+        $statusLabel = ! $open ? 'Matured' : ($nextInstallment ? 'Paying' : 'Ready to mature');
+        $lastPaid = $enrollment->installments->whereNotNull('paid_at')->last()?->paid_at?->timezone(config('app.timezone'))->format('d-m-Y');
+        $steps = [
+            ['Joined', $enrollment->started_on?->format('d-m-Y'), 'done'],
+            ['Paying '.$paidCount.' of '.$total, $lastPaid, $paidCount > 0 ? 'done' : 'next'],
+            ['Every month paid', $nextInstallment === null ? $lastPaid : null, $nextInstallment === null ? 'done' : ($paidCount > 0 ? 'next' : '')],
+            ['Matured', $enrollment->matured_at?->timezone(config('app.timezone'))->format('d-m-Y'), $open ? ($nextInstallment === null ? 'next' : '') : 'done'],
+        ];
+        $gets = $enrollment->status === 'matured' ? (string) $enrollment->maturity_amount : ($closing ?? $maturity);
+    @endphp
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
+        @if ($enrollment->scheme)
+            <a href="{{ route('schemes.show', $enrollment->scheme) }}"><i class="bi bi-arrow-left"></i> {{ $enrollment->scheme->name }}</a>
+        @else
+            <a href="{{ route('schemes.index') }}"><i class="bi bi-arrow-left"></i> All schemes</a>
+        @endif
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
-            <button class="btn btn-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print passbook</button>
+            <button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print passbook</button>
+        </div>
+    </div>
+
+    <div class="card order-panel mb-3 no-print">
+        <div class="card-body">
+            <div class="order-panel-head">
+                <div>
+                    <div class="stat-label">Passbook {{ $enrollment->number }} · {{ $enrollment->scheme?->name }}</div>
+                    <div class="order-panel-title">
+                        {{ $enrollment->customer?->name }}
+                        <span class="order-status {{ $statusClass }}">{{ $statusLabel }}</span>
+                    </div>
+                    <div class="text-secondary small">{{ $enrollment->customer?->mobile ?: 'Mobile not recorded' }} · started {{ $enrollment->started_on?->format('d-m-Y') }} · {{ $total }} months @if ($fixed) · {{ $money((string) $enrollment->scheme->monthly_amount) }} each month @endif</div>
+                </div>
+                <div class="order-due {{ $dueTone }}"><i class="bi bi-calendar-event"></i> {{ $dueNote }}</div>
+            </div>
+            <ol class="order-steps">
+                @foreach ($steps as [$label, $date, $state])
+                    <li class="{{ $state ? 'is-'.$state : '' }}">
+                        <span class="order-step-dot"></span>
+                        <strong>{{ $label }}</strong>
+                        <small>{{ $date ?? ($state === 'next' ? 'Next' : '—') }}</small>
+                    </li>
+                @endforeach
+            </ol>
+            <div class="customer-stats mb-0">
+                <div class="customer-stat"><div class="stat-label">Collected · {{ $paidCount }} of {{ $total }}</div><div>{{ $money($collected) }}</div></div>
+                <div class="customer-stat"><div class="stat-label">Still to pay</div><div>{{ $remaining }} {{ $remaining === 1 ? 'month' : 'months' }}@if ($fixed && $remaining > 0) · {{ $money(number_format($remaining * (float) $enrollment->scheme->monthly_amount, 2, '.', '')) }}@endif</div></div>
+                <div class="customer-stat is-due"><div class="stat-label">{{ $open ? 'Customer gets at the end' : 'Credited to customer' }}</div><div>{{ $gets !== null ? $money($gets) : 'After every month is paid' }}</div></div>
+            </div>
         </div>
     </div>
 
     @if ($open && $nextInstallment)
         @can('create', App\Models\GoldScheme::class)
-            <form class="card mb-3 no-print" method="POST" action="{{ route('enrollments.installments.store', $enrollment) }}">
+            <form class="card due-pay mb-3 no-print" method="POST" action="{{ route('enrollments.installments.store', $enrollment) }}">
                 @csrf
-                <div class="card-header bg-white">Collect installment {{ $paidCount + 1 }} of {{ $enrollment->installments->count() }}</div>
-                <div class="card-body row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label" for="amount">Amount</label>
-                        <input class="form-control" id="amount" name="amount" value="{{ old('amount', $enrollment->scheme?->installment_mode === 'fixed' ? $enrollment->scheme?->monthly_amount : $nextInstallment->amount) }}" required>
-                        <div class="form-text">Due {{ $nextInstallment->due_on->format('d M Y') }}@if ($enrollment->scheme?->installment_mode === 'fixed') · this scheme collects {{ $money((string) $enrollment->scheme->monthly_amount) }} each month @endif</div>
+                <div class="card-body">
+                    <div class="due-pay-head">
+                        <div>
+                            <div class="stat-label">Collect month {{ $paidCount + 1 }} of {{ $total }}</div>
+                            <div class="text-secondary small">Due {{ $nextInstallment->due_on->format('d-m-Y') }}@if ($fixed) · this scheme collects {{ $money((string) $enrollment->scheme->monthly_amount) }} each month @endif</div>
+                        </div>
+                        @if ($fixed)
+                            <div class="due-pay-amount">{{ $money((string) $enrollment->scheme->monthly_amount) }}</div>
+                        @endif
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="method">Method</label>
-                        <select class="form-select" id="method" name="method">
-                            @foreach ($methods as $method)
-                                <option value="{{ $method->value }}">{{ $method->label() }}</option>
-                            @endforeach
-                        </select>
+                    <div class="due-pay-row">
+                        <div>
+                            <label class="form-label" for="amount">Amount ₹</label>
+                            <input class="form-control @error('amount') is-invalid @enderror" id="amount" name="amount" value="{{ old('amount', $fixed ? $enrollment->scheme?->monthly_amount : null) }}" inputmode="decimal" placeholder="Amount" @readonly($fixed) required>
+                            @error('amount')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="form-label" for="method">Paid by</label>
+                            <select class="form-select" id="method" name="method">
+                                @foreach ($methods as $method)
+                                    <option value="{{ $method->value }}" @selected(old('method') === $method->value)>{{ $method->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" for="reference">Reference</label>
+                            <input class="form-control" id="reference" name="reference" value="{{ old('reference') }}" maxlength="80" placeholder="UPI ref, cheque no.">
+                        </div>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-cash-coin"></i> Save installment</button>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label" for="reference">Reference</label>
-                        <input class="form-control" id="reference" name="reference" value="{{ old('reference') }}">
-                    </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-cash"></i> Save installment</button>
-                    </div>
-                    <div class="col-12 text-secondary">Collected {{ $money($collected) }}. {{ $remaining }} {{ $remaining === 1 ? 'month' : 'months' }} still to pay.@if ($maturity) On maturity the customer gets {{ $money($maturity) }}.@endif</div>
                 </div>
             </form>
         @endcan
@@ -53,14 +117,22 @@
 
     @if ($open && ! $nextInstallment)
         @can('update', $enrollment)
-            <form class="card mb-3 no-print" method="POST" action="{{ route('enrollments.mature', $enrollment) }}">
+            <form class="card due-pay mb-3 no-print" method="POST" action="{{ route('enrollments.mature', $enrollment) }}">
                 @csrf
-                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <div>
-                        <div class="fw-semibold">Every installment is paid.</div>
-                        <div class="text-secondary">Maturing credits {{ $closing ? $money($closing) : $money($collected) }} to the customer. They can use it on a bill.</div>
+                <div class="card-body">
+                    <div class="due-pay-head mb-0">
+                        <div>
+                            <div class="stat-label">Every month is paid</div>
+                            <div class="text-secondary small">Maturing credits this amount to the customer’s account. They can use it on a bill.</div>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="due-pay-amount">{{ $money($closing ?? $collected) }}</div>
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i> Mature scheme</button>
+                        </div>
                     </div>
-                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i> Mature scheme</button>
+                    @error('scheme')
+                        <div class="text-danger small mt-2">{{ $message }}</div>
+                    @enderror
                 </div>
             </form>
         @endcan
@@ -102,7 +174,7 @@
                     <tr>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $installment->due_on->format('d-m-Y') }}</td>
-                        <td class="num">{{ $money((string) $installment->amount) }}</td>
+                        <td class="num">{{ $installment->paid_at || $fixed ? $money((string) $installment->amount) : '—' }}</td>
                         <td>{{ $installment->paid_at ? $installment->paid_at->timezone(config('app.timezone'))->format('d-m-Y') : 'Due' }}</td>
                     </tr>
                 @endforeach
@@ -116,11 +188,11 @@
             </div>
             <table class="invoice-totals">
                 <tr><td>Customer pays</td><td>{{ $payable !== null ? $money($payable) : 'Each month' }}</td></tr>
-                <tr><td>Paid</td><td>{{ $paidCount }} of {{ $enrollment->installments->count() }}</td></tr>
+                <tr><td>Paid</td><td>{{ $paidCount }} of {{ $total }}</td></tr>
                 <tr><td>Collected</td><td>{{ $money($collected) }}</td></tr>
                 <tr class="invoice-grand">
                     <td>Customer gets</td>
-                    <td>{{ $enrollment->status === 'matured' ? $money((string) $enrollment->maturity_amount) : ($closing ? $money($closing) : ($maturity ? $money($maturity) : 'At the end')) }}</td>
+                    <td>{{ $gets !== null ? $money($gets) : 'At the end' }}</td>
                 </tr>
             </table>
         </div>

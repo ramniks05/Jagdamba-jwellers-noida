@@ -15,15 +15,25 @@ use Illuminate\View\View;
 
 class PurityController extends Controller
 {
+    use ListsMasterRecords;
+
     public function index(Request $request, MetalType $metal): View
     {
         $this->authorize('viewAny', Purity::class);
-        $search = trim((string) $request->query('search', ''));
+        $search = $this->search($request);
+        $show = $this->visibility($request);
 
         return view('masters.purities.index', [
             'metal' => $metal,
             'search' => $search,
-            'purities' => $metal->purities()->matching($search)->orderBy('sort_order')->orderBy('name')->paginate(20)->withQueryString(),
+            'show' => $show,
+            'purities' => $this->visible($metal->purities(), $show)
+                ->withCount('items')
+                ->matching($search)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->paginate(20)
+                ->withQueryString(),
         ]);
     }
 

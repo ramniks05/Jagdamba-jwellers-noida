@@ -26,6 +26,11 @@ class StoneTypeController extends SimpleCatalogController
         return 'stone_type';
     }
 
+    protected function intro(): string
+    {
+        return 'Stones offered when you add a piece or a bill line.';
+    }
+
     protected function redirectTo(): string
     {
         return route('stones.index');

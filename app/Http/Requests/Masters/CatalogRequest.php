@@ -56,6 +56,17 @@ class CatalogRequest extends FormRequest
     }
 
     /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'code.regex' => 'Use 2 to 20 letters or numbers for the code, with no spaces.',
+            'design_number.regex' => 'Start the design number with a letter or number. Use up to 40 letters, numbers, dots, dashes or slashes.',
+        ];
+    }
+
+    /**
      * @return class-string<Model>
      */
     public function modelClass(): string
