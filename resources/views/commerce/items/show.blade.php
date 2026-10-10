@@ -35,6 +35,9 @@
             @can('update', $item)
                 <a class="btn btn-outline-secondary" href="{{ route('items.edit', $item) }}"><i class="bi bi-pencil"></i> Edit</a>
             @endcan
+            @can('inventory.print')
+                <a class="btn btn-outline-secondary" href="{{ route('items.label', $item) }}"><i class="bi bi-upc-scan"></i> Print tag</a>
+            @endcan
             @if ($item->status->value === 'available')
                 @can('create', App\Models\Sale::class)
                     <a class="btn btn-primary" href="{{ route('sales.create', ['search' => $item->item_code]) }}"><i class="bi bi-receipt"></i> Sell this piece</a>
@@ -57,6 +60,7 @@
                 <div class="customer-stat"><div class="stat-label">Gross</div><div>{{ $weight((string) $item->gross_weight) }}</div></div>
                 <div class="customer-stat"><div class="stat-label">Net</div><div>{{ $weight((string) $item->net_weight) }}</div></div>
                 <div class="customer-stat"><div class="stat-label">Price today</div><div>{{ $price ? $money($price['line_amount']) : '—' }}</div></div>
+                <div class="customer-stat"><div class="stat-label">Source</div><div>{{ $item->source->label() }}</div></div>
             </div>
         </div>
     </div>

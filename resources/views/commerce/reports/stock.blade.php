@@ -49,6 +49,15 @@
                 </select>
             </div>
             <div class="col-lg-2 col-md-3 col-6">
+                <label class="form-label" for="stock-source">Source</label>
+                <select class="form-select" id="stock-source" name="source">
+                    <option value="">All</option>
+                    @foreach ($sources as $option)
+                        <option value="{{ $option->value }}" @selected($filters['source'] === $option->value)>{{ $option->label() }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-3 col-6">
                 <label class="form-label" for="stock-sort">Sort</label>
                 <select class="form-select" id="stock-sort" name="sort">
                     <option value="code">Piece code</option>
@@ -100,6 +109,7 @@
                         <th>Metal</th>
                         <th>Category</th>
                         <th>Place</th>
+                        <th>Source</th>
                         <th class="num">Gross</th>
                         <th class="num">Net</th>
                         <th>Status</th>
@@ -113,18 +123,19 @@
                             <td>{{ trim(($item->metalType?->name ?? '').' '.($item->purity?->name ?? '')) }}</td>
                             <td>{{ $item->category?->name ?: '—' }}</td>
                             <td>{{ collect([$item->location?->branch?->name, $item->location?->name])->filter()->join(' / ') ?: '—' }}</td>
+                            <td>{{ $item->source->label() }}</td>
                             <td class="num">{{ $weight((string) $item->gross_weight) }}</td>
                             <td class="num">{{ $weight((string) $item->net_weight) }}</td>
                             <td><span class="order-status is-{{ $item->status->value }}">{{ $item->status->label() }}</span></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8">No pieces in stock for this filter.</td></tr>
+                        <tr><td colspan="9">No pieces in stock for this filter.</td></tr>
                     @endforelse
                 </tbody>
                 @if ($pieceCount > 0)
                     <tfoot>
                         <tr>
-                            <td colspan="5">Total · {{ $pieceCount }} {{ $pieceCount === 1 ? 'piece' : 'pieces' }}</td>
+                            <td colspan="6">Total · {{ $pieceCount }} {{ $pieceCount === 1 ? 'piece' : 'pieces' }}</td>
                             <td class="num">{{ $grossTotal }}</td>
                             <td class="num">{{ $netTotal }}</td>
                             <td></td>

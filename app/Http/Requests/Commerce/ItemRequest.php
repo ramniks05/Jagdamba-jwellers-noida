@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commerce;
 
 use App\Enums\ChargeAppliesTo;
+use App\Enums\ItemSource;
 use App\Models\Item;
 use App\Support\Limits;
 use App\Support\StoneRate;
@@ -119,6 +120,7 @@ class ItemRequest extends FormRequest
             'hallmark' => ['nullable', 'string', 'max:40'],
             'huid' => ['nullable', 'string', 'max:32'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'source' => ['nullable', Rule::in([ItemSource::Own->value, ItemSource::Purchased->value])],
             'image' => ['nullable', 'image', 'max:2048'],
             'old_gold_uuid' => [Rule::prohibitedIf($item instanceof Item), 'nullable', 'uuid', Rule::exists('old_gold_exchanges', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
         ];

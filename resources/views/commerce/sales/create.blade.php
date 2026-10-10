@@ -2,6 +2,9 @@
 
 @section('title', 'New bill')
 
+@inject('billScan', 'App\Services\Commerce\BillScanService')
+@inject('shopContext', 'App\Support\CompanyContext')
+
 @section('content')
     <h1 class="page-title h3 mb-3">New bill</h1>
     @if ($order)
@@ -23,6 +26,20 @@
         <div class="row g-3">
             <div class="col-lg-7">
                 @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill'])
+                <div class="card mb-3 scan-card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-upc-scan"></i> Scan tag</span>
+                        <small class="text-secondary">Scanner or keyboard, then Enter</small>
+                    </div>
+                    <div class="card-body">
+                        <label class="form-label" for="scan-code">Tag code</label>
+                        <div class="input-group">
+                            <input class="form-control scan-input" id="scan-code" maxlength="64" placeholder="Scan the tag, or type the code and press Enter" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+                            <button class="btn btn-primary" id="scan-add" type="button"><i class="bi bi-plus-lg"></i> Add</button>
+                        </div>
+                        <div class="scan-status" id="scan-status" role="status" aria-live="polite"></div>
+                    </div>
+                </div>
                 <div class="card mb-3">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
@@ -262,36 +279,9 @@
             'walkin' => (bool) $customer->is_system,
             'credit' => (float) ($credits[$customer->id] ?? 0),
         ])->values(),
-        'pieces' => $rows->map(function ($row) use ($money, $weight) {
-            $item = $row['item'];
-            $quote = $row['quote'];
-
-            return [
-                'uuid' => $item->uuid,
-                'code' => $item->item_code,
-                'name' => $item->name,
-                'barcode' => $item->barcode,
-                'huid' => $item->huid,
-                'metal' => trim(($item->metalType?->name ?? '').' '.($item->purity?->name ?? '')),
-                'net' => $weight((string) $item->net_weight),
-                'netWeight' => (float) $item->net_weight,
-                'ready' => $quote['ready'],
-                'line' => $quote['ready'] ? (float) $quote['line'] : 0,
-                'rate' => $quote['ready'] ? (float) $quote['rate'] : 0,
-                'metalAmount' => $quote['ready'] ? (float) $quote['metal'] : 0,
-                'wastageAmount' => $quote['ready'] ? (float) $quote['wastage'] : 0,
-                'makingAmount' => $quote['ready'] ? (float) $quote['making'] : 0,
-                'stoneAmount' => $quote['ready'] ? (float) $quote['stone'] : 0,
-                'stones' => $item->stones->map(fn ($stone) => [
-                    'name' => $stone->name,
-                    'weight' => (string) $stone->weight,
-                    'value' => (float) $stone->value,
-                    'rate' => $stone->rate !== null ? (string) $stone->rate : null,
-                    'rate_unit' => $stone->rate_unit,
-                ])->values(),
-                'label' => $quote['ready'] ? $money($quote['line']) : $quote['message'],
-            ];
-        })->values(),
+        'scanUrl' => route('sales.scan'),
+        'orderUuid' => $order?->uuid,
+        'pieces' => $rows->map(fn ($row) => $billScan->present($row['item'], $row['quote'], $shopContext->company()))->values(),
         'rates' => $rates->map(fn ($rate) => [
             'metal_type_id' => $rate->metal_type_id,
             'purity_id' => $rate->purity_id,
@@ -750,7 +740,7 @@
                 const meta = document.createElement('div');
                 meta.className = 'bill-line-meta';
                 meta.textContent = line.kind === 'stock'
-                    ? [line.row.code, line.row.metal, line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
+                    ? [line.row.code, line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
                     : [line.row.metal, 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g', 'Net ' + Number(line.row.netWeight || 0).toFixed(3) + ' g'].join(' · ');
                 nameCell.append(head, meta);
                 const split = document.createElement('div');
@@ -917,6 +907,101 @@
             }
         }
 
+        const scanInput = document.getElementById('scan-code');
+        const scanQueue = [];
+        let scanRunning = false;
+
+        function scanMessage(kind, text) {
+            const status = document.getElementById('scan-status');
+            status.className = 'scan-status is-' + kind;
+            status.textContent = text;
+        }
+
+        function sameCode(a, b) {
+            return String(a || '').toLowerCase() === String(b || '').toLowerCase();
+        }
+
+        function onBill(code) {
+            return stockLines.find((row) => sameCode(row.barcode, code) || sameCode(row.code, code)) || null;
+        }
+
+        function queueScan() {
+            const code = scanInput.value.replace(/[\x00-\x1F\x7F]/g, '').trim();
+            scanInput.value = '';
+            if (code === '') return;
+            if (scanQueue.some((queued) => sameCode(queued, code))) return;
+            scanQueue.push(code);
+            runScans();
+        }
+
+        async function runScans() {
+            if (scanRunning) return;
+            scanRunning = true;
+            while (scanQueue.length > 0) {
+                await lookUp(scanQueue[0]);
+                scanQueue.shift();
+            }
+            scanRunning = false;
+        }
+
+        async function lookUp(code) {
+            const already = onBill(code);
+            if (already) {
+                scanMessage('warning', already.code + ' is already on this bill.');
+                return;
+            }
+            scanMessage('busy', 'Looking up ' + code + '…');
+            const url = new URL(bill.scanUrl, window.location.origin);
+            url.searchParams.set('code', code);
+            if (bill.orderUuid) url.searchParams.set('order', bill.orderUuid);
+            let response;
+            let body = {};
+            try {
+                response = await fetch(url, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+                body = await response.json().catch(() => ({}));
+            } catch (error) {
+                scanMessage('error', 'Could not reach the server. Check the internet and scan again.');
+                return;
+            }
+            if (response.status === 401 || response.status === 419) {
+                scanMessage('error', 'You have been signed out. Sign in again to keep billing.');
+                return;
+            }
+            if (!response.ok || !body.piece) {
+                scanMessage('error', body.message || 'This tag could not be added.');
+                return;
+            }
+            const piece = body.piece;
+            if (stockLines.some((row) => row.uuid === piece.uuid)) {
+                scanMessage('warning', piece.code + ' is already on this bill.');
+                return;
+            }
+            const known = bill.pieces.findIndex((row) => row.uuid === piece.uuid);
+            if (known === -1) bill.pieces.push(piece); else bill.pieces[known] = piece;
+            stockLines.push(piece);
+            renderPieces();
+            renderBill();
+            scanMessage('success', 'Added ' + [piece.code, piece.name, piece.metal, piece.net ? 'Net ' + piece.net : '', piece.label].filter(Boolean).join(' · '));
+        }
+
+        scanInput.addEventListener('keydown', (event) => {
+            if (event.isComposing) return;
+            if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey && scanInput.value.trim() !== '')) {
+                event.preventDefault();
+                queueScan();
+            }
+        });
+        document.getElementById('scan-add').addEventListener('click', () => {
+            queueScan();
+            scanInput.focus();
+        });
+        document.getElementById('bill-form').addEventListener('keydown', (event) => {
+            const field = event.target;
+            if (event.key !== 'Enter' || field === scanInput || field.tagName !== 'INPUT') return;
+            if (['button', 'submit', 'checkbox', 'radio'].includes(field.type)) return;
+            event.preventDefault();
+        });
+
         document.getElementById('piece-search').addEventListener('input', renderPieces);
         document.getElementById('discount').addEventListener('input', renderTotals);
         document.getElementById('use-credit-toggle').addEventListener('change', renderTotals);
@@ -1050,5 +1135,6 @@
         renderPieces();
         renderBill();
         previewWeigh();
+        if (document.activeElement === document.body || document.activeElement === null) scanInput.focus();
     </script>
 @endpush

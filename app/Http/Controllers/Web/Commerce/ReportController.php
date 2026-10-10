@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Commerce;
 
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Enums\PartyType;
 use App\Http\Controllers\Controller;
@@ -36,10 +37,12 @@ class ReportController extends Controller
         $location = trim((string) $request->query('location', ''));
         $status = in_array($request->query('status'), ['available', 'reserved'], true) ? (string) $request->query('status') : 'all';
         $sort = in_array($request->query('sort'), ['code', 'newest', 'heaviest'], true) ? (string) $request->query('sort') : 'code';
+        $source = ItemSource::tryFrom((string) $request->query('source', ''))?->value ?? '';
 
         $query = Item::query()
             ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
             ->when($status !== 'all', fn ($rows) => $rows->where('status', $status))
+            ->when($source !== '', fn ($rows) => $rows->where('source', $source))
             ->when($search !== '', function ($rows) use ($search): void {
                 $like = $this->like($search);
                 $rows->where(fn ($inner) => $inner->where('item_code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('huid', 'like', $like)->orWhere('barcode', 'like', $like));
@@ -80,8 +83,9 @@ class ReportController extends Controller
             'metals' => MetalType::query()->where('is_active', true)->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->orderBy('name')->get(),
-            'filters' => compact('search', 'metal', 'category', 'location', 'status', 'sort'),
-            'filtered' => $search !== '' || $metal !== '' || $category !== '' || $location !== '' || $status !== 'all',
+            'filters' => compact('search', 'metal', 'category', 'location', 'status', 'source', 'sort'),
+            'filtered' => $search !== '' || $metal !== '' || $category !== '' || $location !== '' || $status !== 'all' || $source !== '',
+            'sources' => ItemSource::cases(),
             'pieceCount' => (int) $totals->pieces,
             'grossTotal' => $format->weight($this->decimal($totals->gross, 3), $company),
             'netTotal' => $format->weight($this->decimal($totals->net, 3), $company),

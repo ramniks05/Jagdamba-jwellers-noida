@@ -2786,3 +2786,99 @@ a {
         padding: 0 !important;
     }
 }
+
+.tag-preview-wrap {
+    background: #f1ede4;
+    border-radius: 8px;
+    overflow-x: auto;
+    padding: 18px;
+}
+
+.tag-preview {
+    background: #fff;
+    border: 1px dashed #b8a98a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+    color: #000;
+    position: relative;
+}
+
+.tag-preview-code {
+    image-rendering: pixelated;
+    position: absolute;
+}
+
+.tag-preview-fold {
+    align-items: center;
+    background: #f7f3ec;
+    border-left: 1px dashed #c9bda6;
+    border-right: 1px dashed #c9bda6;
+    color: #b3a58a;
+    display: flex;
+    font-size: 11px;
+    height: 100%;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+}
+
+.tag-preview-text {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    line-height: 1;
+    position: absolute;
+    white-space: nowrap;
+}
+
+.tag-preview-text span {
+    display: inline-block;
+}
+
+.scan-input {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 1.05rem;
+    letter-spacing: .02em;
+}
+
+.scan-status {
+    border-radius: 6px;
+    font-size: .9rem;
+    margin-top: .5rem;
+    min-height: 1.5rem;
+}
+
+.scan-status:empty {
+    margin-top: 0;
+    min-height: 0;
+}
+
+.scan-status.is-success,
+.scan-status.is-error,
+.scan-status.is-warning,
+.scan-status.is-busy {
+    padding: .45rem .65rem;
+}
+
+.scan-status.is-success {
+    background: #e7f5ec;
+    color: #1d6b3a;
+}
+
+.scan-status.is-error {
+    background: #fdecec;
+    color: #a12a2a;
+}
+
+.scan-status.is-warning {
+    background: #fff5df;
+    color: #7a5600;
+}
+
+.scan-status.is-busy {
+    background: #f1ede4;
+    color: #5c5446;
+}
+
+.item-pick {
+    height: 1.1rem;
+    width: 1.1rem;
+}

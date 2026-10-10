@@ -67,7 +67,8 @@ class SettingUpdateRequest extends FormRequest
                 }
             }
 
-            $missing = array_diff(array_keys($catalog), $submitted);
+            $required = array_keys(array_filter($catalog, fn (array $meta) => ! isset($meta['page'])));
+            $missing = array_diff($required, $submitted);
 
             if ($missing !== []) {
                 $validator->errors()->add('settings', 'Submit every setting.');

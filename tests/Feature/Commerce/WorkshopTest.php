@@ -3,6 +3,7 @@
 namespace Tests\Feature\Commerce;
 
 use App\Enums\ChargeAppliesTo;
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Enums\PartyType;
 use App\Models\ChargeMethod;
@@ -59,6 +60,39 @@ class WorkshopTest extends TestCase
         $second->refresh();
         $this->assertSame(ItemStatus::SentBack, $second->status);
         $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Supplier, (int) $supplier->id));
+    }
+
+    public function test_pieces_carry_their_source_and_stock_can_be_filtered_by_it(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $supplier = $this->supplier($owner);
+
+        $this->actingAs($owner)->post(route('purchases.store'), $this->piece($supplier, $gold, $purity, 'CHAIN01'))->assertRedirect();
+        $this->actingAs($owner)->post(route('items.store'), $this->plainPiece($gold, $purity, 'OWN01'))->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($owner)->post(route('items.store'), $this->plainPiece($gold, $purity, 'BOUGHT01') + ['source' => 'purchased'])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $this->assertSame(ItemSource::Purchased, Item::query()->where('item_code', 'CHAIN01')->sole()->source);
+        $this->assertSame(ItemSource::Own, Item::query()->where('item_code', 'OWN01')->sole()->source);
+        $this->assertSame(ItemSource::Purchased, Item::query()->where('item_code', 'BOUGHT01')->sole()->source);
+
+        $codes = fn (string $route, string $key, string $source) => $this->actingAs($owner)->get(route($route, ['source' => $source]))
+            ->assertOk()->viewData($key)->pluck('item_code')->sort()->values()->all();
+
+        $this->assertSame(['OWN01'], $codes('items.index', 'items', 'own'));
+        $this->assertSame(['BOUGHT01', 'CHAIN01'], $codes('items.index', 'items', 'purchased'));
+        $this->assertSame([], $codes('items.index', 'items', 'old_gold'));
+        $this->assertSame(['OWN01'], $codes('reports.stock', 'pieces', 'own'));
+        $this->assertSame(['BOUGHT01', 'CHAIN01', 'OWN01'], $codes('reports.stock', 'pieces', ''));
+
+        $chain = Item::query()->where('item_code', 'CHAIN01')->sole();
+        $own = Item::query()->where('item_code', 'OWN01')->sole();
+        $this->actingAs($owner)->put(route('items.update', $own), $this->plainPiece($gold, $purity, 'OWN01') + ['source' => 'purchased'])->assertRedirect();
+        $this->actingAs($owner)->put(route('items.update', $chain), $this->plainPiece($gold, $purity, 'CHAIN01') + ['source' => 'own'])->assertRedirect();
+
+        $this->seeShop($owner);
+        $this->assertSame(ItemSource::Purchased, $own->refresh()->source);
+        $this->assertSame(ItemSource::Purchased, $chain->refresh()->source);
     }
 
     public function test_a_sale_can_be_returned_once_and_restocked(): void
@@ -245,6 +279,7 @@ class WorkshopTest extends TestCase
         $this->seeShop($owner);
         $item = Item::query()->where('item_code', 'OLD-1')->firstOrFail();
         $this->assertSame(ItemStatus::Available, $item->status);
+        $this->assertSame(ItemSource::OldGold, $item->source);
         $this->assertSame('12.000', $stock->balances()->first()['gross']);
         $this->assertSame('72000.00', $stock->balances()->first()['value']);
         $this->actingAs($owner)->get(route('old-gold.show', $exchange))->assertOk()->assertSee('OLD-1');

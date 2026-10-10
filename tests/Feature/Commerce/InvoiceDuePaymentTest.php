@@ -75,7 +75,7 @@ class InvoiceDuePaymentTest extends TestCase
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
             ->assertSee('data:image/', false)
-            ->assertSee('Scan to view or download this bill')
+            ->assertSee('Scan to view bill')
             ->assertSee('Send on WhatsApp');
 
         Auth::logout();

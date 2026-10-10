@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Enums\InventoryMovement;
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Models\Brand;
 use App\Models\Category;
@@ -93,6 +94,7 @@ class ItemService
                 'huid' => $this->blank($attributes['huid'] ?? null),
                 'image_path' => $attributes['image_path'] ?? null,
                 'status' => ItemStatus::Available,
+                'source' => $this->source($attributes, $movement),
                 'notes' => $this->blank($attributes['notes'] ?? null),
             ]);
 
@@ -109,6 +111,26 @@ class ItemService
 
             return $item->refresh();
         });
+    }
+
+    /**
+     * Pieces from a purchase bill or from old gold keep the source their paperwork gives them.
+     */
+    public function sourceEditable(Item $item): bool
+    {
+        return $item->source !== ItemSource::OldGold && ! $item->purchaseLines()->exists();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function source(array $attributes, InventoryMovement $movement): ItemSource
+    {
+        if ($movement === InventoryMovement::Purchase) {
+            return ItemSource::Purchased;
+        }
+
+        return ItemSource::tryFrom((string) ($attributes['source'] ?? '')) ?? ItemSource::Own;
     }
 
     /**
@@ -137,6 +159,12 @@ class ItemService
 
             if (array_key_exists('image_path', $attributes) && $attributes['image_path']) {
                 $locked->image_path = $attributes['image_path'];
+            }
+
+            $source = ItemSource::tryFrom((string) ($attributes['source'] ?? ''));
+
+            if ($source !== null && $source !== ItemSource::OldGold && $this->sourceEditable($locked)) {
+                $locked->source = $source;
             }
 
             if ($stockEditable) {

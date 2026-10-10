@@ -45,6 +45,7 @@ return [
         'number' => 'Number format',
         'invoice' => 'Invoice',
         'pricing' => 'Billing',
+        'label' => 'Barcode tags',
     ],
 
     /*
@@ -256,6 +257,38 @@ return [
                 'exclusive' => 'Tax exclusive',
                 'inclusive' => 'Tax inclusive',
             ],
+        ],
+
+        /*
+        | Barcode tag settings live on their own page (page => labels), so the
+        | main Settings form does not have to submit them.
+        */
+        'label.printer_name' => [
+            'group' => 'label',
+            'page' => 'labels',
+            'label' => 'Printer name',
+            'help' => 'Exactly as Windows shows it under Printers and scanners.',
+            'type' => 'string',
+            'default' => 'ZDesigner ZD230-203dpi ZPL',
+            'rules' => ['required', 'string', 'max:120', 'regex:/^[^\x00-\x1F\x7F]+$/'],
+        ],
+        'label.barcode_payload' => [
+            'group' => 'label',
+            'page' => 'labels',
+            'label' => 'Code holds',
+            'help' => 'Scanning the tag types this value into the search box on a bill or the pieces list.',
+            'type' => 'string',
+            'default' => 'barcode_or_code',
+            'rules' => ['required', 'string', 'in:barcode_or_code,item_code'],
+            'options' => ['barcode_or_code' => 'Barcode of the piece, else its code', 'item_code' => 'Piece code only'],
+        ],
+        'label.max_copies' => [
+            'group' => 'label',
+            'page' => 'labels',
+            'label' => 'Most copies in one print',
+            'type' => 'integer',
+            'default' => 20,
+            'rules' => ['required', 'integer', 'between:1,500'],
         ],
     ],
 

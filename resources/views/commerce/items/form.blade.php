@@ -68,6 +68,25 @@
                                 <input class="form-control text-uppercase @error('item_code') is-invalid @enderror" id="item_code" name="item_code" value="{{ old('item_code', $item->item_code) }}" maxlength="40" required @disabled($item->exists)>
                             </div>
                         </div>
+                        @if ($fromOldGold ?? null)
+                            <div class="form-text mt-2">Source: <strong>Old gold</strong></div>
+                        @elseif ($sourceEditable)
+                            @php
+                                $pickedSource = old('source', $item->source?->value ?? App\Enums\ItemSource::Own->value);
+                            @endphp
+                            <div class="mt-3">
+                                <span class="form-label d-block">Source</span>
+                                <div class="btn-group" role="group" aria-label="Source">
+                                    <input class="btn-check" type="radio" name="source" id="source-own" value="own" @checked($pickedSource === 'own')>
+                                    <label class="btn btn-outline-secondary" for="source-own">Own</label>
+                                    <input class="btn-check" type="radio" name="source" id="source-purchased" value="purchased" @checked($pickedSource === 'purchased')>
+                                    <label class="btn btn-outline-secondary" for="source-purchased">Purchased</label>
+                                </div>
+                                <div class="form-text">Own = your own jewellery, no supplier bill. Pieces bought on a purchase bill are marked Purchased by themselves.</div>
+                            </div>
+                        @else
+                            <div class="form-text mt-2">Source: <strong>{{ $item->source->label() }}</strong></div>
+                        @endif
                         @if ($topCategories->isNotEmpty())
                             <div class="bill-products mt-2" id="category-chips">
                                 @foreach ($topCategories as $category)

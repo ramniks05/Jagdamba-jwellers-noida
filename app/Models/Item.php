@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'gross_weight', 'stone_weight', 'other_weight', 'net_weight',
     'making_method_id', 'making_value', 'wastage_method_id', 'wastage_value', 'stone_value',
     'cost_price', 'selling_price', 'mrp', 'certificate_number', 'hallmark', 'huid', 'image_path',
-    'status', 'notes',
+    'status', 'source', 'notes',
 ])]
 class Item extends Model
 {
@@ -28,6 +29,7 @@ class Item extends Model
     {
         return [
             'status' => ItemStatus::class,
+            'source' => ItemSource::class,
             'gross_weight' => 'decimal:3',
             'stone_weight' => 'decimal:3',
             'other_weight' => 'decimal:3',

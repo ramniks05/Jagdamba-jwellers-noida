@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Commerce;
 
 use App\Enums\InventoryMovement;
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\ItemRequest;
@@ -43,11 +44,13 @@ class ItemController extends Controller
         $status = (string) $request->query('status', '');
 
         $status = $request->has('status') ? $status : ItemStatus::Available->value;
+        $source = ItemSource::tryFrom((string) $request->query('source', ''));
 
         $items = Item::query()
             ->with(['metalType', 'purity', 'location.branch', 'category'])
             ->matching($search)
             ->when(ItemStatus::tryFrom($status), fn ($query, $parsed) => $query->where('status', $parsed))
+            ->when($source, fn ($query, $parsed) => $query->where('source', $parsed))
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
@@ -56,8 +59,10 @@ class ItemController extends Controller
             'items' => $items,
             'search' => $search,
             'status' => $status,
+            'source' => $source?->value ?? '',
+            'sources' => ItemSource::cases(),
             'statuses' => ItemStatus::cases(),
-            'counts' => Item::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
+            'counts' => Item::query()->when($source, fn ($query, $parsed) => $query->where('source', $parsed))->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
             'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
         ]);
     }
@@ -112,6 +117,7 @@ class ItemController extends Controller
 
         if ($exchange) {
             $this->authorize('create', OldGoldExchange::class);
+            $attributes['source'] = ItemSource::OldGold->value;
         }
 
         $attributes['image_path'] = $request->hasFile('image')
@@ -238,6 +244,7 @@ class ItemController extends Controller
     {
         return [
             'item' => $item,
+            'sourceEditable' => ! $item->exists || app(ItemService::class)->sourceEditable($item),
             'categories' => Category::query()->with('parent')->where(fn ($rows) => $rows->active()->orWhere('id', $item->category_id))->orderBy('sort_order')->orderBy('name')->get(),
             'brands' => Brand::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->brand_id))->orderBy('name')->get(),
             'collections' => Collection::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->collection_id))->orderBy('name')->get(),

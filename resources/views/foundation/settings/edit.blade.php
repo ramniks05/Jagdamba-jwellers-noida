@@ -12,6 +12,7 @@
         'actions' => [
             ['url' => route('company.edit'), 'label' => 'Shop profile', 'icon' => 'shop'],
             ['url' => route('document-sequences.index'), 'label' => 'Document numbers', 'icon' => 'hash'],
+            ['url' => route('labels.settings.edit'), 'label' => 'Barcode tags', 'icon' => 'upc-scan'],
         ],
     ])
     @unless ($canManage)
