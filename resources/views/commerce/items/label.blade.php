@@ -55,7 +55,7 @@
                             <dt class="col-sm-4">Code holds</dt>
                             <dd class="col-sm-8 font-monospace">{{ $preview['payload'] }}</dd>
                             <dt class="col-sm-4">Tag size</dt>
-                            <dd class="col-sm-8">56 × 13 mm at 203 dpi: weights on the first 20 mm flap, the fold (not printed), then shop name and QR code on the second 20 mm flap. Initial sizes, not yet measured on a real tag.</dd>
+                            <dd class="col-sm-8">56 × 13 mm at 203 dpi: weights on the first flap, the fold (not printed), then shop name and QR code on the second flap. Positions set from test prints on the shop's tags.</dd>
                             <dt class="col-sm-4">Code type</dt>
                             <dd class="col-sm-8">QR code</dd>
                         </dl>

@@ -70,4 +70,36 @@ class MarketRateTest extends TestCase
             ->assertSee('could not be fetched')
             ->assertSee('Save rate');
     }
+
+    public function test_the_page_shows_only_the_last_rate_and_history_can_be_filtered(): void
+    {
+        Cache::flush();
+        Http::fake(['*' => Http::response([], 503)]);
+        $owner = $this->shopUser();
+        app(CompanyContext::class)->set($owner->company);
+        $purity22 = Purity::query()->where('code', '22K')->firstOrFail();
+        $purity24 = Purity::query()->where('code', '24K')->firstOrFail();
+        $save = fn (Purity $purity, string $rate, string $at) => $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $purity->metalType->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => $rate,
+            'effective_at' => $at,
+            'source' => 'manual',
+        ])->assertSessionHasNoErrors();
+
+        $save($purity22, '6100', '2026-10-04T10:00');
+        $save($purity22, '6200', '2026-10-05T10:00');
+        $save($purity22, '6300', '2026-10-06T09:00');
+        $save($purity24, '7400', '2026-10-05T11:00');
+
+        $current = $this->actingAs($owner)->get(route('rates.index'))->assertOk()->viewData('current');
+        $this->assertSame(['6300.00', '7400.00'], $current->map(fn (MetalRate $rate) => (string) $rate->rate_per_gram)->sort()->values()->all());
+        $this->actingAs($owner)->get(route('rates.index'))->assertSee('6,300.00')->assertDontSee('6,100.00')->assertDontSee('6,200.00');
+
+        $this->actingAs($owner)->get(route('rates.index', ['view' => 'history']))->assertOk()->assertSee('6,100.00')->assertSee('6,200.00')->assertSee('7,400.00');
+        $this->actingAs($owner)->get(route('rates.index', ['view' => 'history', 'purity' => $purity24->uuid]))
+            ->assertOk()->assertSee('7,400.00')->assertDontSee('6,100.00');
+        $this->actingAs($owner)->get(route('rates.index', ['view' => 'history', 'from' => '2026-10-05', 'to' => '2026-10-05']))
+            ->assertOk()->assertSee('6,200.00')->assertSee('7,400.00')->assertDontSee('6,100.00')->assertDontSee('6,300.00');
+    }
 }

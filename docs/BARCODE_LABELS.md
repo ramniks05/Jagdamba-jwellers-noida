@@ -61,11 +61,13 @@ The layout follows the shop's old tag (`apps06.com` PDF).
 
 | Area | Dots (x) | Millimetres | Content |
 | --- | --- | --- | --- |
-| Left flap | 0–159 (text 8–155) | 0–20 | Code and purity at y 10, `G. Wt :` at y 40, `N. Wt. :` at y 68 |
-| Fold | 160–287 | 20–36 | Nothing, always blank |
-| Right flap, name column | 292–372 | 36–46.5 | Piece type at y 12, shop name lines at y 44 and 71, centred |
-| Right flap, QR code | 377–439 | 47–55 | 3 dots per square, y 20–82 |
+| Left flap | 0–199 (text from 20) | 0–25 | Code and purity at y 14 (bold), `G. Wt :` at y 43, `N. Wt. :` at y 71 (printed once so digits stay apart) |
+| Fold | 200–235 | 25–29.5 | Nothing, always blank. The fold is in the middle of the tag's wide part |
+| Right flap, name column | 240–351 | 30–44 | Piece type at y 14, shop name lines at y 42 and 68, centred, bold |
+| Right flap, QR code | 356–439 | 44.5–55 | 4 dots per square, y 12–95 |
 
+Positions are set from photos of ZD230 prints and of the old software's print on the shop's tags. Font 0 width was
+measured with the Labelary Zebra emulator (0.40–0.53 of the width setting per character).
 ```
 | GSE2741  20K     |      fold      |   set     [QR] |
 | G. Wt : 4.610 gm |    (blank)     | Jagdamba  [QR] |
@@ -137,16 +139,23 @@ Under Settings → Barcode tags, or `/jewellery/barcode-settings`. The settings 
 - Printer name
 - Most copies in one print
 - What the code holds
+- Move print to the tag start (mm), 0 to 24, default 17
 
 Size and layout are fixed in code.
+
+**Move print to the tag start.** The ZD230 centres the print width on the roll, which is wider than the 56 mm
+tag area (it includes the tail). With `^PW448` the first tag printed about 17 mm into the tag, pushing the shop name
+and QR code onto the tail (first ZD230 print, 11 Oct 2026). The setting widens `^PW` by that much on each side
+(`^PW` = 448 + 2 × shift in dots, so 720 at 17 mm), which moves the print back to the start of the tag. All `^FO`
+positions stay the same. Raise it if the print still starts too far in, lower it if it starts before the tag.
 
 ## Adjusting after the first physical test (provisional coordinates)
 
 The 56 × 13 mm size, the 20 mm left panel and the fold at 20–24 mm are **design assumptions until a
 printed tag has been folded and checked**. If the real tag differs:
 
-- **Whole print shifted:** change `^LH0,0` in `render()` to e.g. `^LH8,0` (moves right 1 mm), or
-  adjust the `^FO` values.
+- **Whole print shifted along the tag:** change **Move print to the tag start** on the tag settings page.
+  Each 1 mm moves the print 1 mm.
 - **Fold in a different place:** change `LEFT_PANEL`, `FOLD` and `RIGHT_PANEL`, plus the right panel x
   values in `layout()`. Then run `php artisan test --filter=JewelleryLabelTest`; the fold test will
   catch anything that now overlaps.

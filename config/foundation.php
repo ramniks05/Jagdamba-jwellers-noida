@@ -290,6 +290,15 @@ return [
             'default' => 20,
             'rules' => ['required', 'integer', 'between:1,500'],
         ],
+        'label.shift_mm' => [
+            'group' => 'label',
+            'page' => 'labels',
+            'label' => 'Move print to the tag start (mm)',
+            'help' => 'The printer centres the print on the roll. Raise this if the print starts too far into the tag, lower it if it starts before the tag. 0 to 24.',
+            'type' => 'decimal',
+            'default' => '17',
+            'rules' => ['required', 'numeric', 'between:0,24'],
+        ],
     ],
 
     'document_sequence' => [

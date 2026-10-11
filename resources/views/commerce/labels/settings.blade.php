@@ -31,6 +31,7 @@
                             @include('foundation.settings.field', $field('label.printer_name', ['maxlength' => 120]))
                             @include('foundation.settings.field', $field('label.max_copies', ['inputmode' => 'numeric']))
                             @include('foundation.settings.field', $field('label.barcode_payload'))
+                            @include('foundation.settings.field', $field('label.shift_mm', ['inputmode' => 'decimal']))
                         </div>
                     </div>
                 </div>
@@ -42,12 +43,11 @@
                 <div class="card">
                     <div class="card-body small">
                         <div class="weigh-section-title"><i class="bi bi-info-circle"></i> The tag</div>
-                        <p>Fixed 56 × 13 mm folding tag: weights on the left 20 mm, a 4 mm fold kept blank, then piece type, shop name and QR code on the right 32 mm.</p>
+                        <p>Fixed 56 × 13 mm folding tag: weights on the first flap, the fold kept blank, then piece type, shop name and QR code on the second flap.</p>
                         <ol class="ps-3 mb-0">
-                            <li>Print a test tag and fold it.</li>
-                            <li>Check nothing is printed on the fold and nothing is cut at the edges.</li>
-                            <li>Scan the code. It should type TEST-0001.</li>
-                            <li>If the fold or edges are off, the layout is adjusted in the code, not here.</li>
+                            <li>Print a test tag.</li>
+                            <li>If the print starts too far into the tag (towards the tail), raise "Move print to the tag start". If it starts before the tag, lower it. 1 means 1 mm.</li>
+                            <li>Check nothing is printed on the fold or the tail, then scan the code. It should type TEST-0001.</li>
                         </ol>
                     </div>
                 </div>

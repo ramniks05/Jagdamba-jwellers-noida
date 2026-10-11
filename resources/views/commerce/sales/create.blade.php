@@ -771,6 +771,8 @@
                 button.addEventListener('click', () => {
                     if (line.kind === 'stock') {
                         stockLines.splice(stockLines.indexOf(line.row), 1);
+                        clearScanMessage(line.row.uuid);
+                        setTimeout(() => scanInput.focus(), 0);
                     } else {
                         freshLines.splice(line.index, 1);
                         if (editingIndex === line.index) {
@@ -911,10 +913,19 @@
         const scanQueue = [];
         let scanRunning = false;
 
-        function scanMessage(kind, text) {
+        function scanMessage(kind, text, uuid = '') {
             const status = document.getElementById('scan-status');
             status.className = 'scan-status is-' + kind;
             status.textContent = text;
+            status.dataset.uuid = uuid;
+        }
+
+        function clearScanMessage(uuid) {
+            const status = document.getElementById('scan-status');
+            if (!status.dataset.uuid || status.dataset.uuid !== uuid) return;
+            status.className = 'scan-status';
+            status.textContent = '';
+            status.dataset.uuid = '';
         }
 
         function sameCode(a, b) {
@@ -947,7 +958,7 @@
         async function lookUp(code) {
             const already = onBill(code);
             if (already) {
-                scanMessage('warning', already.code + ' is already on this bill.');
+                scanMessage('warning', already.code + ' is already on this bill.', already.uuid);
                 return;
             }
             scanMessage('busy', 'Looking up ' + code + '…');
@@ -973,7 +984,7 @@
             }
             const piece = body.piece;
             if (stockLines.some((row) => row.uuid === piece.uuid)) {
-                scanMessage('warning', piece.code + ' is already on this bill.');
+                scanMessage('warning', piece.code + ' is already on this bill.', piece.uuid);
                 return;
             }
             const known = bill.pieces.findIndex((row) => row.uuid === piece.uuid);
@@ -981,7 +992,7 @@
             stockLines.push(piece);
             renderPieces();
             renderBill();
-            scanMessage('success', 'Added ' + [piece.code, piece.name, piece.metal, piece.net ? 'Net ' + piece.net : '', piece.label].filter(Boolean).join(' · '));
+            scanMessage('success', 'Added ' + [piece.code, piece.name, piece.metal, piece.net ? 'Net ' + piece.net : '', piece.label].filter(Boolean).join(' · '), piece.uuid);
         }
 
         scanInput.addEventListener('keydown', (event) => {

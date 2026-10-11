@@ -32,18 +32,22 @@ class JewelleryLabelTest extends TestCase
         $this->assertSame('text/plain; charset=UTF-8', $response->headers->get('Content-Type'));
         $this->assertStringStartsWith("^XA\n", $zpl);
         $this->assertStringEndsWith("^XZ\n", $zpl);
-        $this->assertStringContainsString("^PW448\n", $zpl);
+        $this->assertStringContainsString("^PW720\n", $zpl, 'The 56 mm tag plus a 17 mm (136 dot) shift on each side of the centred print width.');
         $this->assertStringContainsString("^LL104\n", $zpl);
         $this->assertStringContainsString('^CI28', $zpl);
-        $this->assertStringContainsString('^FO377,20^BQN,2,3^FDMA,GSE2741^FS', $zpl);
-        $this->assertStringContainsString('^FO8,10^A0N,22,19^FH^FDGSE2741  22K^FS', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO8,40\^A0N,21,\d+\^FH\^FDG. Wt : 4.610 gm\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO8,68\^A0N,21,\d+\^FH\^FDN. Wt. : 4.610 gm\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO292,12\^A0N,20,\d+\^FB81,1,0,C\^FH\^FDring\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO292,44\^A0N,23,\d+\^FB81,1,0,C\^FH\^FDJagdamba\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO292,71\^A0N,23,\d+\^FB81,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
-        $this->assertGreaterThanOrEqual(292 + 81, 377, 'The QR code starts after the shop name column.');
-        $this->assertLessThanOrEqual(JewelleryLabelZplService::RIGHT_PANEL[1] - JewelleryLabelZplService::MARGIN, 377 + 63 - 1, 'The QR code stays inside the second flap.');
+        $this->assertStringContainsString('^FO356,12^BQN,2,4^FDMA,GSE2741^FS', $zpl);
+        $this->assertStringContainsString('^FO20,14^A0N,24,22^FH^FDGSE2741  22K^FS', $zpl);
+        $this->assertStringContainsString('^FO21,14^A0N,24,22^FH^FDGSE2741  22K^FS', $zpl, 'The code line is struck twice, one dot apart, for bold text.');
+        $this->assertMatchesRegularExpression('/\^FO20,43\^A0N,22,\d+\^FH\^FDG. Wt : 4.610 gm\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO20,71\^A0N,22,\d+\^FH\^FDN. Wt. : 4.610 gm\^FS/', $zpl);
+        $this->assertStringNotContainsString('^FO21,43', $zpl, 'Weights are printed once so the digits stay apart.');
+        $this->assertStringNotContainsString('^FO21,71', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO240,14\^A0N,20,\d+\^FB112,1,0,C\^FH\^FDring\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO240,42\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJagdamba\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO240,68\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO241,68\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
+        $this->assertLessThanOrEqual(356, 240 + 112, 'The QR code starts after the shop name column.');
+        $this->assertLessThanOrEqual(JewelleryLabelZplService::RIGHT_PANEL[1] - JewelleryLabelZplService::MARGIN, 356 + 84 - 1, 'The QR code stays inside the second flap.');
         $this->assertStringContainsString('^PQ1,0,1,Y', $zpl);
         $this->assertSame(1, substr_count($zpl, '^XA'));
 
@@ -73,7 +77,7 @@ class JewelleryLabelTest extends TestCase
                 $leftFlap = $box['x'] < $foldStart;
                 $this->assertGreaterThanOrEqual($panel[0] + ($leftFlap ? JewelleryLabelZplService::MARGIN : JewelleryLabelZplService::FOLD_SIDE), $box['x']);
                 $this->assertLessThanOrEqual($panel[1] - ($leftFlap ? JewelleryLabelZplService::FOLD_SIDE : JewelleryLabelZplService::MARGIN), $right);
-                $this->assertLessThanOrEqual(160, $box['w'], 'Each flap is only 20 mm wide.');
+                $this->assertLessThanOrEqual(212, $box['w'], 'Each flap is at most 26.5 mm wide.');
                 $this->assertGreaterThanOrEqual(JewelleryLabelZplService::MARGIN, $box['y']);
                 $this->assertLessThanOrEqual(JewelleryLabelZplService::HEIGHT - JewelleryLabelZplService::MARGIN, $box['y'] + $box['h']);
                 $this->assertTrue($right < $foldStart || $box['x'] > $foldEnd, 'Something is printed on the fold.');
@@ -116,7 +120,7 @@ class JewelleryLabelTest extends TestCase
     public function test_a_piece_code_too_long_for_the_left_panel_is_refused_not_cut(): void
     {
         [$owner, $item] = $this->counter('GSE2740');
-        $item->forceFill(['item_code' => 'VERYLONGPIECECODE-2026-0001'])->save();
+        $item->forceFill(['item_code' => 'VERYLONGPIECECODE-2026-0001-EXTRA'])->save();
 
         $this->actingAs($owner)->getJson(route('items.label.zpl', $item))
             ->assertStatus(422)
@@ -238,7 +242,7 @@ class JewelleryLabelTest extends TestCase
             ->assertSee('Barcode tag settings')
             ->assertDontSee('Tag width')
             ->assertDontSee('Code dot size');
-        $this->assertSame(['printer_name', 'barcode_payload', 'max_copies'], array_keys(app(JewelleryLabelZplService::class)->saved($owner->company)));
+        $this->assertSame(['printer_name', 'barcode_payload', 'max_copies', 'shift_mm'], array_keys(app(JewelleryLabelZplService::class)->saved($owner->company)));
 
         $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.printer_name' => 'ZDesigner ZD230-203dpi ZPL (Copy 1)', 'label.max_copies' => '5'])])
             ->assertRedirect(route('labels.settings.edit'))
@@ -322,6 +326,23 @@ class JewelleryLabelTest extends TestCase
         }
     }
 
+    public function test_the_shift_setting_widens_the_print_width_only(): void
+    {
+        [$owner, $item] = $this->counter('GSE2750');
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.shift_mm' => '0'])])->assertSessionHasNoErrors();
+        $zero = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
+        $this->assertStringContainsString("^PW448\n", $zero);
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.shift_mm' => '20.5'])])->assertSessionHasNoErrors();
+        $shifted = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
+        $this->assertStringContainsString("^PW776\n", $shifted);
+        $this->assertSame(preg_replace('/\^PW\d+/', '', $zero), preg_replace('/\^PW\d+/', '', $shifted), 'Only the print width changes.');
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.shift_mm' => '30'])])->assertSessionHasErrors();
+        $this->assertLessThanOrEqual(832, JewelleryLabelZplService::printWidth(24), 'Never wider than the 104 mm print head.');
+    }
+
     public function test_the_shop_name_is_split_over_two_balanced_lines(): void
     {
         $this->assertSame(['Jagdamba', 'Jewellers'], JewelleryLabelZplService::splitInTwo('Jagdamba Jewellers'));
@@ -334,9 +355,9 @@ class JewelleryLabelTest extends TestCase
         $this->assertSame(8, JewelleryLabelZplService::mmToDots(1));
         $this->assertSame(JewelleryLabelZplService::WIDTH, JewelleryLabelZplService::mmToDots(56));
         $this->assertSame(JewelleryLabelZplService::HEIGHT, JewelleryLabelZplService::mmToDots(13));
-        $this->assertSame(JewelleryLabelZplService::FOLD[0], JewelleryLabelZplService::mmToDots(20));
-        $this->assertSame(JewelleryLabelZplService::FOLD[1] + 1, JewelleryLabelZplService::mmToDots(36));
-        $this->assertSame(JewelleryLabelZplService::RIGHT_PANEL[0], JewelleryLabelZplService::mmToDots(36));
+        $this->assertSame(JewelleryLabelZplService::FOLD[0], JewelleryLabelZplService::mmToDots(25));
+        $this->assertSame(JewelleryLabelZplService::FOLD[1] + 1, JewelleryLabelZplService::mmToDots(29.5));
+        $this->assertSame(JewelleryLabelZplService::RIGHT_PANEL[0], JewelleryLabelZplService::mmToDots(29.5));
         $this->assertSame(21, JewelleryLabelZplService::qrModules('GSE2741'));
         $this->assertSame(25, JewelleryLabelZplService::qrModules('JAGDAMBA-OLD-TAG-0001'));
     }

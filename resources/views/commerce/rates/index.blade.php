@@ -134,26 +134,83 @@
             </div>
         </form>
     @endif
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead><tr><th>Effective</th><th>Metal</th><th>Rate / g</th><th>Branch</th><th>Source</th><th>Note</th></tr></thead>
-                <tbody>
-                    @forelse ($rates as $rate)
-                        <tr>
-                            <td>{{ $rate->effective_at->timezone(config('app.timezone'))->format('d M Y H:i') }}</td>
-                            <td>{{ $rate->metalType?->name }} {{ $rate->purity?->name }}</td>
-                            <td class="num">{{ $money((string) $rate->rate_per_gram) }}</td>
-                            <td>{{ $rate->branch?->name ?: 'Whole shop' }}</td>
-                            <td>{{ $rate->source === 'market' ? 'Market' : 'Entered' }}</td>
-                            <td>{{ $rate->note }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="6">No rates yet. Enter today's rate before billing.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link {{ $view === 'current' ? 'active' : '' }}" href="{{ route('rates.index') }}">Current rates</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $view === 'history' ? 'active' : '' }}" href="{{ route('rates.index', ['view' => 'history']) }}">History</a>
+        </li>
+    </ul>
+    @if ($view === 'current')
+        <p class="text-secondary small">The last saved rate for each purity. Bills use these.</p>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead><tr><th>Metal</th><th>Rate / g</th><th>Branch</th><th>Saved for</th><th>Source</th><th>Note</th></tr></thead>
+                    <tbody>
+                        @forelse ($current as $rate)
+                            <tr>
+                                <td><strong>{{ $rate->metalType?->name }} {{ $rate->purity?->name }}</strong></td>
+                                <td class="num"><strong>{{ $money((string) $rate->rate_per_gram) }}</strong></td>
+                                <td>{{ $rate->branch?->name ?: 'Whole shop' }}</td>
+                                <td>{{ $rate->effective_at->timezone(config('app.timezone'))->format('d M Y H:i') }}</td>
+                                <td>{{ $rate->source === 'market' ? 'Market' : 'Entered' }}</td>
+                                <td>{{ $rate->note }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6">No rates yet. Enter today's rate before billing.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
-    <div class="mt-3">{{ $rates->links() }}</div>
+    @else
+        <form class="row g-2 align-items-end mb-3" method="GET" action="{{ route('rates.index') }}">
+            <input type="hidden" name="view" value="history">
+            <div class="col-md-4">
+                <label class="form-label" for="filter-purity">Purity</label>
+                <select class="form-select" id="filter-purity" name="purity">
+                    <option value="">All purities</option>
+                    @foreach ($purities as $purity)
+                        <option value="{{ $purity->uuid }}" @selected($filter['purity'] === $purity->uuid)>{{ $purity->metalType?->name }} {{ $purity->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filter-from">From</label>
+                <input class="form-control" id="filter-from" name="from" type="date" value="{{ $filter['from'] }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="filter-to">To</label>
+                <input class="form-control" id="filter-to" name="to" type="date" value="{{ $filter['to'] }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Filter</button>
+                <a class="btn btn-outline-secondary" href="{{ route('rates.index', ['view' => 'history']) }}">Clear</a>
+            </div>
+        </form>
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead><tr><th>Effective</th><th>Metal</th><th>Rate / g</th><th>Branch</th><th>Source</th><th>Note</th></tr></thead>
+                    <tbody>
+                        @forelse ($rates as $rate)
+                            <tr>
+                                <td>{{ $rate->effective_at->timezone(config('app.timezone'))->format('d M Y H:i') }}</td>
+                                <td>{{ $rate->metalType?->name }} {{ $rate->purity?->name }}</td>
+                                <td class="num">{{ $money((string) $rate->rate_per_gram) }}</td>
+                                <td>{{ $rate->branch?->name ?: 'Whole shop' }}</td>
+                                <td>{{ $rate->source === 'market' ? 'Market' : 'Entered' }}</td>
+                                <td>{{ $rate->note }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6">No rates match.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="mt-3">{{ $rates->links() }}</div>
+    @endif
 @endsection

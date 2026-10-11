@@ -10,11 +10,11 @@ use App\Support\CompanyContext;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Fixed 56 x 13 mm dumbbell jewellery tag for a 203 dpi Zebra printer: two printable flaps of
- * about 20 x 13 mm with the fold between them, laid out like the shop's reference tag.
+ * Fixed 56 x 13 mm folding jewellery tag for a 203 dpi Zebra printer, laid out like the shop's
+ * reference tag: weights before the fold, piece type, shop name and QR code after it.
  *
- * Coordinates are in printer dots (8 per mm). They are initial values, not measurements, until a
- * printed test tag has been checked against the real tag and its fold.
+ * Coordinates are in printer dots (8 per mm). The fold position comes from photos of ZD230 prints
+ * on the shop's tags (fold about 28 mm into the print), not from a ruler measurement.
  */
 class JewelleryLabelZplService
 {
@@ -32,19 +32,24 @@ class JewelleryLabelZplService
     public const HEIGHT = 104;
 
     /**
-     * First flap, 0-20 mm: piece code, purity and weights.
+     * First flap, 0-25 mm: piece code, purity and weights.
      */
-    public const LEFT_PANEL = [0, 159];
+    public const LEFT_PANEL = [0, 199];
 
     /**
-     * 20-36 mm, where the tag folds round the piece. Nothing is printed here.
+     * 25-29.5 mm, around the fold in the middle of the tag's wide part. Nothing is printed here.
      */
-    public const FOLD = [160, 287];
+    public const FOLD = [200, 235];
 
     /**
-     * Second flap, 36-56 mm: piece type, shop name and the QR code, kept wholly inside this flap.
+     * Where the left flap text starts, 2.5 mm in so it is clear of the tag's edge.
      */
-    public const RIGHT_PANEL = [288, 447];
+    public const LEFT_TEXT_X = 20;
+
+    /**
+     * Second flap, 29.5-56 mm: piece type, shop name and the QR code, kept wholly inside this flap.
+     */
+    public const RIGHT_PANEL = [236, 447];
 
     /**
      * Space kept from the outer ends and the top and bottom of the tag.
@@ -62,13 +67,20 @@ class JewelleryLabelZplService
     private const CODE_GAP = 4;
 
     /**
-     * Average advance of ZPL font 0 as a share of its width setting. Kept on the generous side so text never overruns.
+     * Average advance of ZPL font 0 as a share of its width setting. Measured 0.40-0.53 on tag text
+     * ("G. Wt : 3.260 gm" 0.44, "Jagdamba" 0.53), so this stays just above the widest.
      */
-    private const CHAR_FACTOR = 0.62;
+    private const CHAR_FACTOR = 0.54;
 
     private const MIN_FONT_WIDTH = 10;
 
-    private const MAX_QR_MODULE = 3;
+    private const MAX_QR_MODULE = 4;
+
+    /**
+     * The code and right flap lines are printed a second time this many dots to the right, so ZPL font 0
+     * comes out bold. The weights are printed once, because the extra pass closes the gaps between digits.
+     */
+    public const BOLD = 1;
 
     public function __construct(
         private readonly SettingService $settings,
@@ -127,7 +139,7 @@ class JewelleryLabelZplService
 
     /**
      * @param  array<string, mixed>  $overrides
-     * @return array{printer_name: string, barcode_payload: string, max_copies: int, copies: int}
+     * @return array{printer_name: string, barcode_payload: string, max_copies: int, shift_mm: float, copies: int}
      */
     public function resolve(array $overrides = []): array
     {
@@ -140,6 +152,7 @@ class JewelleryLabelZplService
             'printer_name' => (string) $values['printer_name'],
             'barcode_payload' => (string) $values['barcode_payload'],
             'max_copies' => (int) $values['max_copies'],
+            'shift_mm' => (float) $values['shift_mm'],
         ];
 
         if (filter_var($copies, FILTER_VALIDATE_INT) === false || (int) $copies < 1 || (int) $copies > $resolved['max_copies']) {
@@ -254,14 +267,14 @@ class JewelleryLabelZplService
     {
         $warnings = [];
 
-        $leftX = self::LEFT_PANEL[0] + self::MARGIN;
-        $leftRoom = self::LEFT_PANEL[1] + 1 - self::FOLD_SIDE - $leftX;
+        $leftX = self::LEFT_PANEL[0] + self::LEFT_TEXT_X;
+        $leftRoom = self::LEFT_PANEL[1] + 1 - self::FOLD_SIDE - $leftX - self::BOLD;
         $texts = [
-            $this->line($fields['code'], $leftX, 10, 22, 19, $leftRoom, null, true),
+            $this->line($fields['code'], $leftX, 14, 24, 22, $leftRoom, null, true),
         ];
 
         foreach (array_values($fields['weights']) as $index => $weight) {
-            $texts[] = $this->line($weight, $leftX, 40 + $index * 28, 21, 17, $leftRoom, null, true);
+            $texts[] = ['bold' => false] + $this->line($weight, $leftX, 43 + $index * 28, 22, 21, $leftRoom, null, true);
         }
 
         $modules = self::qrModules($fields['payload']);
@@ -275,18 +288,18 @@ class JewelleryLabelZplService
 
         $codeSize = $modules * $module;
         $codeX = self::RIGHT_PANEL[1] + 1 - self::MARGIN - $codeSize;
-        $codeY = intdiv(self::HEIGHT - $codeSize, 2);
+        $codeY = self::HEIGHT - self::MARGIN - $codeSize;
 
         $columnX = self::RIGHT_PANEL[0] + self::FOLD_SIDE;
         $columnWidth = $codeX - self::CODE_GAP - $columnX;
 
         if ($fields['type'] !== null) {
             $type = $this->fitWords($fields['type'], 16, $columnWidth, $warnings);
-            $texts[] = $this->line($type, $columnX, 12, 20, 16, $columnWidth, $columnWidth, false, $warnings);
+            $texts[] = $this->line($type, $columnX, 14, 20, 20, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
         }
 
         foreach (array_values($fields['shop'] !== null ? self::splitInTwo($fields['shop']) : []) as $index => $part) {
-            $texts[] = $this->line($part, $columnX, 44 + $index * 27, 23, 17, $columnWidth, $columnWidth, false, $warnings);
+            $texts[] = $this->line($part, $columnX, 42 + $index * 26, 24, 22, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
         }
 
         return [
@@ -313,7 +326,7 @@ class JewelleryLabelZplService
         $zpl = [
             '^XA',
             '^CI28',
-            '^PW'.$layout['width'],
+            '^PW'.self::printWidth((float) ($settings['shift_mm'] ?? 0)),
             '^LL'.$layout['height'],
             '^LH0,0',
             '^FO'.$code['x'].','.$code['y'].'^BQN,2,'.$code['module'].'^FDMA,'.$layout['payload'].'^FS',
@@ -321,13 +334,27 @@ class JewelleryLabelZplService
 
         foreach ($layout['texts'] as $text) {
             $block = $text['block'] !== null ? '^FB'.$text['block'].',1,0,C' : '';
-            $zpl[] = '^FO'.$text['x'].','.$text['y'].'^A0N,'.$text['height'].','.$text['font_width'].$block.'^FH^FD'.self::escape($text['text']).'^FS';
+            $field = '^A0N,'.$text['height'].','.$text['font_width'].$block.'^FH^FD'.self::escape($text['text']).'^FS';
+            $zpl[] = '^FO'.$text['x'].','.$text['y'].$field;
+
+            if ($text['bold'] ?? true) {
+                $zpl[] = '^FO'.($text['x'] + self::BOLD).','.$text['y'].$field;
+            }
         }
 
         $zpl[] = '^PQ'.$settings['copies'].',0,1,Y';
         $zpl[] = '^XZ';
 
         return implode("\n", $zpl)."\n";
+    }
+
+    /**
+     * The ZD230 centres the print width on the roll, so widening it by the shift on both sides moves
+     * the first printed dot that far back towards the start of the tag.
+     */
+    public static function printWidth(float $shiftMm): int
+    {
+        return self::WIDTH + 2 * self::mmToDots($shiftMm);
     }
 
     /**
