@@ -35,17 +35,18 @@ class JewelleryLabelTest extends TestCase
         $this->assertStringContainsString("^PW720\n", $zpl, 'The 56 mm tag plus a 17 mm (136 dot) shift on each side of the centred print width.');
         $this->assertStringContainsString("^LL104\n", $zpl);
         $this->assertStringContainsString('^CI28', $zpl);
-        $this->assertStringContainsString('^FO356,12^BQN,2,4^FDMA,GSE2741^FS', $zpl);
+        $this->assertStringContainsString("^LT0\n", $zpl);
+        $this->assertStringContainsString('^FO356,10^BQN,2,4^FDMA,GSE2741^FS', $zpl, 'The QR code is centred top to bottom.');
         $this->assertStringContainsString('^FO20,14^A0N,24,22^FH^FDGSE2741  22K^FS', $zpl);
         $this->assertStringContainsString('^FO21,14^A0N,24,22^FH^FDGSE2741  22K^FS', $zpl, 'The code line is struck twice, one dot apart, for bold text.');
-        $this->assertMatchesRegularExpression('/\^FO20,43\^A0N,22,\d+\^FH\^FDG. Wt : 4.610 gm\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO20,71\^A0N,22,\d+\^FH\^FDN. Wt. : 4.610 gm\^FS/', $zpl);
-        $this->assertStringNotContainsString('^FO21,43', $zpl, 'Weights are printed once so the digits stay apart.');
-        $this->assertStringNotContainsString('^FO21,71', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO240,14\^A0N,20,\d+\^FB112,1,0,C\^FH\^FDring\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO240,42\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJagdamba\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO240,68\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
-        $this->assertMatchesRegularExpression('/\^FO241,68\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO20,42\^A0N,22,\d+\^FH\^FDG. Wt : 4.610 gm\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO20,68\^A0N,22,\d+\^FH\^FDN. Wt. : 4.610 gm\^FS/', $zpl);
+        $this->assertStringNotContainsString('^FO21,42', $zpl, 'Weights are printed once so the digits stay apart.');
+        $this->assertStringNotContainsString('^FO21,68', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO240,14\^A0N,20,\d+\^FB112,1,0,C\^FH\^FDRing\^FS/', $zpl, 'The piece type starts with a capital letter.');
+        $this->assertMatchesRegularExpression('/\^FO240,40\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJagdamba\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO240,66\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
+        $this->assertMatchesRegularExpression('/\^FO241,66\^A0N,24,\d+\^FB112,1,0,C\^FH\^FDJewellers\^FS/', $zpl);
         $this->assertLessThanOrEqual(356, 240 + 112, 'The QR code starts after the shop name column.');
         $this->assertLessThanOrEqual(JewelleryLabelZplService::RIGHT_PANEL[1] - JewelleryLabelZplService::MARGIN, 356 + 84 - 1, 'The QR code stays inside the second flap.');
         $this->assertStringContainsString('^PQ1,0,1,Y', $zpl);
@@ -111,9 +112,9 @@ class JewelleryLabelTest extends TestCase
 
         $zpl = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
 
-        $this->assertStringContainsString('^FH^FDhaar_7Eja_5Exz^FS', $zpl);
+        $this->assertStringContainsString('^FH^FDHaar_7EJa_5Exz^FS', $zpl);
         $this->assertSame(1, substr_count($zpl, '^XZ'));
-        $this->assertStringNotContainsString('~ja', $zpl);
+        $this->assertStringNotContainsString('~Ja', $zpl);
         $this->assertSame('Ring _5EXZ_7EJA_5Fx _E0_A4_B9_E0_A4_BE_E0_A4_B0', JewelleryLabelZplService::escape("Ring ^XZ~JA_x\nहार"));
     }
 
@@ -242,7 +243,7 @@ class JewelleryLabelTest extends TestCase
             ->assertSee('Barcode tag settings')
             ->assertDontSee('Tag width')
             ->assertDontSee('Code dot size');
-        $this->assertSame(['printer_name', 'barcode_payload', 'max_copies', 'shift_mm'], array_keys(app(JewelleryLabelZplService::class)->saved($owner->company)));
+        $this->assertSame(['printer_name', 'barcode_payload', 'max_copies', 'shift_mm', 'down_mm'], array_keys(app(JewelleryLabelZplService::class)->saved($owner->company)));
 
         $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.printer_name' => 'ZDesigner ZD230-203dpi ZPL (Copy 1)', 'label.max_copies' => '5'])])
             ->assertRedirect(route('labels.settings.edit'))
@@ -341,6 +342,38 @@ class JewelleryLabelTest extends TestCase
 
         $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.shift_mm' => '30'])])->assertSessionHasErrors();
         $this->assertLessThanOrEqual(832, JewelleryLabelZplService::printWidth(24), 'Never wider than the 104 mm print head.');
+    }
+
+    public function test_the_down_setting_moves_the_whole_print_down_only(): void
+    {
+        [$owner, $item] = $this->counter('GSE2751');
+
+        $flat = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.down_mm' => '0.5'])])->assertSessionHasNoErrors();
+        $down = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
+        $this->assertStringContainsString("^LT4\n", $down);
+        $this->assertSame(preg_replace('/\^LT-?\d+/', '', $flat), preg_replace('/\^LT-?\d+/', '', $down), 'Only the label top changes.');
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.down_mm' => '-1'])])->assertSessionHasNoErrors();
+        $this->assertStringContainsString("^LT-8\n", $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent());
+
+        $this->actingAs($owner)->post(route('labels.settings.update'), ['settings' => $this->labelPayload($owner, ['label.down_mm' => '3'])])->assertSessionHasErrors();
+    }
+
+    public function test_the_piece_page_prints_straight_away_and_keeps_the_preview_link(): void
+    {
+        [$owner, $item] = $this->counter('GSE2752');
+
+        $this->actingAs($owner)->get(route('items.show', $item))
+            ->assertOk()
+            ->assertSee('id="tag-quick-print"', false)
+            ->assertSee(route('items.label.zpl', $item), false)
+            ->assertSee(route('items.label', $item), false);
+
+        $this->actingAs($owner)->get(route('items.index'))
+            ->assertOk()
+            ->assertSee('data-tag-print="'.route('items.label.zpl', $item).'"', false);
     }
 
     public function test_the_shop_name_is_split_over_two_balanced_lines(): void

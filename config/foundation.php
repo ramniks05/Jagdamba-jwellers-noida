@@ -299,6 +299,15 @@ return [
             'default' => '17',
             'rules' => ['required', 'numeric', 'between:0,24'],
         ],
+        'label.down_mm' => [
+            'group' => 'label',
+            'page' => 'labels',
+            'label' => 'Move print down (mm)',
+            'help' => 'Raise this if text is cut at the top of the tag, lower it (below 0) if it is cut at the bottom. -2 to 2.',
+            'type' => 'decimal',
+            'default' => '0',
+            'rules' => ['required', 'numeric', 'between:-2,2'],
+        ],
     ],
 
     'document_sequence' => [

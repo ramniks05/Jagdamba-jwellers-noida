@@ -36,7 +36,10 @@
                 <a class="btn btn-outline-secondary" href="{{ route('items.edit', $item) }}"><i class="bi bi-pencil"></i> Edit</a>
             @endcan
             @can('inventory.print')
-                <a class="btn btn-outline-secondary" href="{{ route('items.label', $item) }}"><i class="bi bi-upc-scan"></i> Print tag</a>
+                <span class="btn-group">
+                    <button class="btn btn-outline-secondary" type="button" id="tag-quick-print" data-zpl-url="{{ route('items.label.zpl', $item) }}"><i class="bi bi-printer"></i> Print tag</button>
+                    <a class="btn btn-outline-secondary" href="{{ route('items.label', $item) }}" title="See the tag and print more copies"><i class="bi bi-eye"></i> Preview</a>
+                </span>
             @endcan
             @if ($item->status->value === 'available')
                 @can('create', App\Models\Sale::class)
@@ -45,6 +48,9 @@
             @endif
         </div>
     </div>
+    @can('inventory.print')
+        <div class="small text-end mb-2" id="tag-quick-result" role="status" aria-live="polite"></div>
+    @endcan
 
     <div class="card order-panel mb-3">
         <div class="card-body">
@@ -205,3 +211,45 @@
         </div>
     </div>
 @endsection
+
+@can('inventory.print')
+    @push('scripts')
+        <script src="{{ asset('vendor/qz-tray/qz-tray.js') }}?v={{ filemtime(public_path('vendor/qz-tray/qz-tray.js')) }}"></script>
+        <script src="{{ asset('js/jewellery-label-printer.js') }}?v={{ filemtime(public_path('js/jewellery-label-printer.js')) }}"></script>
+        <script>
+            (function () {
+                const printer = window.JewelleryLabelPrinter;
+                const button = document.getElementById('tag-quick-print');
+                const result = document.getElementById('tag-quick-result');
+
+                const show = function (tone, text) {
+                    result.className = 'small text-end mb-2 text-' + tone;
+                    result.textContent = text;
+                };
+
+                if (!printer) {
+                    button.disabled = true;
+                    show('danger', 'The printing helper did not load. Refresh the page.');
+                    return;
+                }
+
+                printer.configure({
+                    printerName: @json((string) app(App\Services\Foundation\SettingService::class)->get('label.printer_name')),
+                    certificateUrl: @json(route('labels.qz.certificate')),
+                    signUrl: @json(route('labels.qz.sign')),
+                    csrf: @json(csrf_token()),
+                });
+
+                button.addEventListener('click', function () {
+                    button.disabled = true;
+                    show('secondary', 'Sending the tag to the printer…');
+
+                    printer.printUrl(button.dataset.zplUrl + '?copies=1')
+                        .then(function (name) { show('success', 'Tag sent to ' + name + '.'); })
+                        .catch(function (error) { show('danger', error.message); })
+                        .finally(function () { button.disabled = false; });
+                });
+            })();
+        </script>
+    @endpush
+@endcan

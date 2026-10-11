@@ -139,7 +139,7 @@ class JewelleryLabelZplService
 
     /**
      * @param  array<string, mixed>  $overrides
-     * @return array{printer_name: string, barcode_payload: string, max_copies: int, shift_mm: float, copies: int}
+     * @return array{printer_name: string, barcode_payload: string, max_copies: int, shift_mm: float, down_mm: float, copies: int}
      */
     public function resolve(array $overrides = []): array
     {
@@ -153,6 +153,7 @@ class JewelleryLabelZplService
             'barcode_payload' => (string) $values['barcode_payload'],
             'max_copies' => (int) $values['max_copies'],
             'shift_mm' => (float) $values['shift_mm'],
+            'down_mm' => (float) $values['down_mm'],
         ];
 
         if (filter_var($copies, FILTER_VALIDATE_INT) === false || (int) $copies < 1 || (int) $copies > $resolved['max_copies']) {
@@ -269,12 +270,14 @@ class JewelleryLabelZplService
 
         $leftX = self::LEFT_PANEL[0] + self::LEFT_TEXT_X;
         $leftRoom = self::LEFT_PANEL[1] + 1 - self::FOLD_SIDE - $leftX - self::BOLD;
+        $weights = array_values($fields['weights']);
+        $leftY = self::centred($weights === [] ? 24 : 28 + (count($weights) - 1) * 26 + 22);
         $texts = [
-            $this->line($fields['code'], $leftX, 14, 24, 22, $leftRoom, null, true),
+            $this->line($fields['code'], $leftX, $leftY, 24, 22, $leftRoom, null, true),
         ];
 
-        foreach (array_values($fields['weights']) as $index => $weight) {
-            $texts[] = ['bold' => false] + $this->line($weight, $leftX, 43 + $index * 28, 22, 21, $leftRoom, null, true);
+        foreach ($weights as $index => $weight) {
+            $texts[] = ['bold' => false] + $this->line($weight, $leftX, $leftY + 28 + $index * 26, 22, 21, $leftRoom, null, true);
         }
 
         $modules = self::qrModules($fields['payload']);
@@ -288,18 +291,23 @@ class JewelleryLabelZplService
 
         $codeSize = $modules * $module;
         $codeX = self::RIGHT_PANEL[1] + 1 - self::MARGIN - $codeSize;
-        $codeY = self::HEIGHT - self::MARGIN - $codeSize;
+        $codeY = self::centred($codeSize);
 
         $columnX = self::RIGHT_PANEL[0] + self::FOLD_SIDE;
         $columnWidth = $codeX - self::CODE_GAP - $columnX;
+        $shop = array_values($fields['shop'] !== null ? self::splitInTwo($fields['shop']) : []);
+        $rightY = self::centred($shop === []
+            ? ($fields['type'] !== null ? 20 : 0)
+            : ($fields['type'] !== null ? 26 : 0) + (count($shop) - 1) * 26 + 24);
 
         if ($fields['type'] !== null) {
             $type = $this->fitWords($fields['type'], 16, $columnWidth, $warnings);
-            $texts[] = $this->line($type, $columnX, 14, 20, 20, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
+            $texts[] = $this->line($type, $columnX, $rightY, 20, 20, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
+            $rightY += 26;
         }
 
-        foreach (array_values($fields['shop'] !== null ? self::splitInTwo($fields['shop']) : []) as $index => $part) {
-            $texts[] = $this->line($part, $columnX, 42 + $index * 26, 24, 22, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
+        foreach ($shop as $index => $part) {
+            $texts[] = $this->line($part, $columnX, $rightY + $index * 26, 24, 22, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
         }
 
         return [
@@ -329,6 +337,7 @@ class JewelleryLabelZplService
             '^PW'.self::printWidth((float) ($settings['shift_mm'] ?? 0)),
             '^LL'.$layout['height'],
             '^LH0,0',
+            '^LT'.self::mmToDots((float) ($settings['down_mm'] ?? 0)),
             '^FO'.$code['x'].','.$code['y'].'^BQN,2,'.$code['module'].'^FDMA,'.$layout['payload'].'^FS',
         ];
 
@@ -355,6 +364,14 @@ class JewelleryLabelZplService
     public static function printWidth(float $shiftMm): int
     {
         return self::WIDTH + 2 * self::mmToDots($shiftMm);
+    }
+
+    /**
+     * Top of a block of the given height so it has the same space above and below on the tag.
+     */
+    public static function centred(int $height): int
+    {
+        return intdiv(self::HEIGHT - $height, 2);
     }
 
     /**
@@ -422,7 +439,7 @@ class JewelleryLabelZplService
         return [
             'payload' => $this->payloadFor($item, $settings),
             'code' => trim($item->item_code.($purity !== '' ? '  '.$purity : '')),
-            'type' => $type !== '' ? mb_strtolower($type) : null,
+            'type' => $type !== '' ? mb_convert_case($type, MB_CASE_TITLE) : null,
             'shop' => $this->shopName(),
             'weights' => [
                 'G. Wt : '.$this->weight((string) ($item->gross_weight ?? '0')),
@@ -439,7 +456,7 @@ class JewelleryLabelZplService
         return [
             'payload' => self::TEST_CODE,
             'code' => self::TEST_CODE.'  22K',
-            'type' => 'test',
+            'type' => 'Test',
             'shop' => $this->shopName(),
             'weights' => ['G. Wt : '.$this->weight('1.234'), 'N. Wt. : '.$this->weight('1.234')],
         ];

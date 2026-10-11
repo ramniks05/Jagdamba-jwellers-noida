@@ -32,6 +32,7 @@
                             @include('foundation.settings.field', $field('label.max_copies', ['inputmode' => 'numeric']))
                             @include('foundation.settings.field', $field('label.barcode_payload'))
                             @include('foundation.settings.field', $field('label.shift_mm', ['inputmode' => 'decimal']))
+                            @include('foundation.settings.field', $field('label.down_mm', ['inputmode' => 'decimal']))
                         </div>
                     </div>
                 </div>
@@ -47,6 +48,7 @@
                         <ol class="ps-3 mb-0">
                             <li>Print a test tag.</li>
                             <li>If the print starts too far into the tag (towards the tail), raise "Move print to the tag start". If it starts before the tag, lower it. 1 means 1 mm.</li>
+                            <li>If text is cut at the top on some tags, raise "Move print down" by 0.5. If it is cut on every tag in a different place, calibrate the printer: hold its feed button until the light flashes twice, then let go.</li>
                             <li>Check nothing is printed on the fold or the tail, then scan the code. It should type TEST-0001.</li>
                         </ol>
                     </div>

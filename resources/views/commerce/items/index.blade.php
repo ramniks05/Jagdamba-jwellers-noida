@@ -90,7 +90,12 @@
                             <td class="text-nowrap">{{ $item->location?->label() }}</td>
                             <td class="text-nowrap">{{ $item->source->label() }}</td>
                             <td><span class="order-status {{ $pill($item->status->value) }}">{{ $item->status->label() }}</span></td>
-                            <td class="text-end"><a href="{{ route('items.show', $item) }}">Open</a></td>
+                            <td class="text-end text-nowrap">
+                                @if ($canPrint)
+                                    <button class="btn btn-sm btn-link p-0 me-2" type="button" data-tag-print="{{ route('items.label.zpl', $item) }}" data-tag-code="{{ $item->item_code }}" title="Print tag for {{ $item->item_code }}" aria-label="Print tag for {{ $item->item_code }}"><i class="bi bi-printer"></i></button>
+                                @endif
+                                <a href="{{ route('items.show', $item) }}">Open</a>
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="{{ $canPrint ? 10 : 9 }}">{{ $search !== '' ? 'Nothing found.' : 'No pieces here yet.' }}</td></tr>
@@ -142,6 +147,21 @@
                     certificateUrl: @json(route('labels.qz.certificate')),
                     signUrl: @json(route('labels.qz.sign')),
                     csrf: @json(csrf_token()),
+                });
+
+                document.querySelectorAll('[data-tag-print]').forEach(function (single) {
+                    single.addEventListener('click', function () {
+                        if (printer.isBusy()) {
+                            show('warning', 'A print is already running. Wait for it to finish.');
+                            return;
+                        }
+
+                        show('secondary', 'Sending ' + single.dataset.tagCode + ' to the printer…');
+                        printer.printUrl(single.dataset.tagPrint + '?copies=1')
+                            .then(function (name) { show('success', 'Tag ' + single.dataset.tagCode + ' sent to ' + name + '.'); })
+                            .catch(function (error) { show('danger', error.message); })
+                            .finally(refresh);
+                    });
                 });
 
                 picks.forEach(function (box) { box.addEventListener('change', refresh); });
