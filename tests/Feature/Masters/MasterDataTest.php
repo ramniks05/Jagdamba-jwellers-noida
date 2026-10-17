@@ -33,7 +33,7 @@ class MasterDataTest extends TestCase
             ->get(route('metals.index'))
             ->assertOk()
             ->assertSee('Gold')
-            ->assertSee('6 purities');
+            ->assertSee('7 purities');
 
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
@@ -41,7 +41,9 @@ class MasterDataTest extends TestCase
         $this->actingAs($owner)
             ->get(route('metals.purities.index', $gold))
             ->assertOk()
-            ->assertSee('91.6');
+            ->assertSee('91.6')
+            ->assertSee('9K')
+            ->assertSee('37.5');
 
         $this->actingAs($owner)
             ->get(route('stones.index'))

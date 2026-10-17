@@ -3,6 +3,7 @@
 namespace Tests\Unit\Foundation;
 
 use App\Services\Foundation\SignatureCutout;
+use App\Services\Foundation\SignaturePictureRejected;
 use Tests\TestCase;
 
 class SignatureCutoutTest extends TestCase
@@ -50,5 +51,27 @@ class SignatureCutoutTest extends TestCase
 
         imagedestroy($result);
         $this->assertTrue($dark);
+    }
+
+    public function test_a_blank_photo_is_refused_instead_of_being_saved(): void
+    {
+        if (! function_exists('imagepng')) {
+            $this->markTestSkipped('GD is required to cut a signature out of its paper.');
+        }
+
+        $source = imagecreatetruecolor(80, 40);
+        imagefill($source, 0, 0, imagecolorallocate($source, 255, 255, 255));
+        $file = tempnam(sys_get_temp_dir(), 'blank');
+        imagepng($source, $file);
+        imagedestroy($source);
+
+        try {
+            (new SignatureCutout)->png($file);
+            $this->fail('A blank photo was accepted.');
+        } catch (SignaturePictureRejected $exception) {
+            $this->assertStringContainsString('No signature was found', $exception->getMessage());
+        } finally {
+            @unlink($file);
+        }
     }
 }

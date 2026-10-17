@@ -42,6 +42,37 @@ class CompanyProfileTest extends TestCase
         $this->assertSame('INR', $user->company->fresh()->currency_code);
     }
 
+    public function test_social_links_are_saved_and_a_bad_link_is_rejected(): void
+    {
+        $user = $this->shopUser();
+
+        $this->actingAs($user)
+            ->get(route('company.edit'))
+            ->assertOk()
+            ->assertSee('Facebook')
+            ->assertSee('Instagram')
+            ->assertSee('YouTube');
+
+        $this->actingAs($user)
+            ->put(route('company.update'), $this->profile($user, [
+                'website' => 'https://jagdamba.example',
+                'facebook' => 'https://facebook.com/jagdamba',
+                'instagram' => 'https://instagram.com/jagdamba',
+                'youtube' => 'https://youtube.com/@jagdamba',
+            ]))
+            ->assertRedirect(route('company.edit'))
+            ->assertSessionHasNoErrors();
+
+        $company = $user->company->fresh();
+        $this->assertSame('https://facebook.com/jagdamba', $company->facebook);
+        $this->assertSame('https://instagram.com/jagdamba', $company->instagram);
+        $this->assertSame('https://youtube.com/@jagdamba', $company->youtube);
+
+        $this->actingAs($user)
+            ->put(route('company.update'), $this->profile($user, ['facebook' => 'not-a-link']))
+            ->assertSessionHasErrors('facebook');
+    }
+
     public function test_invalid_gstin_and_logo_are_rejected(): void
     {
         Storage::fake('public');
@@ -68,12 +99,38 @@ class CompanyProfileTest extends TestCase
 
         $this->actingAs($user)
             ->put(route('company.update'), $this->profile($user, [
-                'signature' => UploadedFile::fake()->image('sign.png', 240, 80),
+                'signature' => $this->signaturePhoto(),
             ]))
-            ->assertRedirect(route('company.edit'));
+            ->assertRedirect(route('company.edit'))
+            ->assertSessionHasNoErrors();
 
         $this->assertNotNull($user->company->fresh()->signature_path);
         Storage::disk('public')->assertExists($user->company->fresh()->signature_path);
+    }
+
+    public function test_a_bad_signature_stays_off_the_profile_and_the_reason_is_shown(): void
+    {
+        Storage::fake('public');
+        $user = $this->shopUser();
+
+        $this->actingAs($user)
+            ->put(route('company.update'), $this->profile($user, [
+                'signature' => UploadedFile::fake()->create('notes.txt', 20, 'text/plain'),
+            ]))
+            ->assertSessionHasErrors([
+                'signature' => 'The signature must be a JPEG, PNG, or WebP photo.',
+            ]);
+
+        $this->followingRedirects()
+            ->actingAs($user)
+            ->from(route('company.edit'))
+            ->put(route('company.update'), $this->profile($user, [
+                'signature' => $this->signaturePhoto(false),
+            ]))
+            ->assertOk()
+            ->assertSee('No signature was found in that photo, so it was not saved. Sign on white paper with a dark pen and take the photo again.');
+
+        $this->assertNull($user->company->fresh()->signature_path);
     }
 
     public function test_inactive_user_and_suspended_shop_cannot_sign_in(): void
@@ -118,6 +175,27 @@ class CompanyProfileTest extends TestCase
         ])->assertStatus(429);
     }
 
+    private function signaturePhoto(bool $withInk = true): UploadedFile
+    {
+        $image = imagecreatetruecolor(240, 80);
+        $paper = imagecolorallocate($image, 255, 255, 255);
+        imagefill($image, 0, 0, $paper);
+
+        if ($withInk) {
+            $ink = imagecolorallocate($image, 20, 16, 18);
+            imagesetthickness($image, 4);
+            imageline($image, 20, 50, 210, 28, $ink);
+        }
+
+        ob_start();
+        imagepng($image);
+        imagedestroy($image);
+        $path = tempnam(sys_get_temp_dir(), 'sign');
+        file_put_contents($path, ob_get_clean());
+
+        return new UploadedFile($path, 'sign.png', 'image/png', null, true);
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>
@@ -134,6 +212,9 @@ class CompanyProfileTest extends TestCase
             'phone' => $company->phone,
             'mobile' => $company->mobile,
             'website' => $company->website,
+            'facebook' => $company->facebook,
+            'instagram' => $company->instagram,
+            'youtube' => $company->youtube,
             'gstin' => $company->gstin,
             'pan' => $company->pan,
             'address_line1' => $company->address_line1,

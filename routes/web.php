@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\Commerce\ItemController;
 use App\Http\Controllers\Web\Commerce\ItemLabelController;
 use App\Http\Controllers\Web\Commerce\LabelSettingController;
 use App\Http\Controllers\Web\Commerce\LocationController;
+use App\Http\Controllers\Web\Commerce\MetalStockController;
 use App\Http\Controllers\Web\Commerce\OldGoldController;
 use App\Http\Controllers\Web\Commerce\OldGoldStockController;
 use App\Http\Controllers\Web\Commerce\PurchaseController;
@@ -137,6 +138,8 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('suppliers/{supplier}/payments', [SupplierController::class, 'payment'])->name('suppliers.payments.store');
     Route::get('sales/scan', BillScanController::class)->middleware('throttle:300,1')->name('sales.scan');
     Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
+    Route::get('sales/{sale}/edit', [SaleController::class, 'edit'])->name('sales.edit');
+    Route::put('sales/{sale}', [SaleController::class, 'update'])->name('sales.update');
     Route::post('sales/{sale}/returns', [SaleController::class, 'returnSale'])->name('sales.returns.store');
     Route::post('sales/{sale}/payments', [SaleController::class, 'payment'])->name('sales.payments.store');
     Route::post('sales/{sale}/whatsapp', [SaleController::class, 'whatsapp'])->middleware('throttle:10,1')->name('sales.whatsapp.store');
@@ -171,6 +174,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('enrollments/{enrollment}/mature', [SchemeController::class, 'mature'])->name('enrollments.mature');
 
     Route::get('reports/stock', [ReportController::class, 'stock'])->name('reports.stock');
+    Route::post('reports/stock', [MetalStockController::class, 'store'])->name('reports.stock.store');
     Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
     Route::get('reports/outstanding', [ReportController::class, 'outstanding'])->name('reports.outstanding');
 });

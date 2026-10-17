@@ -18,6 +18,7 @@ use App\Models\Supplier;
 use App\Services\Commerce\ItemService;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PurchaseService;
+use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -31,7 +32,7 @@ class PurchaseController extends Controller
 {
     private const DUE_SQL = 'purchases.total - purchases.paid_amount - (select coalesce(sum(purchase_returns.amount), 0) from purchase_returns where purchase_returns.purchase_id = purchases.id)';
 
-    public function index(Request $request, NumberFormatService $format, CompanyContext $context): View
+    public function index(Request $request, NumberFormatService $format, WeightSummary $weights, CompanyContext $context): View
     {
         $this->authorize('viewAny', Purchase::class);
         $search = trim((string) $request->query('search', ''));
@@ -51,10 +52,16 @@ class PurchaseController extends Controller
                 'paid' => (clone $base)->whereRaw(self::DUE_SQL.' <= 0.004')->count(),
             ],
             'dueTotal' => (string) BigDecimal::of((string) ((clone $base)->whereRaw(self::DUE_SQL.' > 0.004')->selectRaw('sum('.self::DUE_SQL.') as due')->value('due') ?? '0'))->toScale(2, RoundingMode::HalfUp),
+            'weights' => $weights->purchases(
+                (clone $base)
+                    ->when($show === 'due', fn ($query) => $query->whereRaw(self::DUE_SQL.' > 0.004'))
+                    ->when($show === 'paid', fn ($query) => $query->whereRaw(self::DUE_SQL.' <= 0.004'))
+            ),
             'purchases' => (clone $base)
                 ->with('supplier')
                 ->withCount('lines')
                 ->withSum('lines', 'gross_weight')
+                ->withSum('lines', 'net_weight')
                 ->withSum('returns', 'amount')
                 ->when($show === 'due', fn ($query) => $query->whereRaw(self::DUE_SQL.' > 0.004'))
                 ->when($show === 'paid', fn ($query) => $query->whereRaw(self::DUE_SQL.' <= 0.004'))

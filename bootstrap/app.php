@@ -5,6 +5,7 @@ use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 
@@ -30,4 +31,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
+            $message = 'The photo is too large, so nothing was saved. Choose a JPEG or PNG under 2 MB and save the profile again.';
+
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json(['message' => $message], 413);
+            }
+
+            return redirect()->back()->withInput($request->except(['logo', 'signature']))->withErrors([
+                'signature' => $message,
+            ]);
+        });
     })->create();

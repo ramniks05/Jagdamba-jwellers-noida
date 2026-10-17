@@ -10,7 +10,7 @@
             <div>
                 <div class="rate-board-kicker">Rate board</div>
                 <h2>Gold and silver today</h2>
-                <p>Per gram, before GST. Change any purity, then save it as the shop rate. Platinum is entered by hand.</p>
+                <p>Per gram, before GST. Type the 24K price and the other gold carats follow their fineness: 22K is 91.6, 18K is 75. Silver follows the 999 price. Platinum is entered by hand.</p>
             </div>
             <div class="rate-board-aside">
                 @if ($quote)
@@ -28,7 +28,8 @@
             <div class="rate-board-body">
                 <div class="alert alert-warning mb-0">{{ $quoteError }}</div>
             </div>
-        @elseif ($quote)
+        @endif
+        @if ($quote)
             <div class="spot-row">
                 <article class="spot-card spot-gold">
                     <span>Gold</span>
@@ -41,45 +42,45 @@
                     <em>999 fine · per gram</em>
                 </article>
             </div>
-            @if ($canEnter)
-                <form method="POST" action="{{ route('rates.market.store') }}">
-                    @csrf
-                    @php
-                        $line = 0;
-                    @endphp
-                    @foreach ($suggestionGroups as $metal => $rows)
-                        <div class="purity-group">
-                            <h3>{{ $metal }}</h3>
-                            <div class="purity-grid">
-                                @foreach ($rows as $row)
-                                    @php
-                                        $submitted = collect(old('lines', []));
-                                        $previous = $submitted->first(fn ($item) => ($item['purity_uuid'] ?? null) === $row['purity']->uuid);
-                                        $rateValue = $previous['rate_per_gram'] ?? $row['rate'];
-                                        $checked = old('lines') === null ? $row['selected'] : $previous !== null;
-                                    @endphp
-                                    <label class="purity-tile">
-                                        <span class="purity-top">
-                                            <span class="purity-name">{{ $row['purity']->name }}</span>
-                                            <input type="checkbox" name="lines[{{ $line }}][use]" value="1" @checked($checked) aria-label="Save {{ $metal }} {{ $row['purity']->name }}">
-                                        </span>
-                                        <input type="hidden" name="lines[{{ $line }}][purity_uuid]" value="{{ $row['purity']->uuid }}">
-                                        <input class="form-control purity-rate" name="lines[{{ $line }}][rate_per_gram]" value="{{ $rateValue }}" inputmode="decimal" aria-label="{{ $metal }} {{ $row['purity']->name }} rate per gram">
-                                        <span class="purity-unit">per gram</span>
-                                    </label>
-                                    @php
-                                        $line++;
-                                    @endphp
-                                @endforeach
-                            </div>
+        @endif
+        @if ($canEnter && $suggestionGroups->isNotEmpty())
+            <form method="POST" action="{{ route('rates.market.store') }}" id="market-rates" data-reference="{{ config('metal-prices.reference_fineness') }}">
+                @csrf
+                @php
+                    $line = 0;
+                @endphp
+                @foreach ($suggestionGroups as $metal => $rows)
+                    <div class="purity-group">
+                        <h3>{{ $metal }}</h3>
+                        <div class="purity-grid">
+                            @foreach ($rows as $row)
+                                @php
+                                    $submitted = collect(old('lines', []));
+                                    $previous = $submitted->first(fn ($item) => ($item['purity_uuid'] ?? null) === $row['purity']->uuid);
+                                    $rateValue = $previous['rate_per_gram'] ?? $row['rate'];
+                                    $checked = old('lines') === null ? $row['selected'] : $previous !== null;
+                                @endphp
+                                <label class="purity-tile">
+                                    <span class="purity-top">
+                                        <span class="purity-name">{{ $row['purity']->name }}</span>
+                                        <input type="checkbox" name="lines[{{ $line }}][use]" value="1" @checked($checked) aria-label="Save {{ $metal }} {{ $row['purity']->name }}">
+                                    </span>
+                                    <input type="hidden" name="lines[{{ $line }}][purity_uuid]" value="{{ $row['purity']->uuid }}">
+                                    <input class="form-control purity-rate" name="lines[{{ $line }}][rate_per_gram]" value="{{ $rateValue }}" inputmode="decimal" data-code="{{ $row['purity']->code }}" data-metal="{{ $row['purity']->metalType?->code }}" data-fineness="{{ $row['purity']->fineness }}" aria-label="{{ $metal }} {{ $row['purity']->name }} rate per gram">
+                                    <span class="purity-unit">per gram</span>
+                                </label>
+                                @php
+                                    $line++;
+                                @endphp
+                            @endforeach
                         </div>
-                    @endforeach
-                    <div class="rate-board-save">
-                        <button class="btn btn-primary" type="submit">Save shop rates</button>
-                        <span>Only the ticked purities are saved.</span>
                     </div>
-                </form>
-            @endif
+                @endforeach
+                <div class="rate-board-save">
+                    <button class="btn btn-primary" type="submit">Save shop rates</button>
+                    <span>Only the ticked purities are saved. Bills use a rate after it is saved.</span>
+                </div>
+            </form>
         @endif
     </section>
     @if ($canEnter)
@@ -214,3 +215,35 @@
         <div class="mt-3">{{ $rates->links() }}</div>
     @endif
 @endsection
+
+@push('scripts')
+    <script>
+        const marketRates = document.getElementById('market-rates');
+        if (marketRates) {
+            const reference = Number(marketRates.dataset.reference || '0.999');
+            marketRates.addEventListener('input', (event) => {
+                const field = event.target;
+                if (!field.classList.contains('purity-rate')) return;
+                const metal = field.dataset.metal;
+                const baseCode = metal === 'GOLD' ? '24K' : (metal === 'SILVER' ? '999' : '');
+                if (field.dataset.code !== baseCode) return;
+                const base = Number(field.value);
+                if (!Number.isFinite(base) || base <= 0 || reference <= 0) return;
+                marketRates.querySelectorAll('.purity-rate').forEach((other) => {
+                    if (other === field || other.dataset.metal !== metal) return;
+                    const fineness = Number(other.dataset.fineness);
+                    if (!Number.isFinite(fineness) || fineness <= 0) return;
+                    other.value = halfUp(base * fineness / reference);
+                });
+            });
+        }
+
+        function halfUp(amount) {
+            const negative = amount < 0;
+            const scaled = Math.abs(amount) * 100;
+            const whole = Math.floor(scaled);
+            const rounded = scaled - whole >= 0.5 ? whole + 1 : whole;
+            return ((negative ? -rounded : rounded) / 100).toFixed(2);
+        }
+    </script>
+@endpush

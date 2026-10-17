@@ -68,6 +68,8 @@ class MarketRateTest extends TestCase
         $this->actingAs($owner)->get(route('rates.index'))
             ->assertOk()
             ->assertSee('could not be fetched')
+            ->assertSee('Type the 24K price')
+            ->assertSee('data-code="24K"', false)
             ->assertSee('Save rate');
     }
 

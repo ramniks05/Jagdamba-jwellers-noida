@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enums\DocumentType;
 use App\Enums\SequenceResetPolicy;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Foundation\DocumentSequenceRequest;
@@ -51,10 +52,15 @@ class DocumentSequenceController extends Controller
         }
 
         $today = now()->toDateString();
-        $yearName = FinancialYear::query()
+        $year = FinancialYear::query()
             ->whereDate('start_date', '<=', $today)
             ->whereDate('end_date', '>=', $today)
-            ->value('name');
+            ->first();
+        $yearName = $year === null
+            ? null
+            : ($documentSequence->document_type === DocumentType::Invoice
+                ? DocumentNumberService::shortYear($year)
+                : $year->name);
 
         return view('foundation.sequences.edit', [
             'sequence' => $documentSequence,

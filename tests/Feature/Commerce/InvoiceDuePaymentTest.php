@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\StockLocation;
 use App\Models\User;
 use App\Services\Commerce\LedgerService;
+use App\Services\Foundation\NumberFormatService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -70,6 +71,11 @@ class InvoiceDuePaymentTest extends TestCase
     public function test_the_printed_bill_carries_a_qr_that_opens_the_bill_without_login(): void
     {
         [$owner, $sale] = $this->partPaidSale();
+        $owner->company->forceFill([
+            'website' => 'https://jagdamba.example',
+            'facebook' => 'https://facebook.com/jagdamba',
+            'instagram' => 'https://instagram.com/jagdamba',
+        ])->save();
         $link = URL::signedRoute('bills.show', ['sale' => $sale->uuid]);
 
         $this->actingAs($owner)->get(route('sales.show', $sale))
@@ -86,11 +92,71 @@ class InvoiceDuePaymentTest extends TestCase
             ->assertSee($sale->number)
             ->assertSee('Download PDF')
             ->assertSee('Meera Shah')
+            ->assertSee('jagdamba.example', false)
+            ->assertSee('class="invoice-links no-print"', false)
+            ->assertSee('https://facebook.com/jagdamba', false)
+            ->assertSee('https://instagram.com/jagdamba', false)
             ->assertDontSee('Receive payment');
 
         $this->get(route('bills.show', ['sale' => $sale->uuid]))->assertForbidden();
         $this->get($link.'x')->assertForbidden();
         $this->get(URL::signedRoute('bills.show', ['sale' => (string) Str::uuid()]))->assertNotFound();
+    }
+
+    public function test_choosing_a_customer_on_a_bill_shows_the_old_due(): void
+    {
+        [$owner, $sale] = $this->partPaidSale();
+        app(CompanyContext::class)->set($owner->company);
+        $due = app(LedgerService::class)->outstandingDues([(int) $sale->customer_id])[(int) $sale->customer_id];
+        $amount = trim(preg_replace('/[^\d.,]/', '', app(NumberFormatService::class)->money($due, $owner->company)) ?? '');
+
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertSee($amount.' due', false)
+            ->assertSee('Meera Shah', false);
+    }
+
+    public function test_a_new_bill_takes_the_old_due_and_settles_the_earlier_bills(): void
+    {
+        [$owner, $old] = $this->partPaidSale();
+        app(CompanyContext::class)->set($owner->company);
+        $oldDue = $old->balanceDue();
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+        $pay = BigDecimal::of((string) $old->total)->plus($oldDue)->minus('3000');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $old->customer->uuid,
+            'discount' => '0',
+            'making_mode' => 'inside',
+            'include_previous' => '1',
+            'new_pieces' => [[
+                'name' => 'Chain',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '10',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => (string) $pay]],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        app(CompanyContext::class)->set($owner->company);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+
+        $this->assertSame('0.00', $old->refresh()->balanceDue());
+        $this->assertSame($oldDue, (string) $sale->previous_due);
+        $this->assertSame(1, (int) $sale->previous_bills);
+        $this->assertSame('3000.00', $sale->balanceDue());
+        $this->assertSame($sale->balanceDue(), app(LedgerService::class)->balance(PartyType::Customer, (int) $sale->customer_id));
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Old due (1 bill)')
+            ->assertSee('Amount payable');
     }
 
     /**

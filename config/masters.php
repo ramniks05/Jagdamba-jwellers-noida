@@ -37,6 +37,7 @@ return [
         ['metal' => 'GOLD', 'code' => '18K', 'name' => '18K', 'fineness' => '0.750000'],
         ['metal' => 'GOLD', 'code' => '14K', 'name' => '14K', 'fineness' => '0.583000'],
         ['metal' => 'GOLD', 'code' => '10K', 'name' => '10K', 'fineness' => '0.417000'],
+        ['metal' => 'GOLD', 'code' => '9K', 'name' => '9K', 'fineness' => '0.375000'],
         ['metal' => 'SILVER', 'code' => '999', 'name' => '999', 'fineness' => '0.999000'],
         ['metal' => 'SILVER', 'code' => '925', 'name' => '925', 'fineness' => '0.925000'],
         ['metal' => 'PLATINUM', 'code' => '950', 'name' => '950', 'fineness' => '0.950000'],

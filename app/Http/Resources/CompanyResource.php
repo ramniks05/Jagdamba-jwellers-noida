@@ -26,6 +26,9 @@ class CompanyResource extends JsonResource
             'phone' => $this->phone,
             'mobile' => $this->mobile,
             'website' => $this->website,
+            'facebook' => $this->facebook,
+            'instagram' => $this->instagram,
+            'youtube' => $this->youtube,
             'gstin' => $this->gstin,
             'pan' => $this->pan,
             'address' => [

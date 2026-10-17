@@ -99,4 +99,37 @@ class LedgerService
     {
         return $this->spendableCredits([$customerId])[$customerId] ?? '0.00';
     }
+
+    /**
+     * What each customer still owes the shop. Advances are left out.
+     *
+     * @param  array<int, int>  $customerIds
+     * @return array<int, string>
+     */
+    public function outstandingDues(array $customerIds): array
+    {
+        if ($customerIds === []) {
+            return [];
+        }
+
+        $rows = LedgerEntry::query()
+            ->select('party_id')
+            ->selectRaw("sum(case when direction = 'debit' then amount else -amount end) as balance")
+            ->where('party_type', PartyType::Customer)
+            ->whereIn('party_id', $customerIds)
+            ->groupBy('party_id')
+            ->get();
+
+        $dues = [];
+
+        foreach ($rows as $row) {
+            $balance = BigDecimal::of((string) $row->balance);
+
+            if ($balance->isGreaterThan('0.004')) {
+                $dues[(int) $row->party_id] = (string) $balance->toScale(2, RoundingMode::HalfUp);
+            }
+        }
+
+        return $dues;
+    }
 }

@@ -17,7 +17,7 @@ class MarketRateBoard
     /**
      * @return list<array{purity: Purity, rate: string, selected: bool}>
      */
-    public function suggestions(MetalMarketQuote $quote): array
+    public function suggestions(?MetalMarketQuote $quote): array
     {
         $reference = (string) config('metal-prices.reference_fineness');
 
@@ -31,13 +31,18 @@ class MarketRateBoard
                 fn (Purity $purity) => -1 * (float) $purity->fineness,
             ])
             ->map(function (Purity $purity) use ($quote, $reference): array {
-                $base = $purity->metalType?->code === 'SILVER' ? $quote->silverPerGram : $quote->goldPerGram;
+                $rate = '';
+
+                if ($quote) {
+                    $base = $purity->metalType?->code === 'SILVER' ? $quote->silverPerGram : $quote->goldPerGram;
+                    $rate = (string) BigDecimal::of($base)
+                        ->multipliedBy((string) $purity->fineness)
+                        ->dividedBy($reference, 2, RoundingMode::HalfUp);
+                }
 
                 return [
                     'purity' => $purity,
-                    'rate' => (string) BigDecimal::of($base)
-                        ->multipliedBy((string) $purity->fineness)
-                        ->dividedBy($reference, 2, RoundingMode::HalfUp),
+                    'rate' => $rate,
                     'selected' => in_array($purity->code, ['24K', '22K', '18K', '999'], true),
                 ];
             })

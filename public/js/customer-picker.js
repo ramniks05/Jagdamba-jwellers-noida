@@ -11,6 +11,14 @@ function customerPicker(options) {
     const $ = (id) => document.getElementById(id);
     let current = null;
 
+    function dueMark(row) {
+        if (!row.due) return document.createTextNode('');
+        const mark = document.createElement('span');
+        mark.className = 'customer-due';
+        mark.textContent = ' (' + row.due + ')';
+        return mark;
+    }
+
     function matches(query, values) {
         const needle = query.trim().toLowerCase();
         if (needle === '') return false;
@@ -28,7 +36,7 @@ function customerPicker(options) {
         const info = document.createElement('span');
         info.className = 'result-info';
         const name = document.createElement('strong');
-        name.textContent = row.name;
+        name.append(row.name, dueMark(row));
         const detail = document.createElement('small');
         detail.textContent = [row.mobile, row.code].filter(Boolean).join(' · ');
         info.append(name, detail);
@@ -82,7 +90,7 @@ function customerPicker(options) {
         const label = document.createElement('small');
         label.textContent = settings.chipLabel;
         const name = document.createElement('strong');
-        name.textContent = row.name;
+        name.append(row.name, dueMark(row));
         const meta = document.createElement('span');
         meta.textContent = [row.mobile, row.code].filter(Boolean).join(' · ');
         info.append(label, name, meta);

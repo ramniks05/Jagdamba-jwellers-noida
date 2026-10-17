@@ -1,12 +1,15 @@
 @extends('layouts.app')
 
-@section('title', 'New bill')
+@section('title', $sale ? 'Edit '.$sale->number : 'New bill')
 
 @inject('billScan', 'App\Services\Commerce\BillScanService')
 @inject('shopContext', 'App\Support\CompanyContext')
 
 @section('content')
-    <h1 class="page-title h3 mb-3">New bill</h1>
+    <h1 class="page-title h3 mb-3">{{ $sale ? 'Edit '.$sale->number : 'New bill' }}</h1>
+    @if ($sale)
+        <p class="text-secondary">Invoice {{ $sale->number }} stays the same. Change the weight, the charges, or the payment, then save it again.</p>
+    @endif
     @if ($order)
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
@@ -16,9 +19,12 @@
             <a class="btn btn-outline-secondary btn-sm" href="{{ route('sales.create') }}">Bill without the order</a>
         </div>
     @endif
-    <form method="POST" action="{{ route('sales.store') }}" id="bill-form" autocomplete="off">
+    <form method="POST" action="{{ $sale ? route('sales.update', $sale) : route('sales.store') }}" id="bill-form" autocomplete="off">
         @csrf
-        <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid', $order?->customer?->uuid ?? request()->query('customer')) }}">
+        @if ($sale)
+            @method('PUT')
+        @endif
+        <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid', $sale?->customer?->uuid ?? $order?->customer?->uuid ?? request()->query('customer')) }}">
         @if ($order)
             <input type="hidden" name="order_uuid" value="{{ $order->uuid }}">
         @endif
@@ -53,12 +59,13 @@
                             <label class="form-label" for="weigh-name">Name</label>
                             <input class="form-control" id="weigh-name" placeholder="Ring" value="{{ $order?->description }}">
                         </div>
+                        <div class="mt-2">
+                            <label class="form-label" for="weigh-huid">HUID</label>
+                            <input class="form-control text-uppercase" id="weigh-huid" maxlength="32" placeholder="Type the hallmark ID if this piece is not in stock" autocomplete="off">
+                        </div>
                         <div class="weigh-section">
                             <div class="weigh-section-title">Weight</div>
                             <div class="stone-box mt-0">
-                                <div class="stone-box-head">
-                                    <span class="weigh-step-label">1 · Metal</span>
-                                </div>
                                 <div class="metal-row">
                                     <div>
                                         <label for="weigh-metal">Metal</label>
@@ -92,27 +99,17 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="stone-box">
-                                <div class="stone-box-head">
-                                    <span class="weigh-step-label">2 · Stones / diamond</span>
-                                    <button class="btn btn-link btn-sm p-0" id="stone-add" type="button"><i class="bi bi-plus-circle"></i> Add stone</button>
-                                </div>
-                                <div id="stone-list"></div>
-                            </div>
                             <div class="weigh-pair mt-3">
                                 <div class="weight-field">
-                                    <label for="weigh-gross">3 · Gross = net + stones + other</label>
-                                    <div class="weight-input">
-                                        <input class="form-control bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000" data-auto="1">
-                                        <span>g</span>
-                                    </div>
+                                    <label for="weigh-gross">Gross weight g</label>
+                                    <input class="form-control bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
                                 </div>
                                 <div class="weight-field">
-                                    <label for="weigh-other-g">Other (lac, wax) g</label>
-                                    <input class="form-control" id="weigh-other-g" inputmode="decimal" value="0">
+                                    <label for="weigh-other-g">Other g</label>
+                                    <input class="form-control" id="weigh-other-g" inputmode="decimal" value="" readonly tabindex="-1" placeholder="0.000">
                                 </div>
                             </div>
-                            <div class="form-text" id="weigh-gross-hint">Gross fills itself. Type the scale gross to check it.</div>
+                            <div class="form-text">Other is gross minus net. It fills itself.</div>
                         </div>
                         <div class="weigh-section">
                             <div class="charges-head">
@@ -130,8 +127,8 @@
                                         <select class="form-select charge-method" id="weigh-making">
                                             <option value="">None</option>
                                             @foreach ($making as $method)
-                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'percentage')>{{ $method->name }}</option>
-                                            @endforeach
+                                            <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
+                                        @endforeach
                                         </select>
                                         <input class="form-control charge-value" id="weigh-making-value" inputmode="decimal" value="0" aria-label="Making amount">
                                     </div>
@@ -142,7 +139,7 @@
                                         <select class="form-select charge-method" id="weigh-wastage">
                                             <option value="">None</option>
                                             @foreach ($wastage as $method)
-                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'percentage')>{{ $method->name }}</option>
+                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
                                             @endforeach
                                         </select>
                                         <input class="form-control charge-value" id="weigh-wastage-value" inputmode="decimal" value="0" aria-label="Wastage amount">
@@ -169,14 +166,6 @@
                         </div>
                     </div>
                 </div>
-                <div class="card mb-3">
-                    <div class="card-header bg-white">Tagged piece in stock</div>
-                    <div class="card-body">
-                        <label class="form-label" for="piece-search">Code or barcode</label>
-                        <input class="form-control" id="piece-search" value="{{ $search }}" placeholder="R001 or a piece name" autocomplete="off">
-                        <div class="bill-results mt-2" id="piece-results"></div>
-                    </div>
-                </div>
             </div>
             <div class="col-lg-5 bill-side">
                 <div class="card mb-3">
@@ -190,7 +179,7 @@
                     <div class="card-body bill-sums">
                         <div class="bill-settings">
                             <label class="form-label mb-0" for="discount">Discount ₹</label>
-                            <input class="form-control form-control-sm" id="discount" name="discount" inputmode="decimal" value="{{ old('discount', '0') }}">
+                            <input class="form-control form-control-sm" id="discount" name="discount" inputmode="decimal" value="{{ old('discount', $sale?->discount_amount ?? '0') }}">
                         </div>
                         <div class="bill-block">
                             <div class="bill-row bill-row-muted"><span>Net weight</span><span id="bill-net-weight">0.000 g</span></div>
@@ -210,6 +199,13 @@
                         @if ($order)
                             <div class="bill-row"><span>Advance {{ $order->number }}</span><span id="bill-advance">0.00</span></div>
                         @endif
+                        <div class="bill-credit d-none" id="bill-old-due-row">
+                            <label class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="include-previous" name="include_previous" value="1" @checked(old('include_previous', '1') == '1')>
+                                <span class="form-check-label">Add old due <small id="bill-old-due-label"></small></span>
+                            </label>
+                            <span id="bill-old-due">0.00</span>
+                        </div>
                         <div class="bill-credit d-none" id="bill-credit-row">
                             <label class="form-check mb-0">
                                 <input class="form-check-input" type="checkbox" id="use-credit-toggle" @checked((float) old('use_credit', 1) > 0)>
@@ -224,7 +220,7 @@
                         @enderror
                         <p class="text-secondary small d-none mb-2" id="bill-note"></p>
                         <label class="form-label" for="notes">Note</label>
-                        <input class="form-control" id="notes" name="notes" value="{{ old('notes') }}">
+                        <input class="form-control" id="notes" name="notes" value="{{ old('notes', $sale?->notes) }}">
                     </div>
                 </div>
                 <div class="card mb-3">
@@ -233,24 +229,24 @@
                         <button class="btn btn-outline-secondary btn-sm" id="use-total" type="button">Cash</button>
                     </div>
                     <div class="card-body">
-                        @foreach ([0, 1, 2] as $slot)
+                        @php($savedPayments = ($draft ?? [])['payments'] ?? [])
+                        @foreach (range(0, max(2, count($savedPayments) - 1)) as $slot)
+                            @php($savedPayment = is_array(old('payments.'.$slot)) ? old('payments.'.$slot) : ($savedPayments[$slot] ?? []))
                             <div class="row g-2 mb-2">
                                 <div class="col-4">
                                     <select class="form-select" name="payments[{{ $slot }}][method]">
-                                        <option value="cash">Cash</option>
-                                        <option value="upi">UPI</option>
-                                        <option value="card">Card</option>
-                                        <option value="bank">Bank</option>
-                                        <option value="cheque">Cheque</option>
+                                        @foreach (['cash' => 'Cash', 'upi' => 'UPI', 'card' => 'Card', 'bank' => 'Bank', 'cheque' => 'Cheque'] as $payMethod => $payLabel)
+                                            <option value="{{ $payMethod }}" @selected(($savedPayment['method'] ?? ($slot === 0 ? 'cash' : '')) === $payMethod)>{{ $payLabel }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
-                                <div class="col-4"><input class="form-control bill-pay" name="payments[{{ $slot }}][amount]" value="{{ old('payments.'.$slot.'.amount') }}" placeholder="Amount"></div>
-                                <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ old('payments.'.$slot.'.reference') }}" placeholder="Reference"></div>
+                                <div class="col-4"><input class="form-control bill-pay" name="payments[{{ $slot }}][amount]" value="{{ $savedPayment['amount'] ?? '' }}" placeholder="Amount"></div>
+                                <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ $savedPayment['reference'] ?? '' }}" placeholder="Reference"></div>
                             </div>
                         @endforeach
                     </div>
                 </div>
-                <button class="btn btn-primary w-100" type="submit">Save invoice</button>
+                <button class="btn btn-primary w-100" type="submit">{{ $sale ? 'Update '.$sale->number : 'Save invoice' }}</button>
             </div>
         </div>
     </form>
@@ -278,6 +274,9 @@
             'mobile' => $customer->mobile,
             'walkin' => (bool) $customer->is_system,
             'credit' => (float) ($credits[$customer->id] ?? 0),
+            'due' => isset($openDues[$customer->id]) ? $money($openDues[$customer->id]['amount']).' due' : '',
+            'due_amount' => (float) ($openDues[$customer->id]['amount'] ?? 0),
+            'due_bills' => (int) ($openDues[$customer->id]['bills'] ?? 0),
         ])->values(),
         'scanUrl' => route('sales.scan'),
         'orderUuid' => $order?->uuid,
@@ -288,6 +287,9 @@
             'branch_id' => $rate->branch_id,
             'rate_per_gram' => (string) $rate->rate_per_gram,
         ])->values(),
+        'lockedRates' => ($draft ?? [])['lockedRates'] ?? [],
+        'editing' => $draft ? ['stock' => $draft['stock'], 'fresh' => $draft['fresh']] : null,
+        'fixedPrevious' => ($draft ?? [])['fixedPrevious'] ?? null,
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
 
@@ -315,6 +317,8 @@
             if (bill.order && String(bill.order.metal_type_id) === String(metalId) && String(bill.order.purity_id) === String(purityId)) {
                 return { rate_per_gram: bill.order.rate };
             }
+            const locked = (bill.lockedRates || []).find((rate) => String(rate.metal_type_id) === String(metalId) && String(rate.purity_id) === String(purityId));
+            if (locked) return locked;
             const rows = bill.rates.filter((rate) => String(rate.metal_type_id) === String(metalId) && String(rate.purity_id) === String(purityId));
             return rows.find((rate) => String(rate.branch_id) === String(branchId))
                 || rows.find((rate) => rate.branch_id === null)
@@ -348,92 +352,7 @@
         }
 
         function collectStones() {
-            return Array.from(document.querySelectorAll('#stone-list .stone-row')).map((row) => {
-                const unit = row.querySelector('.stone-unit').value;
-                return {
-                    name: row.querySelector('.stone-name').value.trim(),
-                    weight: row.querySelector('.stone-weight').value || '0',
-                    value: row.querySelector('.stone-value').value || '0',
-                    rate: unit === 'fixed' ? '' : row.querySelector('.stone-rate').value,
-                    rate_unit: unit,
-                };
-            }).filter((stone) => stone.name !== '' || Number(stone.weight) > 0 || Number(stone.value) > 0);
-        }
-
-        function syncStoneRow(row) {
-            const unit = row.querySelector('.stone-unit').value;
-            const rate = row.querySelector('.stone-rate');
-            const value = row.querySelector('.stone-value');
-            const fixed = unit === 'fixed';
-            rate.disabled = fixed;
-            if (fixed) rate.value = '';
-            value.readOnly = !fixed;
-            if (!fixed) {
-                const weight = Number(row.querySelector('.stone-weight').value || 0);
-                const amount = weight * (unit === 'carat' ? 5 : 1) * Number(rate.value || 0);
-                value.value = rate.value === '' ? '' : round2(amount).toFixed(2);
-            }
-        }
-
-        function stoneWeight() {
-            return collectStones().reduce((sum, stone) => sum + Number(stone.weight || 0), 0);
-        }
-
-        function addStoneRow(stone = null) {
-            const row = document.createElement('div');
-            row.className = 'stone-row';
-            [
-                ['Name', 'stone-name', 'Stone name', 'text'],
-                ['Weight g', 'stone-weight', '0.000', 'decimal'],
-                ['Per', 'stone-unit', '', 'unit'],
-                ['Rate', 'stone-rate', '0', 'decimal'],
-                ['Value', 'stone-value', '0', 'decimal'],
-            ].forEach(([labelText, className, placeholder, mode]) => {
-                const field = document.createElement('div');
-                const label = document.createElement('label');
-                label.textContent = labelText;
-                let input;
-                if (mode === 'unit') {
-                    input = document.createElement('select');
-                    input.className = 'form-select ' + className;
-                    [['gram', 'Gram'], ['carat', 'Carat'], ['fixed', 'Fixed']].forEach(([value, text]) => input.add(new Option(text, value)));
-                } else {
-                    input = document.createElement('input');
-                    input.className = 'form-control ' + className;
-                    input.placeholder = placeholder;
-                    if (mode === 'decimal') input.inputMode = 'decimal';
-                }
-                field.append(label, input);
-                row.appendChild(field);
-            });
-            row.addEventListener('input', () => syncStoneRow(row));
-            row.addEventListener('change', () => syncStoneRow(row));
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = 'bill-remove';
-            remove.setAttribute('aria-label', 'Remove stone');
-            remove.textContent = '×';
-            remove.addEventListener('click', () => {
-                row.remove();
-                if (!document.querySelector('#stone-list .stone-row')) addStoneRow();
-                previewWeigh();
-            });
-            row.appendChild(remove);
-            document.getElementById('stone-list').appendChild(row);
-            if (stone) {
-                row.querySelector('.stone-name').value = stone.name || '';
-                row.querySelector('.stone-weight').value = Number(stone.weight) > 0 ? stone.weight : '';
-                row.querySelector('.stone-unit').value = stone.rate_unit || 'gram';
-                row.querySelector('.stone-rate').value = stone.rate || '';
-                row.querySelector('.stone-value').value = stone.value || '';
-            }
-            syncStoneRow(row);
-        }
-
-        function resetStones(stones = []) {
-            document.getElementById('stone-list').replaceChildren();
-            if (stones.length === 0) addStoneRow();
-            stones.forEach((stone) => addStoneRow(stone));
+            return [];
         }
 
         function showSplit(target, rows) {
@@ -488,31 +407,24 @@
             const metal = option('weigh-metal');
             const purity = option('weigh-purity');
             const location = option('weigh-location');
-            const grossInput = document.getElementById('weigh-gross');
             const typedNet = Number(document.getElementById('weigh-net').value || 0);
-            const stones = collectStones();
-            const deduct = stoneWeight() + Number(document.getElementById('weigh-other-g').value || 0);
-            grossInput.placeholder = typedNet > 0 ? (typedNet + deduct).toFixed(3) : '0.000';
-            if (grossInput.dataset.auto === '1') {
-                grossInput.value = typedNet > 0 ? (typedNet + deduct).toFixed(3) : '';
-            }
-            grossInput.classList.toggle('is-auto', grossInput.dataset.auto === '1' && typedNet > 0);
-            const typedGross = Number(grossInput.value || 0);
+            const typedGross = Number(document.getElementById('weigh-gross').value || 0);
+            const otherInput = document.getElementById('weigh-other-g');
             const shownRate = metal && purity && location ? currentRate(metal.dataset.id, purity.dataset.id, location.dataset.branch) : null;
-            const metalNet = typedNet > 0 ? typedNet : typedGross - deduct;
             document.getElementById('weigh-metal-rate').value = shownRate ? money.format(Number(shownRate.rate_per_gram)) : '';
-            document.getElementById('weigh-metal-value').value = shownRate && metalNet > 0 ? money.format(round2(metalNet * Number(shownRate.rate_per_gram))) : '';
-            if (typedGross <= 0 && typedNet <= 0) {
-                return emptyQuote('Enter the gross or net weight');
+            document.getElementById('weigh-metal-value').value = shownRate && typedNet > 0 ? money.format(round2(typedNet * Number(shownRate.rate_per_gram))) : '';
+            if (typedNet <= 0) {
+                otherInput.value = '';
+                return emptyQuote('Enter the net weight');
             }
-            const gross = typedGross > 0 ? typedGross : typedNet + deduct;
-            const net = typedNet > 0 ? typedNet : typedGross - deduct;
-            if (typedGross > 0 && typedNet > 0 && Math.abs(typedGross - (typedNet + deduct)) >= 0.0005) {
-                return emptyQuote('Gross ' + typedGross.toFixed(3) + ' g does not match net ' + typedNet.toFixed(3) + ' g + stones and other ' + deduct.toFixed(3) + ' g = ' + (typedNet + deduct).toFixed(3) + ' g');
+            if (typedGross > 0 && typedGross + 0.0005 < typedNet) {
+                otherInput.value = '';
+                return emptyQuote('Gross ' + typedGross.toFixed(3) + ' g is less than net ' + typedNet.toFixed(3) + ' g');
             }
-            if (net <= 0) {
-                return emptyQuote('Net weight must be more than zero');
-            }
+            const other = typedGross > 0 ? Math.round((typedGross - typedNet) * 1000) / 1000 : 0;
+            otherInput.value = typedGross > 0 ? other.toFixed(3) : '';
+            const net = typedNet;
+            const gross = typedGross > 0 ? typedGross : typedNet;
             if (!metal || !purity || !location) {
                 return emptyQuote('Choose metal and purity');
             }
@@ -527,6 +439,7 @@
             const wastageCode = wastage && wastage.value ? (wastage.dataset.code || 'fixed') : 'fixed';
             const makingValue = making && making.value ? Number(document.getElementById('weigh-making-value').value || 0) : 0;
             const wastageValue = wastage && wastage.value ? Number(document.getElementById('weigh-wastage-value').value || 0) : 0;
+            const stones = collectStones();
             const stone = stones.reduce((sum, row) => sum + Number(row.value || 0), 0);
             const metalAmount = round2(net * rateValue);
             const wastageAmount = wastageCode === 'percentage' ? net * wastageValue / 100 * rateValue : (wastageCode === 'per_gram' ? net * wastageValue : wastageValue);
@@ -556,7 +469,7 @@
                 ...(wastageAmount > 0 ? [chargeRow('Wastage', wastageCode, wastageValue, round2(wastageAmount), 'wastage')] : []),
                 ...(makingAmount > 0 ? [chargeRow(makingLabel, makingCode, makingValue, round2(makingAmount), 'making')] : []),
             ];
-            showBreakdown(parts, line, { gross, net, stone: stoneWeight(), other: Number(document.getElementById('weigh-other-g').value || 0) });
+            showBreakdown(parts, line, { gross, net, stone: 0, other });
             return { line, gross, net, metal: metalAmount, making: round2(makingAmount), wastage: round2(wastageAmount), stone: round2(stone), parts, stones };
         }
 
@@ -565,32 +478,32 @@
             const product = document.querySelector('#weigh-products button.active');
             return {
                 name: field('weigh-name'),
+                huid: field('weigh-huid'),
                 product: product ? product.dataset.name : '',
                 metal: field('weigh-metal'),
                 purity: field('weigh-purity'),
                 location: field('weigh-location'),
                 net: field('weigh-net'),
                 gross: field('weigh-gross'),
-                grossAuto: document.getElementById('weigh-gross').dataset.auto,
                 other: field('weigh-other-g'),
                 making: field('weigh-making'),
                 makingValue: field('weigh-making-value'),
                 wastage: field('weigh-wastage'),
                 wastageValue: field('weigh-wastage-value'),
-                stones: collectStones(),
+                stones: [],
             };
         }
 
         function applyWeigh(state) {
             const set = (id, value) => { document.getElementById(id).value = value; };
             set('weigh-name', state.name);
+            set('weigh-huid', state.huid || '');
             document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.toggle('active', state.product !== '' && row.dataset.name === state.product));
             set('weigh-metal', state.metal);
             set('weigh-purity', state.purity);
             set('weigh-location', state.location);
             set('weigh-net', state.net);
             set('weigh-gross', state.gross);
-            document.getElementById('weigh-gross').dataset.auto = state.grossAuto;
             set('weigh-other-g', state.other);
             set('weigh-making', state.making);
             set('weigh-making-value', state.makingValue);
@@ -598,7 +511,6 @@
             set('weigh-wastage-value', state.wastageValue);
             syncCharge('making');
             syncCharge('wastage');
-            resetStones(state.stones);
             document.getElementById('weigh-error').classList.add('d-none');
             previewWeigh();
         }
@@ -626,52 +538,6 @@
             renderBill();
             document.getElementById('weigh-name').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
             document.getElementById('weigh-net').focus({ preventScroll: true });
-        }
-
-        function matches(query, values) {
-            const needle = query.trim().toLowerCase();
-            if (needle === '') return false;
-            return values.some((value) => String(value || '').toLowerCase().includes(needle));
-        }
-
-        function resultRow(title, meta, onAdd) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            const info = document.createElement('span');
-            info.className = 'result-info';
-            const name = document.createElement('strong');
-            name.textContent = title;
-            const detail = document.createElement('small');
-            detail.textContent = meta;
-            info.append(name, detail);
-            const add = document.createElement('span');
-            add.className = 'result-add';
-            add.innerHTML = '<i class="bi bi-plus-lg"></i> Add to bill';
-            button.append(info, add);
-            button.addEventListener('click', onAdd);
-            return button;
-        }
-
-        function renderPieces() {
-            const query = document.getElementById('piece-search').value;
-            const box = document.getElementById('piece-results');
-            const rows = bill.pieces.filter((row) => matches(query, [row.name, row.code, row.barcode, row.huid, row.metal]) && !stockLines.some((line) => line.uuid === row.uuid)).slice(0, 8);
-            box.innerHTML = '';
-            if (query.trim() === '') return;
-            if (rows.length === 0) {
-                box.innerHTML = '<div class="p-2 text-secondary small">Not in stock</div>';
-                return;
-            }
-            rows.forEach((row) => {
-                const button = resultRow(row.name, [row.code, row.metal, row.net, row.label].filter(Boolean).join(' · '), () => {
-                    stockLines.push(row);
-                    document.getElementById('piece-search').value = '';
-                    renderPieces();
-                    renderBill();
-                });
-                button.disabled = !row.ready;
-                box.appendChild(button);
-            });
         }
 
         function makingName() {
@@ -739,9 +605,10 @@
                 head.append(name, total);
                 const meta = document.createElement('div');
                 meta.className = 'bill-line-meta';
+                const huid = line.kind === 'stock' ? line.row.huid : line.row.fields.huid;
                 meta.textContent = line.kind === 'stock'
-                    ? [line.row.code, line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
-                    : [line.row.metal, 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g', 'Net ' + Number(line.row.netWeight || 0).toFixed(3) + ' g'].join(' · ');
+                    ? [line.row.code, huid ? 'HUID ' + huid : '', line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
+                    : [line.row.metal, huid ? 'HUID ' + huid : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g', 'Net ' + Number(line.row.netWeight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
                 nameCell.append(head, meta);
                 const split = document.createElement('div');
                 split.className = 'piece-split bill-line-split';
@@ -781,7 +648,6 @@
                             editingIndex -= 1;
                         }
                     }
-                    renderPieces();
                     renderBill();
                 });
                 body.appendChild(tr);
@@ -889,14 +755,23 @@
                 payNow = round2(total - advance);
                 document.getElementById('bill-advance').textContent = '− ' + money.format(advance);
             }
+            const oldBox = document.getElementById('include-previous');
+            const oldDue = bill.fixedPrevious
+                ? Number(bill.fixedPrevious.amount || 0)
+                : (customer && !customer.walkin && oldBox.checked ? Number(customer.due_amount || 0) : 0);
+            document.getElementById('bill-old-due-row').classList.toggle('d-none', bill.fixedPrevious ? oldDue <= 0 : !(customer && Number(customer.due_amount) > 0 && !customer.walkin));
+            document.getElementById('bill-old-due-label').textContent = bill.fixedPrevious
+                ? '(' + bill.fixedPrevious.bills + (bill.fixedPrevious.bills === 1 ? ' bill already on this invoice)' : ' bills already on this invoice)')
+                : (customer && customer.due_bills ? '(' + customer.due_bills + (customer.due_bills === 1 ? ' bill)' : ' bills)') : '');
+            document.getElementById('bill-old-due').textContent = money.format(oldDue);
             const credit = customer && !customer.walkin ? Number(customer.credit || 0) : 0;
             const creditUsed = credit > 0 && document.getElementById('use-credit-toggle').checked ? round2(Math.min(credit, payNow)) : 0;
             document.getElementById('bill-credit-row').classList.toggle('d-none', credit <= 0);
             document.getElementById('bill-credit-available').textContent = money.format(credit) + ' on account';
             document.getElementById('bill-credit').textContent = '− ' + money.format(creditUsed);
             document.getElementById('use-credit').value = creditUsed.toFixed(2);
-            payNow = round2(payNow - creditUsed);
-            document.getElementById('bill-pay-now-row').classList.toggle('d-none', !bill.order && creditUsed <= 0);
+            payNow = round2(payNow - creditUsed + oldDue);
+            document.getElementById('bill-pay-now-row').classList.toggle('d-none', !bill.order && creditUsed <= 0 && oldDue <= 0);
             document.getElementById('bill-pay-now').textContent = money.format(payNow);
             document.getElementById('bill-form').dataset.pay = String(payNow);
             const note = document.getElementById('bill-note');
@@ -990,7 +865,6 @@
             const known = bill.pieces.findIndex((row) => row.uuid === piece.uuid);
             if (known === -1) bill.pieces.push(piece); else bill.pieces[known] = piece;
             stockLines.push(piece);
-            renderPieces();
             renderBill();
             scanMessage('success', 'Added ' + [piece.code, piece.name, piece.metal, piece.net ? 'Net ' + piece.net : '', piece.label].filter(Boolean).join(' · '), piece.uuid);
         }
@@ -1013,9 +887,9 @@
             event.preventDefault();
         });
 
-        document.getElementById('piece-search').addEventListener('input', renderPieces);
         document.getElementById('discount').addEventListener('input', renderTotals);
         document.getElementById('use-credit-toggle').addEventListener('change', renderTotals);
+        document.getElementById('include-previous').addEventListener('change', renderTotals);
         document.getElementById('making-mode').addEventListener('change', () => {
             renderBill();
             previewWeigh();
@@ -1023,15 +897,6 @@
         document.getElementById('bill-form').addEventListener('input', (event) => {
             if ((event.target.id && event.target.id.startsWith('weigh-')) || event.target.closest('#stone-list')) previewWeigh();
         });
-        document.getElementById('weigh-gross').addEventListener('input', (event) => {
-            event.target.dataset.auto = '';
-        });
-        document.getElementById('weigh-gross').addEventListener('blur', (event) => {
-            if (event.target.value.trim() !== '') return;
-            event.target.dataset.auto = '1';
-            previewWeigh();
-        });
-        document.getElementById('stone-add').addEventListener('click', () => addStoneRow());
         document.getElementById('weigh-metal').addEventListener('change', previewWeigh);
         document.getElementById('weigh-purity').addEventListener('change', previewWeigh);
         function syncCharge(kind) {
@@ -1068,16 +933,17 @@
             const name = document.getElementById('weigh-name').value.trim();
             const quote = previewWeigh();
             const stones = collectStones();
-            if (name === '' || quote === null || stones.some((stone) => stone.name === '')) {
-                error.textContent = name === '' ? 'Choose a product.' : (stones.some((stone) => stone.name === '') ? 'Write the stone name.' : document.getElementById('weigh-price').textContent);
+            const keptStones = stones.length ? stones : (editingIndex !== null ? (freshLines[editingIndex].stones || []) : []);
+            if (name === '' || quote === null) {
+                error.textContent = name === '' ? 'Choose a product.' : document.getElementById('weigh-price').textContent;
                 error.classList.remove('d-none');
                 return;
             }
             error.classList.add('d-none');
             const metal = option('weigh-metal');
             const purity = option('weigh-purity');
-            const stoneWeightTotal = stones.reduce((sum, stone) => sum + Number(stone.weight || 0), 0);
-            const stoneValueTotal = stones.reduce((sum, stone) => sum + Number(stone.value || 0), 0);
+            const stoneWeightTotal = keptStones.reduce((sum, stone) => sum + Number(stone.weight || 0), 0);
+            const stoneValueTotal = keptStones.reduce((sum, stone) => sum + Number(stone.value || 0), 0);
             const entry = {
                 name,
                 form: weighState(),
@@ -1089,9 +955,10 @@
                 wastageAmount: quote.wastage,
                 stoneAmount: quote.stone,
                 parts: quote.parts,
-                stones,
+                stones: keptStones,
                 fields: {
                     name,
+                    huid: document.getElementById('weigh-huid').value.trim().toUpperCase(),
                     metal_uuid: metal.value,
                     purity_uuid: purity.value,
                     location_uuid: option('weigh-location').value,
@@ -1123,13 +990,12 @@
             }
             if (stockLines.length === 0 && freshLines.length === 0) {
                 event.preventDefault();
-                document.getElementById('piece-search').focus();
+                scanInput.focus();
             }
         });
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) resetWeigh();
         });
-        resetStones();
         weighDefaults = weighState();
         const picker = customerPicker({
             customers: bill.customers,
@@ -1140,10 +1006,20 @@
             chipLabel: 'Bill to',
             onChange: (row) => {
                 customer = row;
+                if (!bill.fixedPrevious) {
+                    document.getElementById('include-previous').checked = !!(row && Number(row.due_amount) > 0);
+                }
                 renderTotals();
             },
         });
-        renderPieces();
+        if (bill.editing) {
+            bill.editing.stock.forEach((uuid) => {
+                const row = bill.pieces.find((piece) => piece.uuid === uuid);
+                if (row) stockLines.push(row);
+            });
+            bill.editing.fresh.forEach((row) => freshLines.push(row));
+            if (bill.fixedPrevious) document.getElementById('include-previous').checked = false;
+        }
         renderBill();
         previewWeigh();
         if (document.activeElement === document.body || document.activeElement === null) scanInput.focus();

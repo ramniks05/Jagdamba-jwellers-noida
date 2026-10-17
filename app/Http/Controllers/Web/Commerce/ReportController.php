@@ -8,12 +8,15 @@ use App\Enums\PartyType;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Branch;
 use App\Models\Item;
 use App\Models\LedgerEntry;
 use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\Sale;
 use App\Models\StockLocation;
+use App\Services\Commerce\MetalStockService;
+use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
 use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -27,7 +30,7 @@ class ReportController extends Controller
 {
     private const PAGE_SIZES = [25, 50, 100];
 
-    public function stock(Request $request, NumberFormatService $format, CompanyContext $context): View
+    public function stock(Request $request, NumberFormatService $format, MetalStockService $metalStock, CompanyContext $context): View
     {
         $this->authorize('reports.view');
         $company = $context->company();
@@ -80,7 +83,9 @@ class ReportController extends Controller
         return view('commerce.reports.stock', [
             'pieces' => $this->page($query, $request, (int) $totals->pieces),
             'byMetal' => $byMetal,
-            'metals' => MetalType::query()->where('is_active', true)->orderBy('name')->get(),
+            'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->where('is_active', true)->orderByDesc('fineness')])->where('is_active', true)->orderBy('name')->get(),
+            'branches' => Branch::query()->visibleTo($request->user())->orderByDesc('is_head_office')->orderBy('name')->get(),
+            'metalStock' => $metalStock->balances(),
             'categories' => Category::query()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->orderBy('name')->get(),
             'filters' => compact('search', 'metal', 'category', 'location', 'status', 'source', 'sort'),
@@ -95,7 +100,7 @@ class ReportController extends Controller
         ]);
     }
 
-    public function sales(Request $request, NumberFormatService $format, CompanyContext $context): View
+    public function sales(Request $request, NumberFormatService $format, WeightSummary $weights, CompanyContext $context): View
     {
         $this->authorize('reports.view');
         $company = $context->company();
@@ -115,18 +120,20 @@ class ReportController extends Controller
                 $rows->where(fn ($inner) => $inner->where('number', 'like', $like)
                     ->orWhereHas('customer', fn ($customers) => $customers->where('name', 'like', $like)->orWhere('mobile', 'like', $like)->orWhere('code', 'like', $like)));
             })
-            ->when($payment === 'due', fn ($rows) => $rows->whereColumn('total', '>', 'paid_amount'))
-            ->when($payment === 'paid', fn ($rows) => $rows->whereColumn('total', '<=', 'paid_amount'));
+            ->when($payment === 'due', fn ($rows) => $rows->whereRaw('paid_amount < total + previous_due'))
+            ->when($payment === 'paid', fn ($rows) => $rows->whereRaw('paid_amount >= total + previous_due'));
 
         $totals = (clone $query)->toBase()
-            ->selectRaw('count(*) as bills, coalesce(sum(tax_amount + making_tax_amount), 0) as tax, coalesce(sum(total), 0) as total, coalesce(sum(paid_amount), 0) as paid, coalesce(sum(total - paid_amount), 0) as due')
+            ->selectRaw('count(*) as bills, coalesce(sum(tax_amount + making_tax_amount), 0) as tax, coalesce(sum(total), 0) as total, coalesce(sum(paid_amount), 0) as paid, coalesce(sum(total + previous_due - paid_amount), 0) as due')
             ->first();
 
         $money = fn (string $amount) => $format->money($amount, $company);
         $today = now()->toDateString();
+        $weightRows = $weights->sales(clone $query);
 
         return view('commerce.reports.sales', [
-            'sales' => $this->page($query->with('customer')->orderBy('sold_at')->orderBy('id'), $request, (int) $totals->bills),
+            'sales' => $this->page($query->with('customer')->withSum('lines as net_weight', 'net_weight')->withSum('lines as gross_weight', 'gross_weight')->orderBy('sold_at')->orderBy('id'), $request, (int) $totals->bills),
+            'weights' => $weightRows,
             'filters' => compact('search', 'from', 'to', 'payment'),
             'ranges' => [
                 'Today' => [$today, $today],
@@ -142,6 +149,7 @@ class ReportController extends Controller
             'perPage' => $this->perPage($request),
             'company' => $company,
             'money' => $money,
+            'weight' => fn (string $amount) => $format->weight($amount, $company),
         ]);
     }
 

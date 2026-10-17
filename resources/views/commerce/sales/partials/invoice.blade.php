@@ -25,6 +25,9 @@
                     @if ($phones !== '')
                         <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
                     @endif
+                    @if (filled($company->website))
+                        <p><a href="{{ $company->website }}">{{ preg_replace('#^https?://#i', '', rtrim($company->website, '/')) }}</a></p>
+                    @endif
                 </div>
             </div>
             <div class="invoice-head-side invoice-qr invoice-qr-top">
@@ -172,6 +175,16 @@
                 <td>Total</td>
                 <td>{{ $money((string) $sale->total) }}</td>
             </tr>
+            @if ((float) $sale->previous_due > 0)
+                <tr>
+                    <td>Old due ({{ (int) $sale->previous_bills }} {{ (int) $sale->previous_bills === 1 ? 'bill' : 'bills' }})</td>
+                    <td>{{ $money((string) $sale->previous_due) }}</td>
+                </tr>
+                <tr class="invoice-grand">
+                    <td>Amount payable</td>
+                    <td>{{ $money((string) Brick\Math\BigDecimal::of((string) $sale->total)->plus((string) $sale->previous_due)->toScale(2)) }}</td>
+                </tr>
+            @endif
             @if ((float) $sale->advance_amount > 0)
                 <tr>
                     <td>Advance {{ $sale->advanceOrder?->number }}</td>
@@ -211,3 +224,15 @@
         </div>
     </footer>
 </article>
+@php($shopLinks = collect([
+    'Facebook' => [$company->facebook, 'bi-facebook'],
+    'Instagram' => [$company->instagram, 'bi-instagram'],
+    'YouTube' => [$company->youtube, 'bi-youtube'],
+])->filter(fn (array $link) => filled($link[0])))
+@if ($shopLinks->isNotEmpty())
+    <nav class="invoice-links no-print" aria-label="Shop links">
+        @foreach ($shopLinks as $label => [$url, $icon])
+            <a href="{{ $url }}" target="_blank" rel="noopener noreferrer"><i class="bi {{ $icon }}"></i> {{ $label }}</a>
+        @endforeach
+    </nav>
+@endif

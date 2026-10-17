@@ -4,6 +4,89 @@
 
 @section('content')
     @include('commerce.reports.partials.head', ['title' => 'Stock report'])
+    @if ($metalStock->isNotEmpty())
+        <div class="table-responsive mb-3">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Metal</th>
+                        <th>Purity</th>
+                        <th class="num">Opening</th>
+                        <th class="num">Purchased</th>
+                        <th class="num">Sold</th>
+                        <th class="num">In hand</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($metalStock as $row)
+                        <tr>
+                            <td>{{ $row['metal'] }}</td>
+                            <td>{{ $row['purity'] }}</td>
+                            <td class="num">{{ $weight($row['opening']) }}</td>
+                            <td class="num">{{ $weight($row['purchased']) }}</td>
+                            <td class="num">{{ $weight($row['sold']) }}</td>
+                            <td class="num {{ $row['short'] ? 'text-danger' : '' }}"><strong>{{ $weight($row['balance']) }}</strong></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+    @can('inventory.create')
+        <div class="card mb-3 no-print">
+            <div class="card-header bg-white">Add grams</div>
+            <div class="card-body">
+                <p class="text-secondary small">Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds more grams. A bill takes the net grams off. Pieces are not added here.</p>
+                <form method="POST" action="{{ route('reports.stock.store') }}" class="row g-2 align-items-end" id="metal-stock-form">
+                    @csrf
+                    @if ($branches->count() > 1)
+                        <div class="col-md-2 col-6">
+                            <label class="form-label" for="stock-branch">Branch</label>
+                            <select class="form-select" id="stock-branch" name="branch_uuid" required>
+                                @foreach ($branches as $branch)
+                                    <option value="{{ $branch->uuid }}" @selected(old('branch_uuid', $branches->first()?->uuid) === $branch->uuid)>{{ $branch->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @else
+                        <input type="hidden" name="branch_uuid" value="{{ $branches->first()?->uuid }}">
+                    @endif
+                    <div class="col-md-2 col-6">
+                        <label class="form-label" for="stock-kind">Add as</label>
+                        <select class="form-select" id="stock-kind" name="kind">
+                            <option value="opening" @selected(old('kind', 'opening') === 'opening')>Opening stock</option>
+                            <option value="purchase" @selected(old('kind') === 'purchase')>Purchase</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <label class="form-label" for="stock-metal">Metal</label>
+                        <select class="form-select" id="stock-metal" name="metal_uuid" required>
+                            @foreach ($metals as $metal)
+                                <option value="{{ $metal->uuid }}" @selected(old('metal_uuid') === $metal->uuid)>{{ $metal->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <label class="form-label" for="stock-purity">Purity</label>
+                        <select class="form-select" id="stock-purity" name="purity_uuid" required>
+                            @foreach ($metals as $metal)
+                                @foreach ($metal->purities as $purity)
+                                    <option value="{{ $purity->uuid }}" data-metal="{{ $metal->uuid }}" @selected(old('purity_uuid') === $purity->uuid)>{{ $purity->name }}</option>
+                                @endforeach
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <label class="form-label" for="stock-grams">Grams</label>
+                        <input class="form-control" id="stock-grams" name="grams" value="{{ old('grams') }}" inputmode="decimal" placeholder="0.000" required>
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary" type="submit">Add to stock</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endcan
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.stock') }}">
         <input type="hidden" name="per_page" value="{{ $perPage }}">
         <div class="row g-2 align-items-end">
@@ -12,8 +95,8 @@
                 <input class="form-control" id="stock-search" name="search" value="{{ $filters['search'] }}" placeholder="Name, code, HUID or barcode">
             </div>
             <div class="col-lg-2 col-md-3 col-6">
-                <label class="form-label" for="stock-metal">Metal</label>
-                <select class="form-select" id="stock-metal" name="metal">
+                <label class="form-label" for="filter-metal">Metal</label>
+                <select class="form-select" id="filter-metal" name="metal">
                     <option value="">All metals</option>
                     @foreach ($metals as $row)
                         <option value="{{ $row->uuid }}" @selected($filters['metal'] === $row->uuid)>{{ $row->name }}</option>
@@ -147,3 +230,27 @@
     </article>
     @include('commerce.reports.partials.pager', ['rows' => $pieces, 'noun' => 'pieces'])
 @endsection
+
+@push('scripts')
+    <script>
+        const stockMetal = document.getElementById('stock-metal');
+        const stockPurity = document.getElementById('stock-purity');
+        if (stockMetal && stockPurity) {
+            const syncStockPurity = () => {
+                const metal = stockMetal.value;
+                let first = null;
+                Array.from(stockPurity.options).forEach((option) => {
+                    const show = option.dataset.metal === metal;
+                    option.hidden = !show;
+                    option.disabled = !show;
+                    if (show && !first) first = option;
+                });
+                if (!stockPurity.selectedOptions[0] || stockPurity.selectedOptions[0].disabled) {
+                    if (first) first.selected = true;
+                }
+            };
+            stockMetal.addEventListener('change', syncStockPurity);
+            syncStockPurity();
+        }
+    </script>
+@endpush

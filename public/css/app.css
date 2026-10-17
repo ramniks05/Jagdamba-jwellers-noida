@@ -1358,6 +1358,33 @@ a {
     overflow-x: auto;
 }
 
+.invoice-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 12px auto 0;
+    max-width: 900px;
+}
+
+.invoice-links a {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e2d8cc;
+    border-radius: 999px;
+    color: #3b2a22;
+    display: inline-flex;
+    font-size: 0.9rem;
+    gap: 6px;
+    padding: 6px 12px;
+    text-decoration: none;
+}
+
+.invoice-links a:hover {
+    border-color: #7c2430;
+    color: #7c2430;
+}
+
 .invoice-terms {
     font-size: 12px;
 }
@@ -1462,6 +1489,16 @@ a {
     margin-top: 0;
 }
 
+.weigh-column {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: 1fr;
+}
+
+.weigh-column input[readonly] {
+    background: #f6f1e7;
+}
+
 .weigh-pair {
     align-items: end;
     display: grid;
@@ -1563,7 +1600,8 @@ a {
     font-weight: 700;
 }
 
-.metal-row input[readonly] {
+.metal-row input[readonly],
+.weight-field input[readonly] {
     background: #f6f1e7;
     text-align: right;
 }
@@ -1854,6 +1892,11 @@ a {
 
 .customer-chip-info strong {
     font-size: 1.05rem;
+}
+
+.customer-due {
+    color: #a12a20;
+    font-weight: 650;
 }
 
 .customer-chip-info span {

@@ -24,6 +24,7 @@ class ClearTrialDataCommand extends Command
         'ledger_entries',
         'payments',
         'inventory_transactions',
+        'metal_stock_movements',
         'sale_line_stones',
         'sale_return_lines',
         'sale_returns',

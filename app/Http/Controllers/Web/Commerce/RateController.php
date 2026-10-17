@@ -54,11 +54,9 @@ class RateController extends Controller
             'canEnter' => auth()->user()->can('create', MetalRate::class),
             'quote' => $quote,
             'quoteError' => $quoteError,
-            'suggestionGroups' => $quote
-                ? collect($board->suggestions($quote))
-                    ->groupBy(fn (array $row) => $row['purity']->metalType?->name ?? 'Metal')
-                    ->map(fn ($rows) => $rows->sortByDesc(fn (array $row) => (float) $row['purity']->fineness)->values())
-                : collect(),
+            'suggestionGroups' => collect($board->suggestions($quote))
+                ->groupBy(fn (array $row) => $row['purity']->metalType?->name ?? 'Metal')
+                ->map(fn ($rows) => $rows->sortByDesc(fn (array $row) => (float) $row['purity']->fineness)->values()),
         ]);
     }
 

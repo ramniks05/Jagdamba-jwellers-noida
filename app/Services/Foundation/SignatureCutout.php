@@ -5,7 +5,9 @@ namespace App\Services\Foundation;
 class SignatureCutout
 {
     /**
-     * PNG bytes of the ink only. Null when the picture has no dark signature to keep.
+     * PNG bytes of the ink only. Null when this PHP build cannot cut a picture out.
+     *
+     * @throws SignaturePictureRejected when the photo cannot be used
      */
     public function png(string $path): ?string
     {
@@ -13,14 +15,26 @@ class SignatureCutout
             return null;
         }
 
+        $info = @getimagesize($path);
+        $width = (int) ($info[0] ?? 0);
+        $height = (int) ($info[1] ?? 0);
+
+        if ($info === false || $width < 1 || $height < 1) {
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
+        }
+
+        if ($width * $height > 12000000) {
+            throw new SignaturePictureRejected('This photo is too large to read, so it was not saved. Take it again a little further from the paper, or choose a JPEG under 2 MB.');
+        }
+
         $binary = file_get_contents($path);
         if ($binary === false) {
-            return null;
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
         }
 
         $loaded = @imagecreatefromstring($binary);
         if ($loaded === false) {
-            return null;
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
         }
 
         $source = $this->fit($loaded, 900);
@@ -77,7 +91,7 @@ class SignatureCutout
         if ($ink < 20) {
             imagedestroy($canvas);
 
-            return null;
+            throw new SignaturePictureRejected('No signature was found in that photo, so it was not saved. Sign on white paper with a dark pen and take the photo again.');
         }
 
         $pad = 8;
@@ -89,7 +103,7 @@ class SignatureCutout
         imagedestroy($canvas);
 
         if ($cropped === false) {
-            return null;
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
         }
 
         imagealphablending($cropped, false);

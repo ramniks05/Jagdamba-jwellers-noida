@@ -17,6 +17,11 @@
             @else
                 <a class="btn btn-outline-success" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send on WhatsApp</a>
             @endif
+            @can('update', $sale)
+                @if ($returned->isEmpty() && ! $sale->advanceOrder)
+                    <a class="btn btn-outline-primary" href="{{ route('sales.edit', $sale) }}">Edit invoice</a>
+                @endif
+            @endcan
             <button class="btn btn-primary" type="button" onclick="window.print()">Print invoice</button>
         </div>
     </div>

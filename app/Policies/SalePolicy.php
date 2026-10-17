@@ -14,7 +14,10 @@ class SalePolicy extends ShopRecordPolicy
 
     public function update(User $user, Model $record): bool
     {
-        return false;
+        $companyId = (int) $record->getAttribute('company_id');
+
+        return $this->allowsCompany($user, $companyId, 'sales.update')
+            || $this->allowsCompany($user, $companyId, 'sales.create');
     }
 
     public function delete(User $user, Model $record): bool

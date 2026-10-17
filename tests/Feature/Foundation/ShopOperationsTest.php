@@ -137,14 +137,14 @@ class ShopOperationsTest extends TestCase
             ->firstOrFail();
 
         $numbers = app(DocumentNumberService::class);
-        $this->assertSame('INV-2026-27-0001', $numbers->preview($sequence));
+        $this->assertSame('JJ/26-27/0001', $numbers->preview($sequence));
         $this->assertSame(1, $sequence->fresh()->next_number);
 
         $first = $numbers->issue($sequence->fresh());
         $second = $numbers->issue($sequence->fresh());
 
-        $this->assertSame('INV-2026-27-0001', $first->number);
-        $this->assertSame('INV-2026-27-0002', $second->number);
+        $this->assertSame('JJ/26-27/0001', $first->number);
+        $this->assertSame('JJ/26-27/0002', $second->number);
         $this->assertSame(2, DocumentNumberAllocation::query()->count());
         Event::assertDispatched(DocumentNumberIssued::class);
 
@@ -166,7 +166,7 @@ class ShopOperationsTest extends TestCase
         ])->save();
 
         $issued = app(DocumentNumberService::class)->issue($sequence->fresh());
-        $this->assertSame('INV-2026-27-0001', $issued->number);
+        $this->assertSame('JJ/26-27/0001', $issued->number);
 
         $this->put(route('document-sequences.update', $sequence), [
             'prefix' => 'INV',

@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable([
     'company_id', 'branch_id', 'customer_id', 'number', 'status', 'sold_at',
     'lines_amount', 'discount_amount', 'taxable_amount', 'tax_percent', 'tax_amount',
-    'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'notes', 'user_id',
+    'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'previous_due', 'previous_bills', 'notes', 'user_id',
 ])]
 class Sale extends Model
 {
@@ -39,6 +39,8 @@ class Sale extends Model
             'paid_amount' => 'decimal:2',
             'advance_amount' => 'decimal:2',
             'credit_amount' => 'decimal:2',
+            'previous_due' => 'decimal:2',
+            'previous_bills' => 'integer',
         ];
     }
 
@@ -75,6 +77,7 @@ class Sale extends Model
     public function balanceDue(): string
     {
         return (string) BigDecimal::of((string) $this->total)
+            ->plus((string) ($this->previous_due ?? 0))
             ->minus((string) $this->paid_amount)
             ->toScale(2, RoundingMode::HalfUp);
     }

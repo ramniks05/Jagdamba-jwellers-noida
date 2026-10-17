@@ -26,6 +26,9 @@ return [
         'phone' => '02240001234',
         'mobile' => '9876543210',
         'website' => null,
+        'facebook' => null,
+        'instagram' => null,
+        'youtube' => null,
         'gstin' => '27AAPFU0939F1ZV',
         'pan' => 'AAPFU0939F',
         'address_line1' => '12 Market Road',
@@ -327,7 +330,7 @@ return [
     */
 
     'document_types' => [
-        'invoice' => ['label' => 'Sales invoice', 'prefix' => 'INV', 'reset' => 'financial_year'],
+        'invoice' => ['label' => 'Sales invoice', 'prefix' => 'JJ', 'separator' => '/', 'reset' => 'financial_year'],
         'credit_note' => ['label' => 'Credit note', 'prefix' => 'CN', 'reset' => 'financial_year'],
         'debit_note' => ['label' => 'Debit note', 'prefix' => 'DN', 'reset' => 'financial_year'],
         'receipt' => ['label' => 'Receipt', 'prefix' => 'RCT', 'reset' => 'financial_year'],

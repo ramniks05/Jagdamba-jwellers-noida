@@ -40,6 +40,7 @@
             @endforeach
         </div>
     </form>
+    @include('commerce.partials.weight-summary')
     <div class="row g-3 mb-3 no-print">
         <div class="col-md-3 col-6">
             <div class="card stat-card h-100"><div class="card-body"><div class="stat-label">Bills</div><div class="fw-semibold fs-5">{{ $billCount }}</div></div></div>
@@ -64,6 +65,9 @@
             <div class="text-end">
                 <div>{{ \Illuminate\Support\Carbon::parse($filters['from'])->format('d M Y') }} – {{ \Illuminate\Support\Carbon::parse($filters['to'])->format('d M Y') }}</div>
                 <div>{{ $billCount }} {{ $billCount === 1 ? 'bill' : 'bills' }}@if ($filters['payment'] === 'due') · balance due @elseif ($filters['payment'] === 'paid') · fully paid @endif</div>
+                @if ($weights['rows'] !== [])
+                    <div>Net {{ $weight($weights['net']) }} · Gross {{ $weight($weights['gross']) }}</div>
+                @endif
             </div>
         </header>
         <div class="table-responsive">
@@ -73,6 +77,7 @@
                         <th>Invoice</th>
                         <th>Customer</th>
                         <th>When</th>
+                        <th class="num">Net</th>
                         <th class="num">GST</th>
                         <th class="num">Total</th>
                         <th class="num">Paid</th>
@@ -85,19 +90,21 @@
                             <td class="text-nowrap"><a href="{{ route('sales.show', $sale) }}">{{ $sale->number }}</a></td>
                             <td>{{ $sale->customer?->name }}@if ($sale->customer?->mobile)<div class="small text-secondary">{{ $sale->customer->mobile }}</div>@endif</td>
                             <td class="text-nowrap">{{ $sale->sold_at->timezone(config('app.timezone'))->format('d M Y H:i') }}</td>
+                            <td class="num">{{ $weight((string) ($sale->net_weight ?? '0')) }}<div class="small text-secondary">Gross {{ $weight((string) ($sale->gross_weight ?? '0')) }}</div></td>
                             <td class="num">{{ $money(number_format((float) $sale->tax_amount + (float) $sale->making_tax_amount, 2, '.', '')) }}</td>
                             <td class="num">{{ $money((string) $sale->total) }}</td>
                             <td class="num">{{ $money((string) $sale->paid_amount) }}</td>
                             <td class="num {{ (float) $sale->balanceDue() > 0 ? 'is-late' : '' }}">{{ $money($sale->balanceDue()) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">No bills for this filter.</td></tr>
+                        <tr><td colspan="8">No bills for this filter.</td></tr>
                     @endforelse
                 </tbody>
                 @if ($billCount > 0)
                     <tfoot>
                         <tr>
                             <td colspan="3">Total · {{ $billCount }} {{ $billCount === 1 ? 'bill' : 'bills' }}</td>
+                            <td class="num">{{ $weight($weights['net']) }}</td>
                             <td class="num">{{ $tax }}</td>
                             <td class="num">{{ $total }}</td>
                             <td class="num">{{ $paid }}</td>

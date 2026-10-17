@@ -79,6 +79,9 @@ class CompanyProfileService
             'phone',
             'mobile',
             'website',
+            'facebook',
+            'instagram',
+            'youtube',
             'gstin',
             'pan',
             'address_line1',
@@ -153,20 +156,39 @@ class CompanyProfileService
         }
 
         if ($field === 'signature') {
-            $png = $this->signatures->png($file->getRealPath());
+            try {
+                $png = $this->signatures->png($file->getRealPath() ?: '');
+            } catch (SignaturePictureRejected $exception) {
+                throw ValidationException::withMessages([
+                    'signature' => $exception->getMessage(),
+                ]);
+            }
 
             if ($png !== null) {
                 $path = 'companies/'.$company->uuid.'/signature-'.Str::lower(Str::random(8)).'.png';
-                Storage::disk('public')->put($path, $png);
+
+                if (Storage::disk('public')->put($path, $png) === false) {
+                    throw ValidationException::withMessages([
+                        'signature' => 'The signature could not be saved. Try again with a smaller JPEG or PNG.',
+                    ]);
+                }
 
                 return $path;
             }
         }
 
-        return $file->storeAs(
+        $stored = $file->storeAs(
             'companies/'.$company->uuid,
             $field.'-'.Str::lower(Str::random(8)).'.'.$extension,
             'public',
         );
+
+        if ($stored === false) {
+            throw ValidationException::withMessages([
+                $field => 'The '.$field.' could not be saved. Try again with a smaller JPEG or PNG.',
+            ]);
+        }
+
+        return $stored;
     }
 }

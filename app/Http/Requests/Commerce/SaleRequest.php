@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Support\Limits;
 use App\Support\StoneRate;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -43,6 +44,7 @@ class SaleRequest extends FormRequest
             }
 
             $piece['stones'] = $this->stoneRows($piece['stones'] ?? []);
+            $piece['huid'] = $this->huid($piece['huid'] ?? null);
         }
 
         $pieces = [];
@@ -90,6 +92,7 @@ class SaleRequest extends FormRequest
             'new_piece.wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
             'new_piece.wastage_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_piece.stone_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
+            'new_piece.huid' => ['nullable', 'string', 'max:32'],
             'new_piece.stones' => ['array'],
             'new_piece.stones.*.name' => ['required', 'string', 'max:80'],
             'new_piece.stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
@@ -109,6 +112,7 @@ class SaleRequest extends FormRequest
             'new_pieces.*.wastage_method_uuid' => ['nullable', 'uuid', Rule::exists('charge_methods', 'uuid')->where(fn ($query) => $shop($query)->where('applies_to', ChargeAppliesTo::Wastage->value))],
             'new_pieces.*.wastage_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_pieces.*.stone_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
+            'new_pieces.*.huid' => ['nullable', 'string', 'max:32'],
             'new_pieces.*.stones' => ['array'],
             'new_pieces.*.stones.*.name' => ['required', 'string', 'max:80'],
             'new_pieces.*.stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
@@ -123,6 +127,7 @@ class SaleRequest extends FormRequest
             'payments.*.amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
+            'include_previous' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -158,8 +163,16 @@ class SaleRequest extends FormRequest
         }
 
         $row['stones'] = $this->stoneRows($row['stones'] ?? []);
+        $row['huid'] = $this->huid($row['huid'] ?? null);
 
         return $row;
+    }
+
+    private function huid(mixed $value): ?string
+    {
+        $value = Str::upper(trim((string) $value));
+
+        return $value === '' ? null : $value;
     }
 
     /**

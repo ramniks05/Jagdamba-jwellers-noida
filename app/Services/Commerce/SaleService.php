@@ -12,11 +12,14 @@ use App\Models\AdvanceOrder;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
+use App\Models\LedgerEntry;
 use App\Models\MetalRate;
+use App\Models\MetalStockMovement;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleLineStone;
+use App\Models\SaleReturnLine;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -36,6 +39,7 @@ class SaleService
         private readonly LedgerService $ledger,
         private readonly DocumentNumberService $numbers,
         private readonly SettingService $settings,
+        private readonly MetalStockService $metalStock,
     ) {}
 
     /**
@@ -73,10 +77,57 @@ class SaleService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function post(Company $company, array $attributes, ?int $userId = null): Sale
+    /**
+     * Unpaid invoices for each customer: the amount still owed and how many bills it comes from.
+     *
+     * @param  array<int, int>  $customerIds
+     * @return array<int, array{amount: string, bills: int}>
+     */
+    public function openDues(array $customerIds, ?int $exceptSaleId = null): array
     {
-        return DB::transaction(function () use ($company, $attributes, $userId) {
+        if ($customerIds === []) {
+            return [];
+        }
+
+        $rows = Sale::query()
+            ->select('customer_id')
+            ->selectRaw('count(*) as bills')
+            ->selectRaw('coalesce(sum(total + previous_due - paid_amount), 0) as due')
+            ->whereIn('customer_id', $customerIds)
+            ->when($exceptSaleId, fn ($query) => $query->where('id', '!=', $exceptSaleId))
+            ->whereRaw('paid_amount < total + previous_due')
+            ->groupBy('customer_id')
+            ->get();
+
+        $dues = [];
+
+        foreach ($rows as $row) {
+            $amount = BigDecimal::of((string) $row->due)->toScale(2, RoundingMode::HalfUp);
+
+            if ($amount->isPositive()) {
+                $dues[(int) $row->customer_id] = [
+                    'amount' => (string) $amount,
+                    'bills' => (int) $row->bills,
+                ];
+            }
+        }
+
+        return $dues;
+    }
+
+    public function post(Company $company, array $attributes, ?int $userId = null, ?Sale $existing = null): Sale
+    {
+        return DB::transaction(function () use ($company, $attributes, $userId, $existing) {
             $this->context->ensureId((int) $company->id);
+            $keptPrevious = BigDecimal::zero();
+            $keptBills = 0;
+
+            if ($existing) {
+                $existing = Sale::query()->whereKey($existing->id)->lockForUpdate()->firstOrFail();
+                $keptPrevious = BigDecimal::of((string) $existing->previous_due)->toScale(2, RoundingMode::HalfUp);
+                $keptBills = (int) $existing->previous_bills;
+                $this->release($existing);
+            }
             $customer = Customer::query()->where('uuid', $attributes['customer_uuid'])->where('is_active', true)->first();
 
             if (! $customer) {
@@ -159,8 +210,7 @@ class SaleService
                     ]);
                 }
 
-                $rate = $this->orderRate($order, $piece)
-                    ?? $this->rates->current((int) $piece->metal_type_id, (int) $piece->purity_id, (int) $piece->branch_id);
+                $rate = $this->rateForPiece($piece, $order, $attributes);
 
                 if (! $rate) {
                     throw ValidationException::withMessages([
@@ -175,7 +225,9 @@ class SaleService
                 $makingTotal = $makingTotal->plus($priced['making_amount']);
             }
 
-            $exclusive = $this->settings->get('invoice.tax_display', $company) !== 'inclusive';
+            $exclusive = $existing
+                ? ! $existing->prices_include_tax
+                : $this->settings->get('invoice.tax_display', $company) !== 'inclusive';
             $makingMode = in_array($attributes['making_mode'] ?? null, ['inside', 'separate', 'processing'], true)
                 ? $attributes['making_mode']
                 : (string) ($this->settings->get('pricing.making_mode', $company) ?? 'inside');
@@ -183,9 +235,9 @@ class SaleService
                 (string) $linesTotal->toScale(2, RoundingMode::HalfUp),
                 (string) $makingTotal->toScale(2, RoundingMode::HalfUp),
                 (string) ($attributes['discount'] ?? '0'),
-                (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
+                $existing ? (string) $existing->tax_percent : (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
                 $makingMode,
-                (string) ($this->settings->get('pricing.making_gst_percent', $company) ?? '0'),
+                $existing ? (string) $existing->making_tax_percent : (string) ($this->settings->get('pricing.making_gst_percent', $company) ?? '0'),
                 $exclusive,
                 (bool) $this->settings->get('pricing.round_rupee', $company),
             );
@@ -219,11 +271,37 @@ class SaleService
                 $advance = $advance->isGreaterThan($total) ? $total : $advance;
             }
 
-            if ($paid->plus($advance)->isGreaterThan($total)) {
+            $settleOld = ! $existing && ! $customer->is_system && filter_var($attributes['include_previous'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $openSales = $settleOld
+                ? Sale::query()
+                    ->where('customer_id', $customer->id)
+                    ->whereRaw('paid_amount < total + previous_due')
+                    ->orderBy('sold_at')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                : collect();
+            $previous = $existing ? $keptPrevious : BigDecimal::zero();
+
+            if ($existing && $keptBills > 0 && (int) $existing->customer_id !== (int) $customer->id) {
                 throw ValidationException::withMessages([
-                    'payments' => $advance->isPositive()
-                        ? 'Payments are more than the bill total after the advance of '.$advance.'.'
-                        : 'Payments are more than the bill total.',
+                    'customer_uuid' => 'This invoice includes old due, so the customer stays the same.',
+                ]);
+            }
+
+            foreach ($openSales as $open) {
+                $previous = $previous->plus($open->balanceDue());
+            }
+
+            $previous = $previous->toScale(2, RoundingMode::HalfUp);
+
+            if ($paid->plus($advance)->isGreaterThan($total->plus($previous))) {
+                throw ValidationException::withMessages([
+                    'payments' => $previous->isPositive()
+                        ? 'Payments are more than today\'s bill plus the old due of '.$previous.'.'
+                        : ($advance->isPositive()
+                            ? 'Payments are more than the bill total after the advance of '.$advance.'.'
+                            : 'Payments are more than the bill total.'),
                 ]);
             }
 
@@ -246,22 +324,20 @@ class SaleService
                 }
 
                 $remaining = $total->minus($paid)->minus($advance);
+                $remaining = $remaining->isNegative() ? BigDecimal::zero() : $remaining;
                 $credit = $credit->isGreaterThan($remaining) ? $remaining->toScale(2, RoundingMode::HalfUp) : $credit;
             }
 
             $branch = $items->first()->branch;
-            $invoice = $this->numbers->issue($this->numbers->for(DocumentType::Invoice, $branch));
-            $sale = Sale::query()->create([
+            $payload = [
                 'company_id' => $company->id,
                 'branch_id' => $branch->id,
                 'customer_id' => $customer->id,
-                'number' => $invoice->number,
                 'status' => 'posted',
-                'sold_at' => now(),
                 'lines_amount' => $bill->linesAmount,
                 'discount_amount' => $bill->discountAmount,
                 'taxable_amount' => $bill->taxableAmount,
-                'tax_percent' => (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
+                'tax_percent' => $existing ? (string) $existing->tax_percent : (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
                 'tax_amount' => $bill->taxAmount,
                 'making_mode' => $makingMode,
                 'making_amount' => $bill->makingAmount,
@@ -273,9 +349,23 @@ class SaleService
                 'paid_amount' => (string) $paid->plus($advance)->plus($credit)->toScale(2, RoundingMode::HalfUp),
                 'advance_amount' => (string) $advance->toScale(2, RoundingMode::HalfUp),
                 'credit_amount' => (string) $credit,
+                'previous_due' => (string) $previous,
+                'previous_bills' => $existing ? $keptBills : $openSales->count(),
                 'notes' => trim((string) ($attributes['notes'] ?? '')) ?: null,
-                'user_id' => $userId,
-            ]);
+            ];
+
+            if ($existing) {
+                $existing->fill($payload);
+                $existing->save();
+                $sale = $existing;
+            } else {
+                $invoice = $this->numbers->issue($this->numbers->for(DocumentType::Invoice, $branch));
+                $sale = Sale::query()->create($payload + [
+                    'number' => $invoice->number,
+                    'sold_at' => now(),
+                    'user_id' => $userId,
+                ]);
+            }
 
             foreach ($lines as $line) {
                 $piece = $line['item'];
@@ -304,6 +394,14 @@ class SaleService
                     'stone_amount' => $line['priced']['stone_amount'],
                     'line_amount' => $line['priced']['line_amount'],
                 ]);
+                $this->metalStock->sell(
+                    (int) $sale->branch_id,
+                    (int) $piece->metal_type_id,
+                    (int) $piece->purity_id,
+                    (string) $saleLine->net_weight,
+                    $saleLine,
+                    $userId,
+                );
                 foreach ($display->stones as $index => $stone) {
                     SaleLineStone::query()->create([
                         'company_id' => $company->id,
@@ -350,7 +448,9 @@ class SaleService
                     'method' => $row['method'],
                     'amount' => $row['amount'],
                     'reference' => $row['reference'],
-                    'narration' => 'Received against '.$sale->number,
+                    'narration' => $previous->isPositive()
+                        ? 'Received against '.$sale->number.' including old due'
+                        : 'Received against '.$sale->number,
                     'received_at' => now(),
                     'user_id' => $userId,
                 ]);
@@ -366,6 +466,13 @@ class SaleService
                 );
             }
 
+            foreach ($openSales as $open) {
+                $open->paid_amount = (string) BigDecimal::of((string) $open->total)
+                    ->plus((string) $open->previous_due)
+                    ->toScale(2, RoundingMode::HalfUp);
+                $open->save();
+            }
+
             if ($order) {
                 $order->status = 'delivered';
                 $order->delivered_at = now();
@@ -375,6 +482,153 @@ class SaleService
 
             return $sale->load(['lines.stones', 'payments', 'customer', 'branch']);
         });
+    }
+
+    /**
+     * Save a corrected bill on the same invoice number.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function revise(Sale $sale, array $attributes, ?int $userId = null): Sale
+    {
+        $sale->loadMissing('lines.item');
+        $rates = [];
+
+        foreach ($sale->lines as $line) {
+            if (! $line->item) {
+                continue;
+            }
+
+            $rates[$line->item->metal_type_id.':'.$line->item->purity_id] = [
+                'id' => $line->metal_rate_id,
+                'rate' => (string) $line->rate_per_gram,
+            ];
+        }
+
+        $attributes['locked_rates'] = $rates;
+
+        return $this->post(Company::query()->whereKey($sale->company_id)->firstOrFail(), $attributes, $userId, $sale);
+    }
+
+    public function editBlock(Sale $sale): ?string
+    {
+        if ($sale->advanceOrder()->exists()) {
+            return 'This invoice delivered an order, so it stays as it was saved.';
+        }
+
+        $lineIds = $sale->relationLoaded('lines') ? $sale->lines->modelKeys() : $sale->lines()->pluck('id');
+
+        if (SaleReturnLine::query()->whereIn('sale_line_id', $lineIds)->exists()) {
+            return 'A piece on this invoice has been returned, so it stays as it was saved.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Put the pieces and the gram stock back, and remove the ledger rows, so the same invoice can be written again.
+     */
+    private function release(Sale $sale): void
+    {
+        $block = $this->editBlock($sale);
+
+        if ($block) {
+            throw ValidationException::withMessages([
+                'sale' => $block,
+            ]);
+        }
+
+        $sale->load(['lines.item.movements', 'lines.stones', 'payments']);
+        $madeForBill = [];
+
+        foreach ($sale->lines as $line) {
+            MetalStockMovement::query()
+                ->where('reference_type', $line->getMorphClass())
+                ->where('reference_id', $line->id)
+                ->delete();
+
+            $item = $line->item;
+
+            if (! $item) {
+                continue;
+            }
+
+            if ($this->madeForBill($item, $sale)) {
+                $madeForBill[] = $item;
+            } else {
+                $this->inventory->apply($item, InventoryMovement::SaleReturn, $sale, null, null, 'Invoice edited', null);
+            }
+        }
+
+        $payments = $sale->payments;
+
+        LedgerEntry::query()
+            ->where('reference_type', $sale->getMorphClass())
+            ->where('reference_id', $sale->id)
+            ->delete();
+
+        foreach ($payments as $payment) {
+            LedgerEntry::query()
+                ->where('reference_type', $payment->getMorphClass())
+                ->where('reference_id', $payment->id)
+                ->delete();
+            $payment->delete();
+        }
+
+        foreach ($sale->lines as $line) {
+            $line->stones()->delete();
+            $line->delete();
+        }
+
+        foreach ($madeForBill as $item) {
+            $item->delete();
+        }
+    }
+
+    public function madeForBill(Item $item, Sale $sale): bool
+    {
+        if ($item->purchaseLines()->exists() || $item->created_at === null || $sale->created_at === null) {
+            return false;
+        }
+
+        if ($item->created_at->lt($sale->created_at->copy()->subMinute())) {
+            return false;
+        }
+
+        $saleType = $sale->getMorphClass();
+
+        foreach ($item->movements as $movement) {
+            $opening = $movement->type === InventoryMovement::Opening;
+            $thisSale = $movement->type === InventoryMovement::Sale
+                && $movement->reference_type === $saleType
+                && (int) $movement->reference_id === (int) $sale->id;
+
+            if (! $opening && ! $thisSale) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function rateForPiece(Item $piece, ?AdvanceOrder $order, array $attributes): ?MetalRate
+    {
+        $locked = $attributes['locked_rates'][$piece->metal_type_id.':'.$piece->purity_id] ?? null;
+
+        if (is_array($locked)) {
+            $rate = new MetalRate;
+            $rate->id = $locked['id'];
+            $rate->rate_per_gram = $locked['rate'];
+            $rate->exists = true;
+
+            return $rate;
+        }
+
+        return $this->orderRate($order, $piece)
+            ?? $this->rates->current((int) $piece->metal_type_id, (int) $piece->purity_id, (int) $piece->branch_id);
     }
 
     private function orderRate(?AdvanceOrder $order, Item $piece): ?MetalRate

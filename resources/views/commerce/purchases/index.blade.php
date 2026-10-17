@@ -10,6 +10,7 @@
         @endcan
     </div>
 
+    @include('commerce.partials.weight-summary')
     <div class="d-flex flex-wrap gap-2 mb-3">
         @foreach (['all' => 'All', 'due' => 'To pay', 'paid' => 'Paid'] as $key => $label)
             <a class="btn btn-sm {{ $show === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('purchases.index', array_filter(['show' => $key === 'all' ? null : $key, 'search' => $search])) }}">{{ $label }} <span class="opacity-75">{{ $counts[$key] }}</span></a>
@@ -61,7 +62,7 @@
                                 {{ $purchase->supplier?->name }}
                                 <div class="small text-secondary">{{ collect([$purchase->supplier_bill_number ? 'Bill '.$purchase->supplier_bill_number : null, $purchase->supplier?->mobile])->filter()->implode(' · ') }}</div>
                             </td>
-                            <td class="num">{{ $purchase->lines_count }}<div class="small text-secondary">{{ $weight((string) ($purchase->lines_sum_gross_weight ?? '0')) }}</div></td>
+                            <td class="num">{{ $purchase->lines_count }}<div class="small text-secondary">Net {{ $weight((string) ($purchase->lines_sum_net_weight ?? '0')) }} · Gross {{ $weight((string) ($purchase->lines_sum_gross_weight ?? '0')) }}</div></td>
                             <td class="num">{{ $money((string) $purchase->total) }}</td>
                             <td class="num">{{ $money((string) $purchase->paid_amount) }}</td>
                             <td class="num {{ (float) $due > 0 ? 'fw-semibold' : 'text-secondary' }}">{{ $money($due) }}</td>

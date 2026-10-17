@@ -32,7 +32,10 @@
                             @include('masters.partials.field', ['name' => 'mobile', 'label' => 'Mobile', 'value' => $company->mobile, 'col' => 'col-md-4', 'inputmode' => 'tel', 'required' => false])
                             @include('masters.partials.field', ['name' => 'phone', 'label' => 'Phone', 'value' => $company->phone, 'col' => 'col-md-4', 'inputmode' => 'tel', 'required' => false])
                             @include('masters.partials.field', ['name' => 'email', 'label' => 'Email', 'value' => $company->email, 'col' => 'col-md-4', 'type' => 'email', 'required' => false])
-                            @include('masters.partials.field', ['name' => 'website', 'label' => 'Website', 'value' => $company->website, 'col' => 'col-md-8', 'type' => 'url', 'required' => false, 'placeholder' => 'https://'])
+                            @include('masters.partials.field', ['name' => 'website', 'label' => 'Website', 'value' => $company->website, 'col' => 'col-md-6', 'type' => 'url', 'required' => false, 'placeholder' => 'https://'])
+                            @include('masters.partials.field', ['name' => 'facebook', 'label' => 'Facebook', 'value' => $company->facebook, 'col' => 'col-md-6', 'type' => 'url', 'required' => false, 'placeholder' => 'https://facebook.com/'])
+                            @include('masters.partials.field', ['name' => 'instagram', 'label' => 'Instagram', 'value' => $company->instagram, 'col' => 'col-md-6', 'type' => 'url', 'required' => false, 'placeholder' => 'https://instagram.com/'])
+                            @include('masters.partials.field', ['name' => 'youtube', 'label' => 'YouTube', 'value' => $company->youtube, 'col' => 'col-md-6', 'type' => 'url', 'required' => false, 'placeholder' => 'https://youtube.com/'])
                         </div>
 
                         <div class="weigh-section-title mt-4"><i class="bi bi-geo-alt"></i> Address</div>
@@ -119,8 +122,8 @@
                         @endif
                         <button class="btn btn-outline-secondary" id="signature-open" type="button"><i class="bi bi-upload"></i> Choose signature</button>
                         <input class="d-none" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                        @error('signature')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                        <div class="form-text mt-2" id="signature-picked">Sign on plain white paper and take a photo. The white background is removed so only the ink prints.</div>
+                        <div class="alert alert-danger py-2 px-3 mt-2 {{ $errors->has('signature') ? '' : 'd-none' }}" id="signature-error" role="alert">{{ $errors->first('signature') }}</div>
+                        <div class="form-text mt-2" id="signature-picked">Sign on plain white paper and take a photo. JPEG, PNG or WebP, up to 2 MB. The white background is removed so only the ink prints.</div>
                     </div>
                 </div>
 
@@ -143,7 +146,7 @@
             const refresh = () => {
                 document.getElementById('head-name').textContent = val('name') || 'Shop name';
                 document.getElementById('head-address').textContent = [val('address_line1'), val('address_line2'), [val('city'), val('state'), val('postal_code')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-                document.getElementById('head-contact').textContent = [val('mobile'), val('phone'), val('email')].filter(Boolean).join(' · ');
+                document.getElementById('head-contact').textContent = [val('mobile'), val('phone'), val('email'), val('website').replace(/^https?:\/\//i, '').replace(/\/$/, '')].filter(Boolean).join(' · ');
                 const gstin = val('gstin').toUpperCase();
                 document.getElementById('head-gstin').textContent = gstin ? `GSTIN ${gstin}` : '';
             };
@@ -158,12 +161,34 @@
             document.getElementById('logo').addEventListener('change', function () {
                 showPicked(this, document.getElementById('logo-preview'));
             });
+            const signatureError = document.getElementById('signature-error');
+            const signatureHint = 'Sign on plain white paper and take a photo. JPEG, PNG or WebP, up to 2 MB. The white background is removed so only the ink prints.';
+            const pictureProblem = (file) => {
+                if (!file) return '';
+                const typeOk = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+                if (!typeOk) return 'The signature must be a JPEG, PNG, or WebP photo.';
+                if (file.size > 2 * 1024 * 1024) return 'The signature is larger than 2 MB, so it was not saved. Choose a smaller photo and save the profile again.';
+                return '';
+            };
+            const showSignatureError = (message) => {
+                signatureError.textContent = message;
+                signatureError.classList.toggle('d-none', message === '');
+            };
             document.getElementById('signature-open').addEventListener('click', () => document.getElementById('signature').click());
             document.getElementById('signature').addEventListener('change', function () {
                 const file = showPicked(this, document.getElementById('signature-preview'));
-                document.getElementById('signature-picked').textContent = file
-                    ? `Selected ${file.name}. Click Save profile to put it on the bill.`
-                    : 'Sign on plain white paper and take a photo. The white background is removed so only the ink prints.';
+                const problem = pictureProblem(file);
+                showSignatureError(problem);
+                document.getElementById('signature-picked').textContent = problem
+                    ? signatureHint
+                    : (file ? `Selected ${file.name}. Click Save profile to put it on the bill.` : signatureHint);
+            });
+            form.addEventListener('submit', (event) => {
+                const problem = pictureProblem(document.getElementById('signature').files[0]);
+                if (!problem) return;
+                event.preventDefault();
+                showSignatureError(problem);
+                signatureError.scrollIntoView({ block: 'center' });
             });
         })();
     </script>

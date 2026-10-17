@@ -208,6 +208,59 @@ class CounterTest extends TestCase
         $this->assertSame('71070.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
     }
 
+    public function test_a_piece_typed_on_the_bill_keeps_the_huid_typed_with_it(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+
+        $this->actingAs($owner)
+            ->get(route('sales.create'))
+            ->assertOk()
+            ->assertSee('id="weigh-huid"', false)
+            ->assertSee('Type the hallmark ID if this piece is not in stock');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $walkIn->uuid,
+            'discount' => '0',
+            'new_pieces' => [[
+                'name' => 'Loose bangle',
+                'huid' => 'ab12cd',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '10',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+            ]],
+            'payments' => [
+                ['method' => 'cash', 'amount' => '61800'],
+            ],
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $piece = Item::query()->where('name', 'Loose bangle')->firstOrFail();
+        $this->assertSame('AB12CD', $piece->huid);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Loose bangle')
+            ->assertSee('AB12CD');
+    }
+
     public function test_two_rings_keep_their_own_stones_on_the_bill(): void
     {
         $owner = $this->shopUser();

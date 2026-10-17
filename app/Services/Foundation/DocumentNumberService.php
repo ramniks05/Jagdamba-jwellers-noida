@@ -37,7 +37,7 @@ class DocumentNumberService
                 ],
                 [
                     'prefix' => $type->defaultPrefix(),
-                    'separator' => config('foundation.document_sequence.separator'),
+                    'separator' => config('foundation.document_types.'.$type->value.'.separator', config('foundation.document_sequence.separator')),
                     'padding' => config('foundation.document_sequence.padding'),
                     'next_number' => 1,
                     'reset_policy' => $type->defaultReset(),
@@ -194,7 +194,9 @@ class DocumentNumberService
             SequenceResetPolicy::Never => null,
             SequenceResetPolicy::Yearly => $on->format('Y'),
             SequenceResetPolicy::Monthly => $on->format('Ym'),
-            SequenceResetPolicy::FinancialYear => $year?->name,
+            SequenceResetPolicy::FinancialYear => $year === null
+                ? null
+                : ($sequence->document_type === DocumentType::Invoice ? self::shortYear($year) : $year->name),
         };
 
         if ($token) {
@@ -209,6 +211,17 @@ class DocumentNumberService
         }
 
         return $formatted;
+    }
+
+    /**
+     * 2026-27 becomes 26-27, so a sales invoice stays inside the 16-character GST limit.
+     */
+    public static function shortYear(FinancialYear $year): string
+    {
+        $start = $year->start_date->format('y');
+        $end = $year->end_date->format('y');
+
+        return $start === $end ? $start : $start.'-'.$end;
     }
 
     private function requireYear(DocumentSequence $sequence, CarbonInterface $on): FinancialYear

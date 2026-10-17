@@ -39,6 +39,7 @@
             </div>
         </div>
     </form>
+    @include('commerce.partials.weight-summary')
     <div class="row g-3 mb-3">
         <div class="col-md-3"><div class="card stat-card h-100"><div class="card-body"><div class="stat-label"><i class="bi bi-receipt"></i> Bills</div><div class="stat-value">{{ $billCount }}</div></div></div></div>
         <div class="col-md-3"><div class="card stat-card h-100"><div class="card-body"><div class="stat-label"><i class="bi bi-cash"></i> Billed</div><div class="stat-value">{{ $billed }}</div></div></div></div>
@@ -53,6 +54,7 @@
                         <th>Invoice</th>
                         <th>Customer</th>
                         <th>When</th>
+                        <th class="num">Weight</th>
                         <th class="num">Total</th>
                         <th class="num">Paid</th>
                         <th class="num">Balance</th>
@@ -69,6 +71,7 @@
                                 <div class="small text-secondary">{{ $sale->customer?->mobile }}</div>
                             </td>
                             <td>{{ $sale->sold_at->timezone(config('app.timezone'))->format('d M Y H:i') }}</td>
+                            <td class="num">{{ $weight((string) ($sale->net_weight ?? '0')) }}<div class="small text-secondary">Gross {{ $weight((string) ($sale->gross_weight ?? '0')) }}</div></td>
                             <td class="num">{{ $money((string) $sale->total) }}</td>
                             <td class="num">{{ $money((string) $sale->paid_amount) }}</td>
                             <td class="num">{{ $money($sale->balanceDue()) }}</td>
@@ -82,7 +85,7 @@
                             <td class="text-end"><a href="{{ route('sales.show', $sale) }}">Invoice</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8">No bills match this filter.</td></tr>
+                        <tr><td colspan="9">No bills match this filter.</td></tr>
                     @endforelse
                 </tbody>
             </table>
