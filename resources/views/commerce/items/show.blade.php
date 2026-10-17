@@ -151,8 +151,8 @@
                     @if ($item->barcode)
                         <div class="bill-row"><span>Barcode</span><span>{{ $item->barcode }}</span></div>
                     @endif
-                    @if ($item->brand || $item->collection || $item->design)
-                        <div class="bill-row"><span>Brand / design</span><span>{{ collect([$item->brand?->name, $item->collection?->name, $item->design?->design_number])->filter()->implode(' · ') }}</span></div>
+                    @if ($item->collection || $item->design)
+                        <div class="bill-row"><span>Collection / design</span><span>{{ collect([$item->collection?->name, $item->design?->design_number])->filter()->implode(' · ') }}</span></div>
                     @endif
                 </div>
             </div>

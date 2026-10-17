@@ -87,6 +87,7 @@ class ItemRequest extends FormRequest
         $shop = fn ($query) => $query->where('company_id', $companyId)->whereNull('deleted_at');
 
         return [
+            'own' => ['nullable', 'boolean'],
             'name' => ['required', 'string', 'max:160'],
             'item_code' => ['required', 'regex:/^[A-Z0-9][A-Z0-9._\/-]{0,39}$/', Rule::unique('items', 'item_code')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($ignore)],
             'sku' => ['required', 'regex:/^[A-Z0-9][A-Z0-9._\/-]{0,39}$/', Rule::unique('items', 'sku')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($ignore)],

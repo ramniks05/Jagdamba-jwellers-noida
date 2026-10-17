@@ -79,11 +79,12 @@ class WorkshopTest extends TestCase
         $codes = fn (string $route, string $key, string $source) => $this->actingAs($owner)->get(route($route, ['source' => $source]))
             ->assertOk()->viewData($key)->pluck('item_code')->sort()->values()->all();
 
+        $this->assertTrue(Item::query()->where('item_code', 'CHAIN01')->sole()->own_gold);
         $this->assertSame(['OWN01'], $codes('items.index', 'items', 'own'));
-        $this->assertSame(['BOUGHT01', 'CHAIN01'], $codes('items.index', 'items', 'purchased'));
+        $this->assertSame(['BOUGHT01'], $codes('items.index', 'items', 'purchased'));
         $this->assertSame([], $codes('items.index', 'items', 'old_gold'));
         $this->assertSame(['OWN01'], $codes('reports.stock', 'pieces', 'own'));
-        $this->assertSame(['BOUGHT01', 'CHAIN01', 'OWN01'], $codes('reports.stock', 'pieces', ''));
+        $this->assertSame(['BOUGHT01', 'OWN01'], $codes('reports.stock', 'pieces', ''));
 
         $chain = Item::query()->where('item_code', 'CHAIN01')->sole();
         $own = Item::query()->where('item_code', 'OWN01')->sole();

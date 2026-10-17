@@ -117,6 +117,6 @@ class BillScanService
      */
     private function pieces(): Builder
     {
-        return Item::query()->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones']);
+        return Item::query()->where('own_gold', false)->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones']);
     }
 }

@@ -2,25 +2,16 @@
 
 namespace App\Http\Controllers\Web\Commerce;
 
-use App\Enums\ChargeAppliesTo;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\PurchaseRequest;
 use App\Http\Requests\Commerce\ReceiptRequest;
-use App\Models\Category;
-use App\Models\ChargeMethod;
-use App\Models\MetalRate;
-use App\Models\MetalType;
+use App\Models\Item;
 use App\Models\Purchase;
-use App\Models\StockLocation;
-use App\Models\Supplier;
-use App\Services\Commerce\ItemService;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PurchaseService;
-use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
-use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -30,73 +21,37 @@ use Illuminate\View\View;
 
 class PurchaseController extends Controller
 {
-    private const DUE_SQL = 'purchases.total - purchases.paid_amount - (select coalesce(sum(purchase_returns.amount), 0) from purchase_returns where purchase_returns.purchase_id = purchases.id)';
-
-    public function index(Request $request, NumberFormatService $format, WeightSummary $weights, CompanyContext $context): View
+    public function index(Request $request, NumberFormatService $format, CompanyContext $context): View
     {
         $this->authorize('viewAny', Purchase::class);
         $search = trim((string) $request->query('search', ''));
-        $show = in_array($request->query('show'), ['due', 'paid'], true) ? $request->query('show') : 'all';
         $like = '%'.addcslashes($search, '%_\\').'%';
-        $base = Purchase::query()->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
-            ->where('number', 'like', $like)
-            ->orWhere('supplier_bill_number', 'like', $like)
-            ->orWhereHas('supplier', fn ($query) => $query->where('name', 'like', $like)->orWhere('mobile', 'like', $like))));
+        $company = $context->company();
 
         return view('commerce.purchases.index', [
             'search' => $search,
-            'show' => $show,
-            'counts' => [
-                'all' => (clone $base)->count(),
-                'due' => (clone $base)->whereRaw(self::DUE_SQL.' > 0.004')->count(),
-                'paid' => (clone $base)->whereRaw(self::DUE_SQL.' <= 0.004')->count(),
-            ],
-            'dueTotal' => (string) BigDecimal::of((string) ((clone $base)->whereRaw(self::DUE_SQL.' > 0.004')->selectRaw('sum('.self::DUE_SQL.') as due')->value('due') ?? '0'))->toScale(2, RoundingMode::HalfUp),
-            'weights' => $weights->purchases(
-                (clone $base)
-                    ->when($show === 'due', fn ($query) => $query->whereRaw(self::DUE_SQL.' > 0.004'))
-                    ->when($show === 'paid', fn ($query) => $query->whereRaw(self::DUE_SQL.' <= 0.004'))
-            ),
-            'purchases' => (clone $base)
-                ->with('supplier')
-                ->withCount('lines')
-                ->withSum('lines', 'gross_weight')
-                ->withSum('lines', 'net_weight')
-                ->withSum('returns', 'amount')
-                ->when($show === 'due', fn ($query) => $query->whereRaw(self::DUE_SQL.' > 0.004'))
-                ->when($show === 'paid', fn ($query) => $query->whereRaw(self::DUE_SQL.' <= 0.004'))
-                ->orderByDesc('purchased_at')
+            'items' => Item::query()
+                ->with(['metalType', 'purity', 'category'])
+                ->where('own_gold', true)
+                ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
+                    ->where('item_code', 'like', $like)
+                    ->orWhere('name', 'like', $like)
+                    ->orWhere('huid', 'like', $like)))
                 ->orderByDesc('id')
                 ->paginate(20)
                 ->withQueryString(),
-            'money' => fn (string $amount) => $format->money($amount, $context->company()),
-            'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
+            'weight' => fn (string $amount) => $format->weight($amount, $company),
         ]);
     }
 
-    public function create(Request $request, SettingService $settings, ItemService $items, LedgerService $ledger, CompanyContext $context): View
+    public function create(Request $request): RedirectResponse
     {
         $this->authorize('create', Purchase::class);
-        $company = $context->company();
-        $suppliers = Supplier::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('commerce.purchases.create', [
-            'suppliers' => $suppliers,
-            'payable' => $suppliers->mapWithKeys(fn (Supplier $supplier) => [
-                $supplier->uuid => (string) BigDecimal::of($ledger->balance(PartyType::Supplier, (int) $supplier->id))->negated()->toScale(2, RoundingMode::HalfUp),
-            ]),
-            'chosenSupplier' => (string) $request->query('supplier', ''),
-            'nextCode' => $items->nextCode(),
-            'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
-            'categories' => Category::query()->with('parent')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
-            'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
-            'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
-            'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
-            'methods' => PaymentMethod::cases(),
-            'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
-            'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
-            'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
-        ]);
+        return redirect()->route('items.create', array_filter([
+            'own' => 1,
+            'like' => $request->query('like'),
+        ]));
     }
 
     public function store(PurchaseRequest $request, PurchaseService $purchases, CompanyContext $context): RedirectResponse

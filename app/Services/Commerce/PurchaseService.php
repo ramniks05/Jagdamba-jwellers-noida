@@ -44,12 +44,17 @@ class PurchaseService
     {
         return DB::transaction(function () use ($company, $attributes, $userId) {
             $this->context->ensureId((int) $company->id);
-            $supplier = Supplier::query()->where('uuid', $attributes['supplier_uuid'])->where('is_active', true)->first();
+            $supplier = null;
+            $supplierUuid = trim((string) ($attributes['supplier_uuid'] ?? ''));
 
-            if (! $supplier) {
-                throw ValidationException::withMessages([
-                    'supplier_uuid' => 'Choose a supplier.',
-                ]);
+            if ($supplierUuid !== '') {
+                $supplier = Supplier::query()->where('uuid', $supplierUuid)->where('is_active', true)->first();
+
+                if (! $supplier) {
+                    throw ValidationException::withMessages([
+                        'supplier_uuid' => 'Choose a supplier.',
+                    ]);
+                }
             }
 
             $location = StockLocation::query()->where('uuid', $attributes['location_uuid'] ?? '')->where('is_active', true)->first();
@@ -67,7 +72,7 @@ class PurchaseService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    private function post(Company $company, Supplier $supplier, StockLocation $location, array $attributes, ?int $userId): Purchase
+    private function post(Company $company, ?Supplier $supplier, StockLocation $location, array $attributes, ?int $userId): Purchase
     {
         $byAmount = ($attributes['pricing'] ?? 'rate') === 'amount';
         $rows = [];
@@ -139,7 +144,7 @@ class PurchaseService
         $purchase = Purchase::query()->create([
             'company_id' => $company->id,
             'branch_id' => $location->branch_id,
-            'supplier_id' => $supplier->id,
+            'supplier_id' => $supplier?->id,
             'number' => $number->number,
             'supplier_bill_number' => trim((string) ($attributes['supplier_bill_number'] ?? '')) ?: null,
             'purchased_at' => $this->purchasedAt($attributes['purchased_on'] ?? null),
@@ -182,6 +187,7 @@ class PurchaseService
                 'wastage_value' => $input['wastage_value'] ?? '0',
                 'huid' => $input['huid'] ?? null,
                 'cost_price' => (string) $cost->toScale(2, RoundingMode::HalfUp),
+                'own_gold' => true,
             ], $userId, InventoryMovement::Purchase, $purchase);
 
             PurchaseLine::query()->create([
@@ -201,7 +207,9 @@ class PurchaseService
             ]);
         }
 
-        $this->ledger->post((int) $company->id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Credit, $bill->total, 'Purchase '.$purchase->number, $purchase, $userId);
+        if ($supplier) {
+            $this->ledger->post((int) $company->id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Credit, $bill->total, 'Purchase '.$purchase->number, $purchase, $userId);
+        }
 
         foreach ($attributes['payments'] ?? [] as $row) {
             if (trim((string) ($row['amount'] ?? '')) === '') {
@@ -230,7 +238,15 @@ class PurchaseService
                 ]);
             }
 
-            $payment = $this->recordPayment($locked, $locked->supplier()->firstOrFail(), $attributes, $userId);
+            $supplier = $locked->supplier()->first();
+
+            if (! $supplier) {
+                throw ValidationException::withMessages([
+                    'amount' => 'This own jewellery has no supplier to pay.',
+                ]);
+            }
+
+            $payment = $this->recordPayment($locked, $supplier, $attributes, $userId);
             $locked->paid_amount = (string) BigDecimal::of((string) $locked->paid_amount)->plus($amount)->toScale(2, RoundingMode::HalfUp);
             $locked->save();
 
@@ -291,16 +307,18 @@ class PurchaseService
                 ]);
             }
 
-            $this->ledger->post(
-                (int) $purchase->company_id,
-                PartyType::Supplier,
-                (int) $purchase->supplier_id,
-                LedgerDirection::Debit,
-                $amount,
-                'Purchase return '.$document->number,
-                $document,
-                $userId,
-            );
+            if ($purchase->supplier_id) {
+                $this->ledger->post(
+                    (int) $purchase->company_id,
+                    PartyType::Supplier,
+                    (int) $purchase->supplier_id,
+                    LedgerDirection::Debit,
+                    $amount,
+                    'Purchase return '.$document->number,
+                    $document,
+                    $userId,
+                );
+            }
 
             return $document;
         });
@@ -309,7 +327,7 @@ class PurchaseService
     /**
      * @param  array<string, mixed>  $row
      */
-    private function recordPayment(Purchase $purchase, Supplier $supplier, array $row, ?int $userId): Payment
+    private function recordPayment(Purchase $purchase, ?Supplier $supplier, array $row, ?int $userId): Payment
     {
         $amount = (string) BigDecimal::of((string) $row['amount'])->toScale(2, RoundingMode::HalfUp);
         $voucher = $this->numbers->issue($this->numbers->for(DocumentType::Payment, $purchase->branch));
@@ -317,7 +335,7 @@ class PurchaseService
             'company_id' => $purchase->company_id,
             'branch_id' => $purchase->branch_id,
             'purchase_id' => $purchase->id,
-            'supplier_id' => $supplier->id,
+            'supplier_id' => $supplier?->id,
             'number' => $voucher->number,
             'direction' => 'out',
             'method' => PaymentMethod::from($row['method']),
@@ -327,7 +345,9 @@ class PurchaseService
             'received_at' => now(),
             'user_id' => $userId,
         ]);
-        $this->ledger->post((int) $purchase->company_id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Debit, $amount, 'Payment '.$payment->number, $payment, $userId);
+        if ($supplier) {
+            $this->ledger->post((int) $purchase->company_id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Debit, $amount, 'Payment '.$payment->number, $payment, $userId);
+        }
 
         return $payment;
     }

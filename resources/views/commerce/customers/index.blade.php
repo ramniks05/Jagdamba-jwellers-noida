@@ -3,9 +3,9 @@
 @section('title', 'Customers')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h1 class="page-title h3 mb-0">Customers</h1>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="{{ route('customers.qr') }}">Customer QR</a>
             <a class="btn btn-outline-secondary" href="{{ route('customer-intakes.index') }}">Waiting approval</a>
             @can('create', App\Models\Customer::class)

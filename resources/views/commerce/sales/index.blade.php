@@ -3,7 +3,7 @@
 @section('title', 'Sales')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h1 class="page-title h3 mb-0">Sales</h1>
         @can('create', App\Models\Sale::class)
             <a class="btn btn-primary" href="{{ route('sales.create') }}"><i class="bi bi-plus-lg"></i> New bill</a>

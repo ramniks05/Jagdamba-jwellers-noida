@@ -137,6 +137,7 @@ class SaleController extends Controller
             : null;
         $items = Item::query()
             ->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones'])
+            ->where('own_gold', false)
             ->where(function ($query) use ($draft): void {
                 $query->where('status', ItemStatus::Available);
                 if ($draft && $draft['stockIds'] !== []) {
@@ -272,6 +273,7 @@ class SaleController extends Controller
                 'making_value' => (string) $item->making_value,
                 'wastage_method_uuid' => (string) ($item->wastageMethod?->uuid ?? ''),
                 'wastage_value' => (string) $item->wastage_value,
+                'own' => $item->own_gold ? '1' : '0',
             ],
             'form' => [
                 'name' => $line->name,
@@ -288,6 +290,7 @@ class SaleController extends Controller
                 'makingValue' => (string) $item->making_value,
                 'wastage' => (string) ($item->wastageMethod?->uuid ?? ''),
                 'wastageValue' => (string) $item->wastage_value,
+                'own' => $item->own_gold ? '1' : '0',
                 'stones' => [],
             ],
         ];

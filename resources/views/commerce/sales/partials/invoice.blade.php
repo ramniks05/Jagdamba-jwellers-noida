@@ -81,7 +81,7 @@
                     <td class="num">{{ $loop->iteration }}</td>
                     <td>
                         <strong>{{ $line->name }}</strong>
-                        <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}</div>
+                        <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}@if ($line->hsn_code) · HSN {{ $line->hsn_code }}@endif</div>
                         <div class="invoice-split">
                             <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>
                             @if ((float) $line->wastage_amount > 0)

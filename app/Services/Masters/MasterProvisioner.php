@@ -36,14 +36,17 @@ class MasterProvisioner
     private function seedNamed(string $class, array $rows): void
     {
         foreach ($rows as $index => $row) {
-            $class::query()->firstOrCreate(
-                ['code' => $row['code']],
-                [
-                    'name' => $row['name'],
-                    'sort_order' => ($index + 1) * 10,
-                    'is_active' => true,
-                ],
-            );
+            $values = [
+                'name' => $row['name'],
+                'sort_order' => ($index + 1) * 10,
+                'is_active' => true,
+            ];
+
+            if ($class === MetalType::class) {
+                $values['hsn_code'] = $row['hsn'] ?? null;
+            }
+
+            $class::query()->firstOrCreate(['code' => $row['code']], $values);
         }
     }
 

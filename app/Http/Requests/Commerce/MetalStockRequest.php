@@ -27,6 +27,7 @@ class MetalStockRequest extends FormRequest
             'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'grams' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'supplier_uuid' => ['required_if:kind,purchase', 'nullable', 'uuid', Rule::exists('suppliers', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id))],
         ];
     }
 }

@@ -7,7 +7,7 @@
         'title' => 'Suppliers',
         'intro' => 'Karigars and wholesalers you buy from. You owe '.$money($owedTotal).' in all.',
         'actions' => array_values(array_filter([
-            auth()->user()->can('viewAny', App\Models\Purchase::class) ? ['url' => route('purchases.index'), 'label' => 'Purchases', 'icon' => 'bag'] : null,
+            auth()->user()->can('viewAny', App\Models\Purchase::class) ? ['url' => route('purchases.index'), 'label' => 'Own gold', 'icon' => 'gem'] : null,
             auth()->user()->can('create', App\Models\Supplier::class) ? ['url' => route('suppliers.create'), 'label' => 'Add supplier', 'icon' => 'plus-lg', 'primary' => true] : null,
         ])),
     ])
@@ -59,16 +59,11 @@
                             <td class="num {{ (float) $owe > 0 ? 'text-danger fw-semibold' : 'text-secondary' }}">{{ (float) $owe > 0 ? $money($owe) : ((float) $owe < 0 ? 'Advance '.$money(ltrim($owe, '-')) : '—') }}</td>
                             <td>@include('masters.partials.status', ['active' => $supplier->is_active])</td>
                             <td class="text-end text-nowrap">
-                                @if ($supplier->is_active)
-                                    @can('create', App\Models\Purchase::class)
-                                        <a href="{{ route('purchases.create', ['supplier' => $supplier->uuid]) }}">New purchase</a>
-                                    @endcan
-                                @endif
-                                <a class="ms-2" href="{{ route('suppliers.show', $supplier) }}">Open</a>
+                                <a href="{{ route('suppliers.show', $supplier) }}">Open</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No supplier matches this search.' : 'No suppliers yet. Add one, or add them while receiving a purchase.' }}</td></tr>
+                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No supplier matches this search.' : 'No suppliers yet. Add one before you record a stock purchase.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -42,6 +42,7 @@ class PurchaseRequest extends FormRequest
 
         $this->merge([
             'lines' => $lines,
+            'supplier_uuid' => $blank($this->input('supplier_uuid')),
             'supplier_bill_number' => $blank(trim((string) $this->input('supplier_bill_number'))),
             'discount' => $zero($this->input('discount')),
             'gst_percent' => $zero($this->input('gst_percent')),
@@ -63,7 +64,7 @@ class PurchaseRequest extends FormRequest
         ];
 
         return [
-            'supplier_uuid' => ['required', 'uuid', Rule::exists('suppliers', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'supplier_uuid' => ['nullable', 'uuid', Rule::exists('suppliers', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId))],
             'supplier_bill_number' => ['nullable', 'string', 'max:80'],
             'purchased_on' => ['required', 'date', 'before_or_equal:today'],
             'location_uuid' => ['required', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],

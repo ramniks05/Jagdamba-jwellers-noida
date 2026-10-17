@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'gross_weight', 'stone_weight', 'other_weight', 'net_weight',
     'making_method_id', 'making_value', 'wastage_method_id', 'wastage_value', 'stone_value',
     'cost_price', 'selling_price', 'mrp', 'certificate_number', 'hallmark', 'huid', 'image_path',
-    'status', 'source', 'notes',
+    'status', 'source', 'own_gold', 'notes',
 ])]
 class Item extends Model
 {
@@ -30,6 +30,7 @@ class Item extends Model
         return [
             'status' => ItemStatus::class,
             'source' => ItemSource::class,
+            'own_gold' => 'boolean',
             'gross_weight' => 'decimal:3',
             'stone_weight' => 'decimal:3',
             'other_weight' => 'decimal:3',

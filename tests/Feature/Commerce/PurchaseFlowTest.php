@@ -29,10 +29,18 @@ class PurchaseFlowTest extends TestCase
         $perGram = ChargeMethod::query()->where('applies_to', 'making')->where('code', 'per_gram')->firstOrFail();
         $percent = ChargeMethod::query()->where('applies_to', 'wastage')->where('code', 'percentage')->firstOrFail();
 
-        $this->actingAs($owner)->get(route('purchases.create', ['supplier' => $supplier->uuid]))
+        $this->actingAs($owner)->get(route('purchases.create'))
+            ->assertRedirect(route('items.create', ['own' => 1]));
+
+        $this->actingAs($owner)->get(route('items.create', ['own' => 1]))
             ->assertOk()
-            ->assertSee('"nextCode":"PC0001"', false)
-            ->assertSee('value="'.$supplier->uuid.'" data-payable="0.00" selected', false);
+            ->assertSee('Add own jewellery')
+            ->assertSee('value="PC0001"', false)
+            ->assertSee('Gross g')
+            ->assertSee('Making and wastage')
+            ->assertSee('Add stone')
+            ->assertDontSee('name="supplier_uuid"', false)
+            ->assertDontSee('name="source"', false);
 
         $this->actingAs($owner)->post(route('purchases.store'), $this->bill($supplier, $location, [
             'supplier_bill_number' => 'MB/221',
@@ -114,9 +122,8 @@ class PurchaseFlowTest extends TestCase
         $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Supplier, (int) $supplier->id));
 
         $this->actingAs($owner)->get(route('purchases.show', $purchase))->assertOk()->assertSee('Paid')->assertSee('UTR1');
-        $this->actingAs($owner)->get(route('purchases.index', ['show' => 'paid']))->assertOk()->assertSee($purchase->number);
-        $this->actingAs($owner)->get(route('purchases.index', ['show' => 'due']))->assertOk()->assertDontSee($purchase->number);
-        $this->actingAs($owner)->get(route('purchases.index', ['search' => 'MB/221']))->assertOk()->assertSee($purchase->number);
+        $this->actingAs($owner)->get(route('purchases.index'))->assertOk()->assertSee('PC0001')->assertSee('PC0002');
+        $this->actingAs($owner)->get(route('purchases.index', ['search' => 'PC0001']))->assertOk()->assertSee('PC0001')->assertDontSee('PC0002');
     }
 
     public function test_amount_bills_and_supplier_payments_settle_the_oldest_bill_first(): void

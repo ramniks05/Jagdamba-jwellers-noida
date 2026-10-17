@@ -148,7 +148,7 @@ class CounterTest extends TestCase
 
         $this->actingAs($cashier)->get(route('items.index'))->assertOk();
         $this->actingAs($cashier)->post(route('items.store'), [])->assertForbidden();
-        $this->actingAs($cashier)->get(route('sales.create'))->assertOk()->assertSee('Find customer')->assertSee('Weigh and bill')->assertSee('Ring');
+        $this->actingAs($cashier)->get(route('sales.create'))->assertOk()->assertSee('Find customer')->assertSee('Weigh and bill')->assertSee('Gross g')->assertSee('Own');
     }
 
     public function test_the_bill_screen_shows_the_price_and_a_new_piece_can_be_sold_with_it(): void
@@ -227,8 +227,9 @@ class CounterTest extends TestCase
         $this->actingAs($owner)
             ->get(route('sales.create'))
             ->assertOk()
-            ->assertSee('id="weigh-huid"', false)
-            ->assertSee('Type the hallmark ID if this piece is not in stock');
+            ->assertSee('id="weigh-own"', false)
+            ->assertSee('data-hsn="7113"', false)
+            ->assertDontSee('Type the hallmark ID if this piece is not in stock');
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $walkIn->uuid,

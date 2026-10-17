@@ -38,16 +38,23 @@
             <a class="btn btn-sm {{ $source === $option->value ? 'btn-dark' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $status, 'source' => $option->value] + array_filter(['search' => $search])) }}">{{ $option->label() }}</a>
         @endforeach
     </div>
-    <form class="d-flex flex-wrap gap-2 mb-3" method="GET" action="{{ route('items.index') }}">
+    <form class="filter-bar" method="GET" action="{{ route('items.index') }}">
         <input type="hidden" name="status" value="{{ $status }}">
         @if ($source !== '')
             <input type="hidden" name="source" value="{{ $source }}">
         @endif
-        <input class="form-control" style="max-width: 22rem" name="search" value="{{ $search }}" placeholder="Code, name, barcode or HUID">
-        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
-        @if ($search !== '')
-            <a class="btn btn-link" href="{{ route('items.index', ['status' => $status] + array_filter(['source' => $source])) }}">Clear</a>
-        @endif
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="piece-search">Find</label>
+                <input class="form-control" id="piece-search" name="search" value="{{ $search }}" placeholder="Code, name, barcode or HUID">
+            </div>
+            <div class="col-auto d-flex gap-2">
+                <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
+                @if ($search !== '')
+                    <a class="btn btn-outline-secondary" href="{{ route('items.index', ['status' => $status] + array_filter(['source' => $source])) }}">Clear</a>
+                @endif
+            </div>
+        </div>
     </form>
     @php($canPrint = auth()->user()->can('inventory.print'))
     @if ($canPrint && $items->isNotEmpty())

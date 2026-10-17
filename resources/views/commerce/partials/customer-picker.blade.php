@@ -11,7 +11,7 @@
                 <input class="form-control" id="customer-search" placeholder="Type mobile number or name" autocomplete="off">
                 <button class="btn btn-outline-secondary d-none" type="button" id="customer-walkin"><i class="bi bi-person"></i> Walk-in</button>
             </div>
-            <div class="form-text">Press <strong>{{ $addLabel }}</strong> on the right customer, or Enter for the first one.</div>
+            <div class="form-text">Choose the customer, then press <strong>{{ $addLabel }}</strong>. Enter picks the first one.</div>
             <div class="bill-results mt-2" id="customer-results"></div>
         </div>
         <div class="customer-chip d-none" id="customer-chosen"></div>

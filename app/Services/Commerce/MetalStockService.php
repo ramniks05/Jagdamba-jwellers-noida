@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\MetalStockMovement;
 use App\Models\MetalType;
 use App\Models\Purity;
+use App\Models\Supplier;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -50,7 +51,15 @@ class MetalStockService
             return $this->setOpening($branch, $metal, $purity, $grams, $userId);
         }
 
-        return $this->record((int) $branch->id, (int) $metal->id, (int) $purity->id, $grams, MetalStockKind::Purchase, null, $userId);
+        $supplier = Supplier::query()->where('uuid', $attributes['supplier_uuid'] ?? '')->where('is_active', true)->first();
+
+        if (! $supplier) {
+            throw ValidationException::withMessages([
+                'supplier_uuid' => 'Choose the supplier for this purchase.',
+            ]);
+        }
+
+        return $this->record((int) $branch->id, (int) $metal->id, (int) $purity->id, $grams, MetalStockKind::Purchase, $supplier, $userId);
     }
 
     public function sell(int $branchId, int $metalId, int $purityId, string $grams, Model $reference, ?int $userId = null): void
@@ -76,33 +85,53 @@ class MetalStockService
     }
 
     /**
-     * @return Collection<int, array{metal: string, purity: string, opening: string, purchased: string, sold: string, balance: string, short: bool}>
+     * @return Collection<int, array{metal: string, metal_uuid: string, purity: string, purity_uuid: string, opening: string, purchased: string, sold: string, balance: string, short: bool}>
      */
-    public function balances(): Collection
+    public function balances(?Supplier $supplier = null): Collection
     {
+        $purchase = MetalStockKind::Purchase->value;
         $rows = MetalStockMovement::query()
             ->select('metal_type_id', 'purity_id')
             ->selectRaw("coalesce(sum(case when kind = ? then grams else 0 end), 0) as opening_grams", [MetalStockKind::Opening->value])
-            ->selectRaw("coalesce(sum(case when kind = ? then grams else 0 end), 0) as purchased_grams", [MetalStockKind::Purchase->value])
+            ->selectRaw('coalesce(sum(case when kind = ? then grams else 0 end), 0) as purchased_grams', [$purchase])
+            ->when($supplier, fn ($query) => $query->selectRaw(
+                'coalesce(sum(case when kind = ? and reference_type = ? and reference_id = ? then grams else 0 end), 0) as supplier_purchased_grams',
+                [$purchase, $supplier->getMorphClass(), $supplier->id],
+            ))
             ->selectRaw("coalesce(sum(case when kind = ? then grams else 0 end), 0) as sold_grams", [MetalStockKind::Sale->value])
             ->selectRaw("coalesce(sum(case when kind = ? then grams else 0 end), 0) as returned_grams", [MetalStockKind::SaleReturn->value])
+            ->when($supplier, function ($query) use ($supplier, $purchase): void {
+                $query->whereExists(function ($bought) use ($supplier, $purchase): void {
+                    $bought->selectRaw('1')
+                        ->from('metal_stock_movements as supplier_purchases')
+                        ->whereColumn('supplier_purchases.company_id', 'metal_stock_movements.company_id')
+                        ->whereColumn('supplier_purchases.metal_type_id', 'metal_stock_movements.metal_type_id')
+                        ->whereColumn('supplier_purchases.purity_id', 'metal_stock_movements.purity_id')
+                        ->where('supplier_purchases.kind', $purchase)
+                        ->where('supplier_purchases.reference_type', $supplier->getMorphClass())
+                        ->where('supplier_purchases.reference_id', $supplier->id);
+                });
+            })
             ->groupBy('metal_type_id', 'purity_id')
             ->get();
 
-        $metals = MetalType::query()->whereIn('id', $rows->pluck('metal_type_id'))->pluck('name', 'id');
+        $metals = MetalType::query()->whereIn('id', $rows->pluck('metal_type_id'))->get()->keyBy('id');
         $purities = Purity::query()->whereIn('id', $rows->pluck('purity_id'))->get()->keyBy('id');
 
-        return $rows->map(function ($row) use ($metals, $purities) {
+        return $rows->map(function ($row) use ($metals, $purities, $supplier) {
             $opening = BigDecimal::of((string) $row->opening_grams);
             $purchased = BigDecimal::of((string) $row->purchased_grams);
+            $shown = $supplier ? BigDecimal::of((string) $row->supplier_purchased_grams) : $purchased;
             $sold = BigDecimal::of((string) $row->sold_grams)->minus((string) $row->returned_grams);
             $balance = $opening->plus($purchased)->minus($sold);
 
             return [
-                'metal' => (string) ($metals[$row->metal_type_id] ?? ''),
+                'metal' => (string) ($metals[$row->metal_type_id]->name ?? ''),
+                'metal_uuid' => (string) ($metals[$row->metal_type_id]->uuid ?? ''),
                 'purity' => (string) ($purities[$row->purity_id]->name ?? ''),
+                'purity_uuid' => (string) ($purities[$row->purity_id]->uuid ?? ''),
                 'opening' => (string) $opening->toScale(3, RoundingMode::HalfUp),
-                'purchased' => (string) $purchased->toScale(3, RoundingMode::HalfUp),
+                'purchased' => (string) $shown->toScale(3, RoundingMode::HalfUp),
                 'sold' => (string) $sold->toScale(3, RoundingMode::HalfUp),
                 'balance' => (string) $balance->toScale(3, RoundingMode::HalfUp),
                 'short' => $balance->isNegative(),

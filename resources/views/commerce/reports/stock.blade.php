@@ -1,9 +1,9 @@
 @extends('layouts.app')
 
-@section('title', 'Stock report')
+@section('title', request()->boolean('report') ? 'Stock report' : 'Gram stock')
 
 @section('content')
-    @include('commerce.reports.partials.head', ['title' => 'Stock report'])
+    @include('commerce.reports.partials.head', ['title' => request()->boolean('report') ? 'Stock report' : 'Gram stock'])
     @if ($metalStock->isNotEmpty())
         <div class="table-responsive mb-3">
             <table class="table mb-0">
@@ -31,12 +31,18 @@
                 </tbody>
             </table>
         </div>
+        @if ($supplierName)
+            <p class="text-secondary small">Purchased grams are from {{ $supplierName }}. Opening, sold and in hand are the shop totals for that purity.</p>
+        @endif
+    @elseif ($filters['metal'] !== '' || $filters['purity'] !== '' || $filters['supplierUuid'] !== '')
+        <p class="text-secondary">No grams for this filter.</p>
     @endif
     @can('inventory.create')
+        @if (! request()->boolean('report'))
         <div class="card mb-3 no-print">
             <div class="card-header bg-white">Add grams</div>
             <div class="card-body">
-                <p class="text-secondary small">Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds more grams. A bill takes the net grams off. Pieces are not added here.</p>
+                <p class="text-secondary small">Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds more grams from a supplier. A normal bill takes those grams off.</p>
                 <form method="POST" action="{{ route('reports.stock.store') }}" class="row g-2 align-items-end" id="metal-stock-form">
                     @csrf
                     @if ($branches->count() > 1)
@@ -56,6 +62,15 @@
                         <select class="form-select" id="stock-kind" name="kind">
                             <option value="opening" @selected(old('kind', 'opening') === 'opening')>Opening stock</option>
                             <option value="purchase" @selected(old('kind') === 'purchase')>Purchase</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-12 {{ old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-supplier-wrap">
+                        <label class="form-label" for="stock-supplier">Supplier</label>
+                        <select class="form-select" id="stock-supplier" name="supplier_uuid">
+                            <option value="">Choose</option>
+                            @foreach ($suppliers as $supplier)
+                                <option value="{{ $supplier->uuid }}" @selected(old('supplier_uuid') === $supplier->uuid)>{{ $supplier->name }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-2 col-6">
@@ -86,15 +101,15 @@
                 </form>
             </div>
         </div>
+        @endif
     @endcan
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.stock') }}">
         <input type="hidden" name="per_page" value="{{ $perPage }}">
+        @if (request()->boolean('report'))
+            <input type="hidden" name="report" value="1">
+        @endif
         <div class="row g-2 align-items-end">
-            <div class="col-lg-3 col-md-6">
-                <label class="form-label" for="stock-search">Search</label>
-                <input class="form-control" id="stock-search" name="search" value="{{ $filters['search'] }}" placeholder="Name, code, HUID or barcode">
-            </div>
-            <div class="col-lg-2 col-md-3 col-6">
+            <div class="col-md-3 col-6">
                 <label class="form-label" for="filter-metal">Metal</label>
                 <select class="form-select" id="filter-metal" name="metal">
                     <option value="">All metals</option>
@@ -103,55 +118,30 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-lg-2 col-md-3 col-6">
-                <label class="form-label" for="stock-category">Category</label>
-                <select class="form-select" id="stock-category" name="category">
-                    <option value="">All categories</option>
-                    @foreach ($categories as $row)
-                        <option value="{{ $row->id }}" @selected($filters['category'] === (string) $row->id)>{{ $row->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            @if ($locations->count() > 1)
-                <div class="col-lg-2 col-md-3 col-6">
-                    <label class="form-label" for="stock-location">Place</label>
-                    <select class="form-select" id="stock-location" name="location">
-                        <option value="">All places</option>
-                        @foreach ($locations as $row)
-                            <option value="{{ $row->uuid }}" @selected($filters['location'] === $row->uuid)>{{ $row->branch?->name }} / {{ $row->name }}</option>
+            <div class="col-md-3 col-6">
+                <label class="form-label" for="filter-purity">Purity</label>
+                <select class="form-select" id="filter-purity" name="purity">
+                    <option value="">All purities</option>
+                    @foreach ($metals as $row)
+                        @foreach ($row->purities as $option)
+                            <option value="{{ $option->uuid }}" data-metal="{{ $row->uuid }}" @selected($filters['purity'] === $option->uuid)>{{ $option->name }}</option>
                         @endforeach
-                    </select>
-                </div>
-            @endif
-            <div class="col-lg-2 col-md-3 col-6">
-                <label class="form-label" for="stock-status">Status</label>
-                <select class="form-select" id="stock-status" name="status">
-                    <option value="all">In stock</option>
-                    <option value="available" @selected($filters['status'] === 'available')>Available</option>
-                    <option value="reserved" @selected($filters['status'] === 'reserved')>Reserved</option>
-                </select>
-            </div>
-            <div class="col-lg-2 col-md-3 col-6">
-                <label class="form-label" for="stock-source">Source</label>
-                <select class="form-select" id="stock-source" name="source">
-                    <option value="">All</option>
-                    @foreach ($sources as $option)
-                        <option value="{{ $option->value }}" @selected($filters['source'] === $option->value)>{{ $option->label() }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="col-lg-2 col-md-3 col-6">
-                <label class="form-label" for="stock-sort">Sort</label>
-                <select class="form-select" id="stock-sort" name="sort">
-                    <option value="code">Piece code</option>
-                    <option value="newest" @selected($filters['sort'] === 'newest')>Newest first</option>
-                    <option value="heaviest" @selected($filters['sort'] === 'heaviest')>Heaviest first</option>
+            <div class="col-md-3 col-6">
+                <label class="form-label" for="filter-supplier">Supplier</label>
+                <select class="form-select" id="filter-supplier" name="supplier">
+                    <option value="">All suppliers</option>
+                    @foreach ($suppliers as $supplier)
+                        <option value="{{ $supplier->uuid }}" @selected($filters['supplierUuid'] === $supplier->uuid)>{{ $supplier->name }}</option>
+                    @endforeach
                 </select>
             </div>
             <div class="col-auto d-flex gap-2">
                 <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel"></i> Show</button>
-                @if ($filtered || $filters['sort'] !== 'code')
-                    <a class="btn btn-outline-secondary" href="{{ route('reports.stock') }}">Clear</a>
+                @if ($filtered)
+                    <a class="btn btn-outline-secondary" href="{{ route('reports.stock', request()->boolean('report') ? ['report' => 1] : []) }}">Clear</a>
                 @endif
             </div>
         </div>
@@ -251,6 +241,43 @@
             };
             stockMetal.addEventListener('change', syncStockPurity);
             syncStockPurity();
+        }
+        const stockKind = document.getElementById('stock-kind');
+        const stockSupplierWrap = document.getElementById('stock-supplier-wrap');
+        const stockSupplier = document.getElementById('stock-supplier');
+        if (stockKind && stockSupplierWrap && stockSupplier) {
+            const syncStockSupplier = () => {
+                const purchase = stockKind.value === 'purchase';
+                stockSupplierWrap.classList.toggle('d-none', !purchase);
+                stockSupplier.required = purchase;
+                stockSupplier.disabled = !purchase;
+            };
+            stockKind.addEventListener('change', syncStockSupplier);
+            syncStockSupplier();
+        }
+        const filterMetal = document.getElementById('filter-metal');
+        const filterPurity = document.getElementById('filter-purity');
+        if (filterMetal && filterPurity) {
+            const syncFilterPurity = () => {
+                const metal = filterMetal.value;
+                let keep = filterPurity.value === '';
+                Array.from(filterPurity.options).forEach((option) => {
+                    if (!option.value) {
+                        return;
+                    }
+                    const show = metal === '' || option.dataset.metal === metal;
+                    option.hidden = !show;
+                    option.disabled = !show;
+                    if (show && option.value === filterPurity.value) {
+                        keep = true;
+                    }
+                });
+                if (!keep) {
+                    filterPurity.value = '';
+                }
+            };
+            filterMetal.addEventListener('change', syncFilterPurity);
+            syncFilterPurity();
         }
     </script>
 @endpush

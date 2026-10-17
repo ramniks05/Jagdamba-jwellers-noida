@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Receive purchase')
+@section('title', 'Add own jewellery')
 
 @section('content')
     @php
@@ -16,44 +16,21 @@
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <a href="{{ route('purchases.index') }}"><i class="bi bi-arrow-left"></i> All purchases</a>
+        <a href="{{ route('purchases.index') }}"><i class="bi bi-arrow-left"></i> All own gold</a>
     </div>
-    <h1 class="page-title h3 mb-1">Receive purchase</h1>
-    <p class="text-secondary mb-3">Type the supplier’s bill. Every piece goes into stock with its own code. The supplier’s rate and labour make your cost; your selling making is kept separately on each piece.</p>
+    <h1 class="page-title h3 mb-1">Add own jewellery</h1>
+    <p class="text-secondary mb-3">This is your own jewellery. No supplier is needed, and these pieces stay off the stock page.</p>
 
     <form method="POST" action="{{ route('purchases.store') }}" id="purchase-form" autocomplete="off">
         @csrf
         <div class="row g-3">
             <div class="col-xl-8">
                 <div class="card mb-3">
-                    <div class="card-header bg-white">Supplier bill</div>
+                    <div class="card-header bg-white">Own jewellery</div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="d-flex justify-content-between align-items-baseline">
-                                    <label class="form-label" for="supplier">Supplier</label>
-                                    @can('create', App\Models\Supplier::class)
-                                        <a class="small" href="{{ route('suppliers.create', ['for' => 'purchase']) }}"><i class="bi bi-plus-lg"></i> New supplier</a>
-                                    @endcan
-                                </div>
-                                <select class="form-select @error('supplier_uuid') is-invalid @enderror" id="supplier" name="supplier_uuid" required>
-                                    <option value="">{{ $suppliers->isEmpty() ? 'No suppliers yet' : 'Choose' }}</option>
-                                    @foreach ($suppliers as $supplier)
-                                        <option value="{{ $supplier->uuid }}" data-payable="{{ $payable[$supplier->uuid] ?? '0.00' }}" @selected($supplierValue === $supplier->uuid)>{{ $supplier->name }}{{ $supplier->mobile ? ' · '.$supplier->mobile : '' }}</option>
-                                    @endforeach
-                                </select>
-                                <div class="form-text" id="supplier-balance">
-                                    @if ($suppliers->isEmpty())
-                                        Add the supplier first with “New supplier”. You come straight back here.
-                                    @endif
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-label" for="supplier_bill_number">Supplier bill no.</label>
-                                <input class="form-control" id="supplier_bill_number" name="supplier_bill_number" value="{{ old('supplier_bill_number') }}" maxlength="80" placeholder="Their invoice">
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-label" for="purchased_on">Bill date</label>
+                            <div class="col-md-4 col-6">
+                                <label class="form-label" for="purchased_on">Date</label>
                                 <input class="form-control" id="purchased_on" name="purchased_on" type="date" value="{{ old('purchased_on', now()->toDateString()) }}" max="{{ now()->toDateString() }}" required>
                             </div>
                             <div class="col-md-6">
@@ -65,8 +42,8 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <span class="form-label d-block">Supplier prices by</span>
-                                <div class="btn-group w-100" role="group" aria-label="Supplier prices by">
+                                <span class="form-label d-block">Piece value by</span>
+                                <div class="btn-group w-100" role="group" aria-label="Piece value by">
                                     <input class="btn-check" type="radio" name="pricing" id="pricing-rate" value="rate" @checked($pricing !== 'amount')>
                                     <label class="btn btn-outline-secondary" for="pricing-rate">Rate + labour</label>
                                     <input class="btn-check" type="radio" name="pricing" id="pricing-amount" value="amount" @checked($pricing === 'amount')>
@@ -112,7 +89,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="form-text">This is what the customer pays on the bill, not the supplier’s labour. A single piece can still be changed under “Selling charges”.</div>
+                        <div class="form-text">These charges are for a later customer bill. A single piece can still be changed under “Selling charges”.</div>
                     </div>
                 </div>
 
@@ -130,54 +107,21 @@
 
             <div class="col-xl-4 bill-side">
                 <div class="card mb-3">
-                    <div class="card-header bg-white">Supplier bill total</div>
+                    <div class="card-header bg-white">Piece value</div>
                     <div class="card-body bill-sums">
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="form-label small mb-1" for="discount">Discount ₹</label>
-                                <input class="form-control form-control-sm" id="discount" name="discount" value="{{ old('discount') }}" inputmode="decimal" placeholder="0">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small mb-1" for="gst_percent">GST %</label>
-                                <input class="form-control form-control-sm" id="gst_percent" name="gst_percent" value="{{ old('gst_percent', rtrim(rtrim($gstPercent, '0'), '.')) }}" inputmode="decimal">
-                            </div>
-                        </div>
+                        <input type="hidden" id="discount" name="discount" value="0">
+                        <input type="hidden" id="gst_percent" name="gst_percent" value="0">
                         <div class="weigh-quote is-empty" id="total-empty">Enter a piece weight</div>
                         <div id="total-sums" class="d-none">
                             <div class="bill-block">
                                 <div class="bill-row bill-row-muted"><span id="sum-count">0 pieces</span><span id="sum-weight">0.000 g</span></div>
                                 <div class="bill-row"><span>Pieces value</span><span id="sum-lines">₹0.00</span></div>
                                 <div class="bill-row d-none" id="sum-discount-row"><span>Discount</span><span id="sum-discount">₹0.00</span></div>
-                                <div class="bill-row"><span id="sum-gst-label">GST</span><span id="sum-gst">₹0.00</span></div>
+                                <div class="bill-row d-none" id="sum-gst-row"><span id="sum-gst-label">GST</span><span id="sum-gst">₹0.00</span></div>
                                 <div class="bill-row bill-row-muted d-none" id="sum-round-row"><span>Round off</span><span id="sum-round">₹0.00</span></div>
                             </div>
-                            <div class="bill-grand"><span>Total to supplier</span><strong id="sum-total">₹0.00</strong></div>
+                            <div class="bill-grand"><span>Total</span><strong id="sum-total">₹0.00</strong></div>
                         </div>
-                        <p class="text-secondary small mb-0 mt-2">GST is added on top, the way supplier bills show it. Set GST % to 0 for a supplier without GST.</p>
-                    </div>
-                </div>
-
-                <div class="card mb-3">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span>Payment now</span>
-                        <button class="btn btn-outline-secondary btn-sm" id="pay-full" type="button">Pay full</button>
-                    </div>
-                    <div class="card-body">
-                        @foreach ([0, 1] as $slot)
-                            <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <select class="form-select" name="payments[{{ $slot }}][method]" aria-label="Payment method">
-                                        @foreach ($methods as $method)
-                                            <option value="{{ $method->value }}" @selected(($oldPayments[$slot]['method'] ?? ($slot === 0 ? 'cash' : 'bank')) === $method->value)>{{ $method->label() }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-4"><input class="form-control pay-amount" name="payments[{{ $slot }}][amount]" value="{{ $oldPayments[$slot]['amount'] ?? '' }}" inputmode="decimal" placeholder="Amount" aria-label="Amount"></div>
-                                <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ $oldPayments[$slot]['reference'] ?? '' }}" placeholder="Cheque / UTR" aria-label="Reference"></div>
-                            </div>
-                        @endforeach
-                        <div class="bill-row mt-2"><span>Left to pay later</span><strong id="pay-left">₹0.00</strong></div>
-                        <div class="form-text">Leave the amount blank to pay later. It stays on the supplier’s account.</div>
                     </div>
                 </div>
 
@@ -187,7 +131,7 @@
                         <textarea class="form-control" id="notes" name="notes" rows="2" maxlength="1000" placeholder="Anything to remember about this bill">{{ old('notes') }}</textarea>
                     </div>
                 </div>
-                <button class="btn btn-primary w-100" type="submit"><i class="bi bi-check-lg"></i> Save purchase</button>
+                <button class="btn btn-primary w-100" type="submit"><i class="bi bi-check-lg"></i> Save own jewellery</button>
             </div>
         </div>
     </form>
@@ -243,7 +187,7 @@
                 <div class="by-rate"><label>Rate ₹/g</label><input class="form-control" data-key="rate_per_gram" inputmode="decimal" placeholder="0"></div>
                 <div class="by-rate"><label>Wastage %</label><input class="form-control" data-key="wastage_percent" inputmode="decimal" placeholder="0"></div>
                 <div class="by-rate"><label>Labour ₹/g</label><input class="form-control" data-key="labour_per_gram" inputmode="decimal" placeholder="0"></div>
-                <div class="by-amount"><label>Amount ₹</label><input class="form-control metal-net" data-key="amount" inputmode="decimal" placeholder="From their bill"></div>
+                <div class="by-amount"><label>Amount ₹</label><input class="form-control metal-net" data-key="amount" inputmode="decimal" placeholder="Amount"></div>
                 <div><label>Stones ₹</label><input class="form-control" data-key="stone_value" inputmode="decimal" placeholder="0"></div>
                 <div><label>Piece cost</label><input class="form-control line-cost" readonly tabindex="-1" placeholder="₹0" aria-label="Piece cost"></div>
             </div>
@@ -348,7 +292,7 @@
                 if (rate.dataset.touched) return;
                 const value = todayRate(row);
                 rate.value = value > 0 ? String(value) : '';
-                rate.title = value > 0 ? 'Today’s rate. Change it to the rate on the supplier bill.' : 'No rate saved for this purity. Type the supplier rate.';
+                rate.title = value > 0 ? 'Today’s rate. Change it if this piece has a different value.' : 'No rate saved for this purity. Type the rate.';
             }
 
             function nextCode() {
@@ -515,7 +459,7 @@
                 const sums = document.getElementById('total-sums');
                 sum = round2(sum);
                 if (counted === 0 || sum <= 0) {
-                    empty.textContent = counted === 0 ? 'Enter a piece weight' : (amountMode ? 'Type the amount for each piece' : 'Type the supplier rate');
+                    empty.textContent = counted === 0 ? 'Enter a piece weight' : (amountMode ? 'Type the amount for each piece' : 'Type the rate');
                     empty.classList.remove('d-none');
                     sums.classList.add('d-none');
                     total = 0;
@@ -539,6 +483,7 @@
                 document.getElementById('sum-discount').textContent = '− ' + money.format(discount);
                 document.getElementById('sum-gst-label').textContent = 'GST ' + gst + '%';
                 document.getElementById('sum-gst').textContent = money.format(tax);
+                document.getElementById('sum-gst-row').classList.toggle('d-none', tax <= 0);
                 document.getElementById('sum-round-row').classList.toggle('d-none', roundOff === 0);
                 document.getElementById('sum-round').textContent = money.format(roundOff);
                 document.getElementById('sum-total').textContent = money.format(total);
@@ -546,18 +491,21 @@
             }
 
             function renderPay() {
+                const field = document.getElementById('pay-left');
+                if (!field) return;
                 let paid = 0;
                 document.querySelectorAll('.pay-amount').forEach((input) => { paid += number(input.value); });
                 const left = round2(total - paid);
-                const field = document.getElementById('pay-left');
                 field.textContent = money.format(Math.max(0, left));
                 field.classList.toggle('text-danger', left < 0);
                 if (left < 0) field.textContent = 'Paid ' + money.format(-left) + ' too much';
             }
 
             function renderSupplier() {
-                const option = selected(document.getElementById('supplier'));
+                const supplier = document.getElementById('supplier');
                 const note = document.getElementById('supplier-balance');
+                if (!supplier || !note) return;
+                const option = selected(supplier);
                 if (!option || !option.value) return;
                 const payable = Number(option.dataset.payable || 0);
                 note.textContent = payable > 0
@@ -585,14 +533,14 @@
             document.getElementById('location').addEventListener('change', () => {
                 list.querySelectorAll('.purchase-line').forEach(fillRate);
             });
-            document.getElementById('supplier').addEventListener('change', renderSupplier);
+            document.getElementById('supplier')?.addEventListener('change', renderSupplier);
             document.getElementById('add-line').addEventListener('click', () => {
                 const rows = list.querySelectorAll('.purchase-line');
                 const row = addLine(null, rows[rows.length - 1] || null);
                 render();
                 field(row, 'gross_weight').focus();
             });
-            document.getElementById('pay-full').addEventListener('click', () => {
+            document.getElementById('pay-full')?.addEventListener('click', () => {
                 const inputs = document.querySelectorAll('.pay-amount');
                 inputs.forEach((input, index) => { input.value = index === 0 && total > 0 ? total.toFixed(2) : ''; });
                 renderPay();

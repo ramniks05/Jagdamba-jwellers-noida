@@ -14,7 +14,10 @@ use App\Models\LedgerEntry;
 use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\Sale;
+use App\Models\SaleLine;
+use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
+use App\Models\Supplier;
 use App\Services\Commerce\MetalStockService;
 use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
@@ -36,6 +39,8 @@ class ReportController extends Controller
         $company = $context->company();
         $search = trim((string) $request->query('search', ''));
         $metal = trim((string) $request->query('metal', ''));
+        $purity = trim((string) $request->query('purity', ''));
+        $supplierUuid = trim((string) $request->query('supplier', ''));
         $category = trim((string) $request->query('category', ''));
         $location = trim((string) $request->query('location', ''));
         $status = in_array($request->query('status'), ['available', 'reserved'], true) ? (string) $request->query('status') : 'all';
@@ -43,6 +48,7 @@ class ReportController extends Controller
         $source = ItemSource::tryFrom((string) $request->query('source', ''))?->value ?? '';
 
         $query = Item::query()
+            ->where('own_gold', false)
             ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
             ->when($status !== 'all', fn ($rows) => $rows->where('status', $status))
             ->when($source !== '', fn ($rows) => $rows->where('source', $source))
@@ -51,6 +57,7 @@ class ReportController extends Controller
                 $rows->where(fn ($inner) => $inner->where('item_code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('huid', 'like', $like)->orWhere('barcode', 'like', $like));
             })
             ->when($metal !== '', fn ($rows) => $rows->whereHas('metalType', fn ($metals) => $metals->where('uuid', $metal)))
+            ->when($purity !== '', fn ($rows) => $rows->whereHas('purity', fn ($purities) => $purities->where('uuid', $purity)))
             ->when($category !== '', fn ($rows) => $rows->where('category_id', (int) $category))
             ->when($location !== '', fn ($rows) => $rows->whereHas('location', fn ($places) => $places->where('uuid', $location)));
 
@@ -80,16 +87,26 @@ class ReportController extends Controller
         };
         $query->orderBy('id');
 
+        $chosenSupplier = $supplierUuid === '' ? null : Supplier::query()->where('uuid', $supplierUuid)->first();
+        $balances = ($supplierUuid !== '' && ! $chosenSupplier)
+            ? collect()
+            : $metalStock->balances($chosenSupplier)
+                ->when($metal !== '', fn ($rows) => $rows->where('metal_uuid', $metal))
+                ->when($purity !== '', fn ($rows) => $rows->where('purity_uuid', $purity))
+                ->values();
+
         return view('commerce.reports.stock', [
             'pieces' => $this->page($query, $request, (int) $totals->pieces),
             'byMetal' => $byMetal,
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->where('is_active', true)->orderByDesc('fineness')])->where('is_active', true)->orderBy('name')->get(),
             'branches' => Branch::query()->visibleTo($request->user())->orderByDesc('is_head_office')->orderBy('name')->get(),
-            'metalStock' => $metalStock->balances(),
+            'metalStock' => $balances,
+            'supplierName' => $chosenSupplier?->name,
+            'suppliers' => Supplier::query()->where(fn ($rows) => $rows->where('is_active', true)->when($supplierUuid !== '', fn ($rows) => $rows->orWhere('uuid', $supplierUuid)))->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->orderBy('name')->get(),
-            'filters' => compact('search', 'metal', 'category', 'location', 'status', 'source', 'sort'),
-            'filtered' => $search !== '' || $metal !== '' || $category !== '' || $location !== '' || $status !== 'all' || $source !== '',
+            'filters' => compact('search', 'metal', 'purity', 'supplierUuid', 'category', 'location', 'status', 'source', 'sort'),
+            'filtered' => $search !== '' || $metal !== '' || $purity !== '' || $supplierUuid !== '' || $category !== '' || $location !== '' || $status !== 'all' || $source !== '',
             'sources' => ItemSource::cases(),
             'pieceCount' => (int) $totals->pieces,
             'grossTotal' => $format->weight($this->decimal($totals->gross, 3), $company),
@@ -97,6 +114,25 @@ class ReportController extends Controller
             'perPage' => $this->perPage($request),
             'company' => $company,
             'weight' => fn (string $amount) => $format->weight($amount, $company),
+        ]);
+    }
+
+    public function ownGold(NumberFormatService $format, CompanyContext $context): View
+    {
+        $this->authorize('reports.view');
+        $company = $context->company();
+        $lines = SaleLine::query()
+            ->with(['sale.customer'])
+            ->whereHas('item', fn ($items) => $items->where('own_gold', true))
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('commerce.reports.own-gold', [
+            'lines' => $lines,
+            'returned' => SaleReturnLine::query()->whereIn('sale_line_id', $lines->modelKeys())->pluck('sale_line_id'),
+            'money' => fn (string $amount): string => $format->money($amount, $company),
+            'weight' => fn (string $amount): string => $format->weight($amount, $company),
         ]);
     }
 

@@ -28,6 +28,7 @@ class PieceFormTest extends TestCase
             ->assertOk()
             ->assertSee('value="PC0001"', false)
             ->assertSee('value="'.$purity->uuid.'" data-id="'.$purity->id.'" data-metal="'.$gold->id.'" selected', false)
+            ->assertDontSee('name="source"', false)
             ->assertSee('Price today');
 
         $this->actingAs($owner)->post(route('items.store'), [

@@ -20,10 +20,10 @@ return [
     ],
 
     'metals' => [
-        ['code' => 'GOLD', 'name' => 'Gold'],
-        ['code' => 'SILVER', 'name' => 'Silver'],
-        ['code' => 'PLATINUM', 'name' => 'Platinum'],
-        ['code' => 'OTHER', 'name' => 'Other'],
+        ['code' => 'GOLD', 'name' => 'Gold', 'hsn' => '7113'],
+        ['code' => 'SILVER', 'name' => 'Silver', 'hsn' => '7113'],
+        ['code' => 'PLATINUM', 'name' => 'Platinum', 'hsn' => '7113'],
+        ['code' => 'OTHER', 'name' => 'Other', 'hsn' => null],
     ],
 
     /*
@@ -38,9 +38,13 @@ return [
         ['metal' => 'GOLD', 'code' => '14K', 'name' => '14K', 'fineness' => '0.583000'],
         ['metal' => 'GOLD', 'code' => '10K', 'name' => '10K', 'fineness' => '0.417000'],
         ['metal' => 'GOLD', 'code' => '9K', 'name' => '9K', 'fineness' => '0.375000'],
+        ['metal' => 'GOLD', 'code' => 'OTHERS', 'name' => 'Others', 'fineness' => '0.001000'],
         ['metal' => 'SILVER', 'code' => '999', 'name' => '999', 'fineness' => '0.999000'],
         ['metal' => 'SILVER', 'code' => '925', 'name' => '925', 'fineness' => '0.925000'],
+        ['metal' => 'SILVER', 'code' => 'OTHERS', 'name' => 'Others', 'fineness' => '0.001000'],
         ['metal' => 'PLATINUM', 'code' => '950', 'name' => '950', 'fineness' => '0.950000'],
+        ['metal' => 'PLATINUM', 'code' => 'OTHERS', 'name' => 'Others', 'fineness' => '0.001000'],
+        ['metal' => 'OTHER', 'code' => 'OTHERS', 'name' => 'Others', 'fineness' => '0.001000'],
     ],
 
     'stone_types' => [

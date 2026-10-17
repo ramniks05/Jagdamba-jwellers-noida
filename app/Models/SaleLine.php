@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'company_id', 'sale_id', 'item_id', 'metal_rate_id', 'name', 'item_code', 'metal_name',
-    'purity_name', 'gross_weight', 'stone_weight', 'other_weight', 'net_weight', 'rate_per_gram',
+    'purity_name', 'hsn_code', 'gross_weight', 'stone_weight', 'other_weight', 'net_weight', 'rate_per_gram',
     'making_method', 'making_value', 'wastage_method', 'wastage_value', 'metal_amount',
     'wastage_amount', 'making_amount', 'stone_amount', 'line_amount',
 ])]

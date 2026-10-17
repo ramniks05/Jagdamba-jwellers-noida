@@ -95,6 +95,7 @@ class ItemService
                 'image_path' => $attributes['image_path'] ?? null,
                 'status' => ItemStatus::Available,
                 'source' => $this->source($attributes, $movement),
+                'own_gold' => filter_var($attributes['own_gold'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'notes' => $this->blank($attributes['notes'] ?? null),
             ]);
 

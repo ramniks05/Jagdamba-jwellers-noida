@@ -68,15 +68,17 @@ class SaleReturnService
             ]);
 
             foreach ($lines as $line) {
-                $this->inventory->apply($line->item, InventoryMovement::SaleReturn, $document, null, $amounts[$line->id], 'Returned from sale', $userId);
-                $this->metalStock->restore(
-                    (int) $sale->branch_id,
-                    (int) $line->item->metal_type_id,
-                    (int) $line->item->purity_id,
-                    (string) $line->net_weight,
-                    $line,
-                    $userId,
-                );
+                if (! $line->item->own_gold) {
+                    $this->inventory->apply($line->item, InventoryMovement::SaleReturn, $document, null, $amounts[$line->id], 'Returned from sale', $userId);
+                    $this->metalStock->restore(
+                        (int) $sale->branch_id,
+                        (int) $line->item->metal_type_id,
+                        (int) $line->item->purity_id,
+                        (string) $line->net_weight,
+                        $line,
+                        $userId,
+                    );
+                }
                 SaleReturnLine::query()->create([
                     'company_id' => $sale->company_id,
                     'sale_return_id' => $document->id,

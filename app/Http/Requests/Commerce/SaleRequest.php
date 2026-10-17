@@ -45,6 +45,7 @@ class SaleRequest extends FormRequest
 
             $piece['stones'] = $this->stoneRows($piece['stones'] ?? []);
             $piece['huid'] = $this->huid($piece['huid'] ?? null);
+            $piece['own'] = filter_var($piece['own'] ?? false, FILTER_VALIDATE_BOOLEAN);
         }
 
         $pieces = [];
@@ -93,6 +94,7 @@ class SaleRequest extends FormRequest
             'new_piece.wastage_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_piece.stone_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_piece.huid' => ['nullable', 'string', 'max:32'],
+            'new_piece.own' => ['nullable', 'boolean'],
             'new_piece.stones' => ['array'],
             'new_piece.stones.*.name' => ['required', 'string', 'max:80'],
             'new_piece.stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
@@ -113,6 +115,7 @@ class SaleRequest extends FormRequest
             'new_pieces.*.wastage_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_pieces.*.stone_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_pieces.*.huid' => ['nullable', 'string', 'max:32'],
+            'new_pieces.*.own' => ['nullable', 'boolean'],
             'new_pieces.*.stones' => ['array'],
             'new_pieces.*.stones.*.name' => ['required', 'string', 'max:80'],
             'new_pieces.*.stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],
@@ -164,6 +167,7 @@ class SaleRequest extends FormRequest
 
         $row['stones'] = $this->stoneRows($row['stones'] ?? []);
         $row['huid'] = $this->huid($row['huid'] ?? null);
+        $row['own'] = filter_var($row['own'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $row;
     }

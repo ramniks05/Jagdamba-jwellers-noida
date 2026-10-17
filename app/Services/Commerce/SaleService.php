@@ -170,6 +170,7 @@ class SaleService
                 $created = $this->items->create($company, $row + [
                     'item_code' => $code,
                     'sku' => $code,
+                    'own_gold' => $row['own'] ?? false,
                 ], $userId);
                 $uuids[] = $created->uuid;
             }
@@ -376,9 +377,10 @@ class SaleService
                     'item_id' => $piece->id,
                     'metal_rate_id' => $line['rate']->id,
                     'name' => $piece->name,
-                    'item_code' => $piece->item_code,
                     'metal_name' => $display->metalType->name,
                     'purity_name' => $display->purity->name,
+                    'hsn_code' => $display->metalType->hsn_code,
+                    'item_code' => $piece->own_gold ? 'Own' : $piece->item_code,
                     'gross_weight' => $piece->gross_weight,
                     'stone_weight' => $piece->stone_weight,
                     'other_weight' => $piece->other_weight,
@@ -394,14 +396,16 @@ class SaleService
                     'stone_amount' => $line['priced']['stone_amount'],
                     'line_amount' => $line['priced']['line_amount'],
                 ]);
-                $this->metalStock->sell(
-                    (int) $sale->branch_id,
-                    (int) $piece->metal_type_id,
-                    (int) $piece->purity_id,
-                    (string) $saleLine->net_weight,
-                    $saleLine,
-                    $userId,
-                );
+                if (! $piece->own_gold) {
+                    $this->metalStock->sell(
+                        (int) $sale->branch_id,
+                        (int) $piece->metal_type_id,
+                        (int) $piece->purity_id,
+                        (string) $saleLine->net_weight,
+                        $saleLine,
+                        $userId,
+                    );
+                }
                 foreach ($display->stones as $index => $stone) {
                     SaleLineStone::query()->create([
                         'company_id' => $company->id,

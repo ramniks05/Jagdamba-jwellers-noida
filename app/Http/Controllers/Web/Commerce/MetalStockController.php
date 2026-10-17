@@ -17,6 +17,6 @@ class MetalStockController extends Controller
 
         return redirect()
             ->route('reports.stock')
-            ->with('status', $opening ? 'Opening stock saved.' : 'Purchased grams added to stock.');
+            ->with('status', $opening ? 'Opening stock saved.' : 'Purchase added to stock.');
     }
 }

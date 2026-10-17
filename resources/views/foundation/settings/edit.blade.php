@@ -9,11 +9,12 @@
     @include('masters.partials.head', [
         'title' => 'Settings',
         'intro' => 'How bills are worked out and printed, and how amounts, weights and dates look across the shop.',
-        'actions' => [
+        'actions' => array_values(array_filter([
             ['url' => route('company.edit'), 'label' => 'Shop profile', 'icon' => 'shop'],
+            auth()->user()->can('masters.view') ? ['url' => route('charge-methods.index'), 'label' => 'Making and wastage', 'icon' => 'percent'] : null,
             ['url' => route('document-sequences.index'), 'label' => 'Document numbers', 'icon' => 'hash'],
             ['url' => route('labels.settings.edit'), 'label' => 'Barcode tags', 'icon' => 'upc-scan'],
-        ],
+        ])),
     ])
     @unless ($canManage)
         <div class="alert alert-info">You can see these settings. Only an owner or manager can change them.</div>

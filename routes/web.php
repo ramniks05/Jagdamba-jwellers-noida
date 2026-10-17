@@ -174,6 +174,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('enrollments/{enrollment}/mature', [SchemeController::class, 'mature'])->name('enrollments.mature');
 
     Route::get('reports/stock', [ReportController::class, 'stock'])->name('reports.stock');
+    Route::get('reports/own-gold', [ReportController::class, 'ownGold'])->name('reports.own-gold');
     Route::post('reports/stock', [MetalStockController::class, 'store'])->name('reports.stock.store');
     Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
     Route::get('reports/outstanding', [ReportController::class, 'outstanding'])->name('reports.outstanding');

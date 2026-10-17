@@ -5,7 +5,10 @@
 @section('content')
     @include('masters.partials.head', [
         'title' => 'Making and wastage',
-        'intro' => 'Rename a method or hide it from the piece and bill screens. The calculation behind each method stays fixed, and the rate is entered on each piece.',
+        'intro' => 'Rename a method or hide it from the piece and bill screens. The calculation behind each method stays fixed, and the rate is entered on each piece. How making is taxed is chosen in Settings.',
+        'actions' => [
+            ['url' => route('settings.edit'), 'label' => 'Settings', 'icon' => 'sliders'],
+        ],
     ])
     <div class="row g-3">
         @foreach ($groups as $key => $label)

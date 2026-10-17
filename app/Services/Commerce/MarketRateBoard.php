@@ -24,6 +24,7 @@ class MarketRateBoard
         return Purity::query()
             ->with('metalType')
             ->where('is_active', true)
+            ->where('code', '!=', 'OTHERS')
             ->whereHas('metalType', fn ($query) => $query->whereIn('code', ['GOLD', 'SILVER'])->where('is_active', true))
             ->get()
             ->sortBy([

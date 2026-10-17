@@ -13,11 +13,6 @@
             @can('update', $supplier)
                 <a class="btn btn-outline-secondary" href="{{ route('suppliers.edit', $supplier) }}"><i class="bi bi-pencil"></i> Edit</a>
             @endcan
-            @if ($supplier->is_active)
-                @can('create', App\Models\Purchase::class)
-                    <a class="btn btn-primary" href="{{ route('purchases.create', ['supplier' => $supplier->uuid]) }}"><i class="bi bi-plus-lg"></i> New purchase</a>
-                @endcan
-            @endif
         </div>
     </div>
 

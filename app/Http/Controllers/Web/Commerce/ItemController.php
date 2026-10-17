@@ -7,7 +7,6 @@ use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\ItemRequest;
-use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ChargeMethod;
 use App\Models\Collection;
@@ -47,6 +46,7 @@ class ItemController extends Controller
         $source = ItemSource::tryFrom((string) $request->query('source', ''));
 
         $items = Item::query()
+            ->where('own_gold', false)
             ->with(['metalType', 'purity', 'location.branch', 'category'])
             ->matching($search)
             ->when(ItemStatus::tryFrom($status), fn ($query, $parsed) => $query->where('status', $parsed))
@@ -62,7 +62,7 @@ class ItemController extends Controller
             'source' => $source?->value ?? '',
             'sources' => ItemSource::cases(),
             'statuses' => ItemStatus::cases(),
-            'counts' => Item::query()->when($source, fn ($query, $parsed) => $query->where('source', $parsed))->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
+            'counts' => Item::query()->where('own_gold', false)->when($source, fn ($query, $parsed) => $query->where('source', $parsed))->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
             'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
         ]);
     }
@@ -105,7 +105,11 @@ class ItemController extends Controller
             $item->setRelation('purity', $fromOldGold->purity);
         }
 
-        return view('commerce.items.form', $this->formData($item) + ['fromOldGold' => $fromOldGold, 'like' => $like]);
+        return view('commerce.items.form', $this->formData($item) + [
+            'fromOldGold' => $fromOldGold,
+            'like' => $like,
+            'ownJewellery' => $request->boolean('own') && ! $fromOldGold,
+        ]);
     }
 
     public function store(ItemRequest $request, ItemService $items, OldGoldStockService $oldGold, CompanyContext $context): RedirectResponse
@@ -124,6 +128,11 @@ class ItemController extends Controller
             ? $request->file('image')->store('items/'.$context->company()->uuid, 'public')
             : null;
 
+        $own = $request->boolean('own') && ! $exchange;
+        if ($own) {
+            $attributes['own_gold'] = true;
+        }
+
         $item = DB::transaction(function () use ($items, $oldGold, $context, $attributes, $exchange, $request) {
             $item = $items->create($context->company(), $attributes, $request->user()?->id, InventoryMovement::Opening, $exchange);
 
@@ -136,10 +145,15 @@ class ItemController extends Controller
 
         $status = $exchange
             ? 'Piece '.$item->item_code.' saved and added to stock from old gold '.$exchange->number.'.'
-            : 'Piece '.$item->item_code.' saved and added to stock.';
+            : ($own
+                ? 'Own jewellery '.$item->item_code.' saved. It stays off the stock page.'
+                : 'Piece '.$item->item_code.' saved and added to stock.');
 
         if ($request->input('next') === 'another' && ! $exchange) {
-            return redirect()->route('items.create', ['like' => $item->uuid])->with('status', $status.' Add the next one.');
+            return redirect()->route('items.create', array_filter([
+                'like' => $item->uuid,
+                'own' => $own ? 1 : null,
+            ]))->with('status', $status.' Add the next one.');
         }
 
         return redirect()->route('items.show', $item)->with('status', $status);
@@ -246,7 +260,6 @@ class ItemController extends Controller
             'item' => $item,
             'sourceEditable' => ! $item->exists || app(ItemService::class)->sourceEditable($item),
             'categories' => Category::query()->with('parent')->where(fn ($rows) => $rows->active()->orWhere('id', $item->category_id))->orderBy('sort_order')->orderBy('name')->get(),
-            'brands' => Brand::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->brand_id))->orderBy('name')->get(),
             'collections' => Collection::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->collection_id))->orderBy('name')->get(),
             'designs' => Design::query()->where(fn ($rows) => $rows->active()->orWhere('id', $item->design_id))->orderBy('name')->get(),
             'metals' => MetalType::query()

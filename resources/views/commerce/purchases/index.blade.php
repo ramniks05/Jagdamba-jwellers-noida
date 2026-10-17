@@ -1,34 +1,31 @@
 @extends('layouts.app')
 
-@section('title', 'Purchases')
+@section('title', 'Own gold')
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="page-title h3 mb-0">Purchases</h1>
-        @can('create', App\Models\Purchase::class)
-            <a class="btn btn-primary" href="{{ route('purchases.create') }}"><i class="bi bi-plus-lg"></i> Receive purchase</a>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="page-title h3 mb-0">Own gold</h1>
+            <p class="text-secondary mb-0">Jewellery you own. These pieces stay off the stock page and are sold by their item code.</p>
+        </div>
+        @can('create', App\Models\Item::class)
+            <a class="btn btn-primary" href="{{ route('items.create', ['own' => 1]) }}"><i class="bi bi-plus-lg"></i> Add own jewellery</a>
         @endcan
     </div>
 
-    @include('commerce.partials.weight-summary')
-    <div class="d-flex flex-wrap gap-2 mb-3">
-        @foreach (['all' => 'All', 'due' => 'To pay', 'paid' => 'Paid'] as $key => $label)
-            <a class="btn btn-sm {{ $show === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('purchases.index', array_filter(['show' => $key === 'all' ? null : $key, 'search' => $search])) }}">{{ $label }} <span class="opacity-75">{{ $counts[$key] }}</span></a>
-        @endforeach
-        @if ((float) $dueTotal > 0)
-            <span class="align-self-center small text-secondary ms-1">{{ $money($dueTotal) }} still to pay on these bills</span>
-        @endif
-    </div>
-
-    <form class="d-flex flex-wrap gap-2 mb-3" method="GET" action="{{ route('purchases.index') }}">
-        @if ($show !== 'all')
-            <input type="hidden" name="show" value="{{ $show }}">
-        @endif
-        <input class="form-control" style="max-width: 22rem" name="search" value="{{ $search }}" placeholder="Number, supplier, their bill no. or mobile">
-        <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
-        @if ($search !== '')
-            <a class="btn btn-link" href="{{ route('purchases.index', $show !== 'all' ? ['show' => $show] : []) }}">Clear</a>
-        @endif
+    <form class="filter-bar" method="GET" action="{{ route('purchases.index') }}">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="own-search">Find</label>
+                <input class="form-control" id="own-search" name="search" value="{{ $search }}" placeholder="Item code, name or HUID">
+            </div>
+            <div class="col-auto d-flex gap-2">
+                <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
+                @if ($search !== '')
+                    <a class="btn btn-outline-secondary" href="{{ route('purchases.index') }}">Clear</a>
+                @endif
+            </div>
+        </div>
     </form>
 
     <div class="card">
@@ -36,44 +33,28 @@
             <table class="table mb-0 align-middle">
                 <thead>
                     <tr>
-                        <th>Purchase</th>
-                        <th>Supplier</th>
-                        <th class="num">Pieces</th>
-                        <th class="num">Total</th>
-                        <th class="num">Paid</th>
-                        <th class="num">Due</th>
-                        <th>Status</th>
+                        <th>Item code</th>
+                        <th>Name</th>
+                        <th>Metal</th>
+                        <th class="num">Gross</th>
+                        <th class="num">Net</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($purchases as $purchase)
-                        @php
-                            $due = $purchase->dueAmount();
-                            [$statusText, $statusClass] = (float) $due <= 0
-                                ? ((float) $purchase->returnedAmount() >= (float) $purchase->total && (float) $purchase->total > 0 ? ['Sent back', 'is-cancelled'] : ['Paid', 'is-ready'])
-                                : ((float) $purchase->paid_amount > 0 ? ['Part paid', 'is-received'] : ['To pay', 'is-received']);
-                        @endphp
+                    @forelse ($items as $item)
                         <tr>
-                            <td class="text-nowrap">
-                                <a href="{{ route('purchases.show', $purchase) }}">{{ $purchase->number }}</a>
-                                <div class="small text-secondary">{{ $purchase->purchased_at?->timezone(config('app.timezone'))->format('d-m-Y') }}</div>
-                            </td>
-                            <td>
-                                {{ $purchase->supplier?->name }}
-                                <div class="small text-secondary">{{ collect([$purchase->supplier_bill_number ? 'Bill '.$purchase->supplier_bill_number : null, $purchase->supplier?->mobile])->filter()->implode(' · ') }}</div>
-                            </td>
-                            <td class="num">{{ $purchase->lines_count }}<div class="small text-secondary">Net {{ $weight((string) ($purchase->lines_sum_net_weight ?? '0')) }} · Gross {{ $weight((string) ($purchase->lines_sum_gross_weight ?? '0')) }}</div></td>
-                            <td class="num">{{ $money((string) $purchase->total) }}</td>
-                            <td class="num">{{ $money((string) $purchase->paid_amount) }}</td>
-                            <td class="num {{ (float) $due > 0 ? 'fw-semibold' : 'text-secondary' }}">{{ $money($due) }}</td>
-                            <td><span class="order-status {{ $statusClass }}">{{ $statusText }}</span></td>
+                            <td class="text-nowrap"><a href="{{ route('items.show', $item) }}">{{ $item->item_code }}</a></td>
+                            <td>{{ $item->name }}@if ($item->category)<div class="small text-secondary">{{ $item->category->name }}</div>@endif</td>
+                            <td>{{ $item->metalType?->name }} {{ $item->purity?->name }}</td>
+                            <td class="num">{{ $weight((string) $item->gross_weight) }}</td>
+                            <td class="num">{{ $weight((string) $item->net_weight) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'Nothing found.' : 'No purchases yet. Use Receive purchase when a supplier’s pieces come in.' }}</td></tr>
+                        <tr><td colspan="5">{{ $search !== '' ? 'Nothing found.' : 'No own jewellery yet.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="mt-3">{{ $purchases->links() }}</div>
+    <div class="mt-3">{{ $items->links() }}</div>
 @endsection

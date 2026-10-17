@@ -1,9 +1,8 @@
 @extends('layouts.app')
 
-@section('title', $item->exists ? 'Edit '.$item->item_code : 'Add piece')
-
 @section('content')
     @php
+        $ownJewellery = (bool) ($ownJewellery ?? false);
         $num = function ($value, int $scale = 2): string {
             if ($value === null || $value === '' || (float) $value == 0) {
                 return '';
@@ -12,10 +11,10 @@
             return rtrim(rtrim(number_format((float) $value, $scale, '.', ''), '0'), '.');
         };
         $field = fn (string $name, $value, int $scale = 2) => old($name, $num($value, $scale));
-        $moreFields = ['sku', 'barcode', 'rfid', 'brand_uuid', 'collection_uuid', 'design_uuid', 'certificate_number', 'hallmark', 'selling_price', 'mrp', 'image', 'location_uuid'];
+        $moreFields = ['sku', 'barcode', 'rfid', 'collection_uuid', 'design_uuid', 'certificate_number', 'hallmark', 'selling_price', 'mrp', 'image', 'location_uuid'];
         $moreOpen = $errors->hasAny($moreFields)
             || filled($item->barcode) || filled($item->rfid) || filled($item->certificate_number) || filled($item->hallmark)
-            || $item->brand_id || $item->collection_id || $item->design_id
+            || $item->collection_id || $item->design_id
             || (float) $item->selling_price > 0 || (float) $item->mrp > 0;
         $topCategories = $categories->whereNull('parent_id')->take(10);
         $unitLabels = [
@@ -25,10 +24,10 @@
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <a href="{{ $item->exists ? route('items.show', $item) : route('items.index') }}"><i class="bi bi-arrow-left"></i> {{ $item->exists ? 'Back to '.$item->item_code : 'All pieces' }}</a>
+        <a href="{{ $item->exists ? route('items.show', $item) : ($ownJewellery ? route('purchases.index') : route('items.index')) }}"><i class="bi bi-arrow-left"></i> {{ $item->exists ? 'Back to '.$item->item_code : ($ownJewellery ? 'All own gold' : 'All pieces') }}</a>
     </div>
-    <h1 class="page-title h3 mb-1">{{ $item->exists ? 'Edit '.$item->name : 'Add piece' }}</h1>
-    <p class="text-secondary mb-3">Weigh the piece and choose its making. The price on the right follows today’s rate, the same way the bill works it out.</p>
+    <h1 class="page-title h3 mb-1">{{ $item->exists ? 'Edit '.$item->name : ($ownJewellery ? 'Add own jewellery' : 'Add piece') }}</h1>
+    <p class="text-secondary mb-3">{{ $ownJewellery ? 'Same details as a piece. This jewellery stays off the stock page and is sold later by its item code.' : 'Weigh the piece and choose its making. The price on the right follows today’s rate, the same way the bill works it out.' }}</p>
 
     @if ($fromOldGold ?? null)
         <div class="alert alert-info">
@@ -42,6 +41,9 @@
 
     <form method="POST" action="{{ $item->exists ? route('items.update', $item) : route('items.store') }}" enctype="multipart/form-data" id="piece-form" autocomplete="off">
         @csrf
+        @if ($ownJewellery)
+            <input type="hidden" name="own" value="1">
+        @endif
         @if ($item->exists)
             @method('PUT')
             <input type="hidden" name="item_code" value="{{ $item->item_code }}">
@@ -70,21 +72,7 @@
                         </div>
                         @if ($fromOldGold ?? null)
                             <div class="form-text mt-2">Source: <strong>Old gold</strong></div>
-                        @elseif ($sourceEditable)
-                            @php
-                                $pickedSource = old('source', $item->source?->value ?? App\Enums\ItemSource::Own->value);
-                            @endphp
-                            <div class="mt-3">
-                                <span class="form-label d-block">Source</span>
-                                <div class="btn-group" role="group" aria-label="Source">
-                                    <input class="btn-check" type="radio" name="source" id="source-own" value="own" @checked($pickedSource === 'own')>
-                                    <label class="btn btn-outline-secondary" for="source-own">Own</label>
-                                    <input class="btn-check" type="radio" name="source" id="source-purchased" value="purchased" @checked($pickedSource === 'purchased')>
-                                    <label class="btn btn-outline-secondary" for="source-purchased">Purchased</label>
-                                </div>
-                                <div class="form-text">Own = your own jewellery, no supplier bill. Pieces bought on a purchase bill are marked Purchased by themselves.</div>
-                            </div>
-                        @else
+                        @elseif (! $sourceEditable)
                             <div class="form-text mt-2">Source: <strong>{{ $item->source->label() }}</strong></div>
                         @endif
                         @if ($topCategories->isNotEmpty())
@@ -249,7 +237,7 @@
                 </div>
 
                 <details class="card mb-3 piece-more" @if ($moreOpen) open @endif>
-                    <summary class="card-body fw-semibold">More details <span class="text-secondary fw-normal small">· barcode, brand, certificate, tag price, photo</span></summary>
+                    <summary class="card-body fw-semibold">More details <span class="text-secondary fw-normal small">· barcode, certificate, tag price, photo</span></summary>
                     <div class="card-body pt-0">
                         <div class="row g-3">
                             <div class="col-md-4">
@@ -273,15 +261,6 @@
                             <div class="col-md-4">
                                 <label class="form-label" for="rfid">RFID</label>
                                 <input class="form-control" id="rfid" name="rfid" value="{{ old('rfid', $item->rfid) }}" maxlength="64">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="brand_uuid">Brand</label>
-                                <select class="form-select" id="brand_uuid" name="brand_uuid">
-                                    <option value="">None</option>
-                                    @foreach ($brands as $brand)
-                                        <option value="{{ $brand->uuid }}" @selected(old('brand_uuid', $item->brand?->uuid) === $brand->uuid)>{{ $brand->name }}</option>
-                                    @endforeach
-                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="collection_uuid">Collection</label>
@@ -355,10 +334,10 @@
                         <input class="form-control" id="cost_price" name="cost_price" value="{{ $field('cost_price', $item->cost_price) }}" inputmode="decimal" placeholder="What the piece cost you">
                         <div class="bill-row mt-2 d-none" id="margin-row"><span>Margin at today’s price</span><strong id="margin">₹0.00</strong></div>
                         <label class="form-label mt-3" for="notes">Notes</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="2" maxlength="1000" placeholder="Supplier, tag details, anything to remember">{{ old('notes', $item->notes) }}</textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" maxlength="1000" placeholder="{{ $ownJewellery ? 'Anything to remember' : 'Supplier, tag details, anything to remember' }}">{{ old('notes', $item->notes) }}</textarea>
                     </div>
                 </div>
-                <button class="btn btn-primary w-100" type="submit"><i class="bi bi-check-lg"></i> {{ $item->exists ? 'Save changes' : 'Save piece' }}</button>
+                <button class="btn btn-primary w-100" type="submit"><i class="bi bi-check-lg"></i> {{ $item->exists ? 'Save changes' : ($ownJewellery ? 'Save own jewellery' : 'Save piece') }}</button>
                 @if (! $item->exists && ! ($fromOldGold ?? null))
                     <button class="btn btn-outline-secondary w-100 mt-2" type="submit" name="next" value="another"><i class="bi bi-plus-lg"></i> Save and add another</button>
                 @endif
@@ -375,6 +354,8 @@
         'autoName' => ! $item->exists && blank(old('name', $item->name)),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
+
+@section('title', $item->exists ? 'Edit '.$item->item_code : ($ownJewellery ? 'Add own jewellery' : 'Add piece'))
 
 @push('scripts')
     <script>

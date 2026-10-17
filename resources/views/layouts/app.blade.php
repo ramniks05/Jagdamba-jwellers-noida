@@ -33,24 +33,15 @@
                     @can('create', App\Models\Sale::class)
                         <a class="nav-bill" href="{{ route('sales.create') }}"><i class="bi bi-plus-lg"></i><span>New bill</span></a>
                     @endcan
-                    @if (auth()->user()->can('items.view') || auth()->user()->can('sales.view') || auth()->user()->can('customers.view'))
+                    @if (auth()->user()->can('sales.view') || auth()->user()->can('repairs.view') || auth()->user()->can('rates.view'))
                         <div class="menu-label">Counter</div>
                     @endif
                     @can('sales.view')
                         <a class="nav-link {{ request()->routeIs('sales.*') && ! request()->routeIs('sales.create') ? 'active' : '' }}" href="{{ route('sales.index') }}"><i class="bi bi-receipt"></i><span>Sales</span></a>
                         <a class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}"><i class="bi bi-journal-bookmark"></i><span>Orders</span></a>
                     @endcan
-                    @can('customers.view')
-                        <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}"><i class="bi bi-people"></i><span>Customers</span></a>
-                    @endcan
-                    @can('items.view')
-                        <a class="nav-link {{ request()->routeIs('items.*') ? 'active' : '' }}" href="{{ route('items.index') }}"><i class="bi bi-box-seam"></i><span>Pieces</span></a>
-                    @endcan
                     @can('rates.view')
                         <a class="nav-link {{ request()->routeIs('rates.*') ? 'active' : '' }}" href="{{ route('rates.index') }}"><i class="bi bi-graph-up-arrow"></i><span>Metal rates</span></a>
-                    @endcan
-                    @can('purchase.view')
-                        <a class="nav-link {{ request()->routeIs('purchases.*') ? 'active' : '' }}" href="{{ route('purchases.index') }}"><i class="bi bi-bag"></i><span>Purchases</span></a>
                     @endcan
                     @can('sales.view')
                         <a class="nav-link {{ request()->routeIs('old-gold.*') ? 'active' : '' }}" href="{{ route('old-gold.index') }}"><i class="bi bi-arrow-repeat"></i><span>Old gold</span></a>
@@ -58,33 +49,48 @@
                     @can('repairs.view')
                         <a class="nav-link {{ request()->routeIs('repairs.*') ? 'active' : '' }}" href="{{ route('repairs.index') }}"><i class="bi bi-tools"></i><span>Repairs</span></a>
                     @endcan
+                    @if (auth()->user()->can('items.view') || auth()->user()->can('purchase.view') || auth()->user()->can('inventory.view') || auth()->user()->can('reports.view'))
+                        <div class="menu-label">Stock</div>
+                    @endif
+                    @can('reports.view')
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && ! request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock') }}"><i class="bi bi-clipboard-data"></i><span>Gram stock</span></a>
+                    @endcan
+                    @can('items.view')
+                        <a class="nav-link {{ request()->routeIs('items.*') ? 'active' : '' }}" href="{{ route('items.index') }}"><i class="bi bi-box-seam"></i><span>Pieces</span></a>
+                    @endcan
+                    @can('purchase.view')
+                        <a class="nav-link {{ request()->routeIs('purchases.*') ? 'active' : '' }}" href="{{ route('purchases.index') }}"><i class="bi bi-gem"></i><span>Own gold</span></a>
+                    @endcan
+                    @can('inventory.view')
+                        <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}" href="{{ route('locations.index') }}"><i class="bi bi-geo-alt"></i><span>Locations</span></a>
+                    @endcan
+                    @if (auth()->user()->can('customers.view') || auth()->user()->can('suppliers.view') || auth()->user()->can('schemes.view') || auth()->user()->can('sales.view'))
+                        <div class="menu-label">Accounts</div>
+                    @endif
+                    @can('customers.view')
+                        <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}"><i class="bi bi-people"></i><span>Customers</span></a>
+                    @endcan
+                    @can('suppliers.view')
+                        <a class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}" href="{{ route('suppliers.index') }}"><i class="bi bi-truck"></i><span>Suppliers</span></a>
+                    @endcan
                     @can('schemes.view')
                         <a class="nav-link {{ request()->routeIs('schemes.*') || request()->routeIs('enrollments.*') ? 'active' : '' }}" href="{{ route('schemes.index') }}"><i class="bi bi-piggy-bank"></i><span>Schemes</span></a>
                     @endcan
                     @can('sales.view')
                         <a class="nav-link {{ request()->routeIs('girvi.*') ? 'active' : '' }}" href="{{ route('girvi.index') }}"><i class="bi bi-safe"></i><span>Girvi</span></a>
                     @endcan
-                    @can('suppliers.view')
-                        <a class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}" href="{{ route('suppliers.index') }}"><i class="bi bi-truck"></i><span>Suppliers</span></a>
-                    @endcan
-                    @can('inventory.view')
-                        <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}" href="{{ route('locations.index') }}"><i class="bi bi-geo-alt"></i><span>Locations</span></a>
-                    @endcan
                     @can('reports.view')
                         <div class="menu-label">Reports</div>
-                        <a class="nav-link {{ request()->routeIs('reports.stock') ? 'active' : '' }}" href="{{ route('reports.stock') }}"><i class="bi bi-clipboard-data"></i><span>Stock</span></a>
-                        <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-bar-chart"></i><span>Sales</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock', ['report' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Stock report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-bar-chart"></i><span>Sales report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-cash-coin"></i><span>Outstanding</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.own-gold') ? 'active' : '' }}" href="{{ route('reports.own-gold') }}"><i class="bi bi-receipt"></i><span>Own gold bills</span></a>
                     @endcan
                     @can('masters.view')
                         <div class="menu-label">Masters</div>
                         <a class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}"><i class="bi bi-tags"></i><span>Categories</span></a>
-                        <a class="nav-link {{ request()->routeIs('brands.*') ? 'active' : '' }}" href="{{ route('brands.index') }}"><i class="bi bi-award"></i><span>Brands</span></a>
-                        <a class="nav-link {{ request()->routeIs('collections.*') ? 'active' : '' }}" href="{{ route('collections.index') }}"><i class="bi bi-collection"></i><span>Collections</span></a>
-                        <a class="nav-link {{ request()->routeIs('designs.*') ? 'active' : '' }}" href="{{ route('designs.index') }}"><i class="bi bi-gem"></i><span>Designs</span></a>
                         <a class="nav-link {{ request()->routeIs('metals.*') ? 'active' : '' }}" href="{{ route('metals.index') }}"><i class="bi bi-circle"></i><span>Metals</span></a>
                         <a class="nav-link {{ request()->routeIs('stones.*', 'stone-types.*', 'stone-grades.*') ? 'active' : '' }}" href="{{ route('stones.index') }}"><i class="bi bi-diamond"></i><span>Stones</span></a>
-                        <a class="nav-link {{ request()->routeIs('charge-methods.*') ? 'active' : '' }}" href="{{ route('charge-methods.index') }}"><i class="bi bi-percent"></i><span>Making and wastage</span></a>
                     @endcan
                     <div class="menu-label">Setup</div>
                     @can('update', $currentCompany)
@@ -94,7 +100,7 @@
                         <a class="nav-link {{ request()->routeIs('branches.*') ? 'active' : '' }}" href="{{ route('branches.index') }}"><i class="bi bi-buildings"></i><span>Branches</span></a>
                     @endcan
                     @can('viewAny', App\Models\Setting::class)
-                        <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.edit') }}"><i class="bi bi-sliders"></i><span>Settings</span></a>
+                        <a class="nav-link {{ request()->routeIs('settings.*', 'charge-methods.*') ? 'active' : '' }}" href="{{ route('settings.edit') }}"><i class="bi bi-sliders"></i><span>Settings</span></a>
                     @endcan
                     @can('viewAny', App\Models\FinancialYear::class)
                         <a class="nav-link {{ request()->routeIs('financial-years.*') ? 'active' : '' }}" href="{{ route('financial-years.index') }}"><i class="bi bi-calendar3"></i><span>Financial years</span></a>
@@ -158,6 +164,25 @@
                 syncToggle();
             });
             syncToggle();
+
+            document.querySelectorAll('.table-responsive > table').forEach((table) => {
+                if (table.closest('.invoice-sheet')) {
+                    return;
+                }
+                const heads = [...table.querySelectorAll('thead th')].map((cell) => cell.textContent.trim());
+                if (heads.filter(Boolean).length < 3) {
+                    return;
+                }
+                table.classList.add('stack-table');
+                table.querySelectorAll('tbody tr').forEach((row) => {
+                    [...row.children].forEach((cell, index) => {
+                        if (cell.tagName !== 'TD' || cell.colSpan > 1 || !heads[index]) {
+                            return;
+                        }
+                        cell.dataset.label = heads[index];
+                    });
+                });
+            });
 
             const back = document.getElementById('page-back');
             if (back) {

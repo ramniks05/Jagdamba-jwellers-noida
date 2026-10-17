@@ -25,14 +25,16 @@
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 no-print">
-        <a href="{{ route('purchases.index') }}"><i class="bi bi-arrow-left"></i> All purchases</a>
+        <a href="{{ route('purchases.index') }}"><i class="bi bi-arrow-left"></i> All own gold</a>
         <div class="d-flex flex-wrap gap-2">
-            @can('view', $purchase->supplier)
-                <a class="btn btn-outline-secondary" href="{{ route('suppliers.show', $purchase->supplier) }}"><i class="bi bi-person-vcard"></i> Supplier account</a>
-            @endcan
+            @if ($purchase->supplier)
+                @can('view', $purchase->supplier)
+                    <a class="btn btn-outline-secondary" href="{{ route('suppliers.show', $purchase->supplier) }}"><i class="bi bi-person-vcard"></i> Supplier account</a>
+                @endcan
+            @endif
             <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
             @can('create', App\Models\Purchase::class)
-                <a class="btn btn-primary" href="{{ route('purchases.create', ['supplier' => $purchase->supplier?->uuid]) }}"><i class="bi bi-plus-lg"></i> New purchase from {{ $purchase->supplier?->name }}</a>
+                <a class="btn btn-primary" href="{{ route('purchases.create') }}"><i class="bi bi-plus-lg"></i> Add own jewellery</a>
             @endcan
         </div>
     </div>
@@ -42,7 +44,7 @@
             <div class="order-panel-head">
                 <div>
                     <div class="stat-label">Purchase {{ $purchase->number }} · {{ $date }}@if ($purchase->supplier_bill_number) · their bill {{ $purchase->supplier_bill_number }}@endif</div>
-                    <div class="order-panel-title">{{ $purchase->supplier?->name }}</div>
+                    <div class="order-panel-title">{{ $purchase->supplier?->name ?: 'Own jewellery' }}</div>
                     <div class="text-secondary small">
                         {{ $purchase->lines->count() }} {{ $purchase->lines->count() === 1 ? 'piece' : 'pieces' }} · {{ $weight((string) $gross) }} gross · {{ $weight((string) $net) }} net
                         @if ($purchase->supplier?->mobile) · {{ $purchase->supplier->mobile }} @endif
@@ -59,12 +61,14 @@
                 @if ((float) $returned > 0)
                     {{ $money($returned) }} came off for pieces sent back. ·
                 @endif
-                @if ((float) $payable > 0)
-                    In all you owe {{ $purchase->supplier?->name }} {{ $money($payable) }}.
-                @elseif ((float) $payable < 0)
-                    {{ $purchase->supplier?->name }} owes you {{ $money((string) abs((float) $payable)) }}.
-                @else
-                    Nothing is due to {{ $purchase->supplier?->name }} now.
+                @if ($purchase->supplier)
+                    @if ((float) $payable > 0)
+                        In all you owe {{ $purchase->supplier->name }} {{ $money($payable) }}.
+                    @elseif ((float) $payable < 0)
+                        {{ $purchase->supplier->name }} owes you {{ $money((string) abs((float) $payable)) }}.
+                    @else
+                        Nothing is due to {{ $purchase->supplier->name }} now.
+                    @endif
                 @endif
             </p>
         </div>
