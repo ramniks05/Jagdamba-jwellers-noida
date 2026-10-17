@@ -282,6 +282,7 @@ class SaleController extends Controller
                 'location' => $item->location->uuid,
                 'net' => (string) $item->net_weight,
                 'gross' => (string) $item->gross_weight,
+                'stone' => (string) $item->stone_weight,
                 'other' => (string) $item->other_weight,
                 'making' => (string) ($item->makingMethod?->uuid ?? ''),
                 'makingValue' => (string) $item->making_value,

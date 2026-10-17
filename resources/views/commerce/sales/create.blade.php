@@ -66,7 +66,7 @@
                         <div class="weigh-section">
                             <div class="weigh-section-title">Weight</div>
                             <div class="stone-box mt-0">
-                                <div class="metal-row">
+                                <div class="metal-row sale-weights">
                                     <div>
                                         <label for="weigh-metal">Metal</label>
                                         <select class="form-select" id="weigh-metal">
@@ -86,9 +86,23 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label for="weigh-net">Net weight g</label>
-                                        <input class="form-control metal-net" id="weigh-net" inputmode="decimal" placeholder="0.000">
+                                        <label for="weigh-gross">Gross g</label>
+                                        <input class="form-control metal-net bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
                                     </div>
+                                    <div>
+                                        <label for="weigh-stone">Stone g</label>
+                                        <input class="form-control" id="weigh-stone" inputmode="decimal" placeholder="0.000">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-other-g">Other g</label>
+                                        <input class="form-control" id="weigh-other-g" inputmode="decimal" placeholder="0.000">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-net">Net g</label>
+                                        <input class="form-control" id="weigh-net" readonly tabindex="-1" placeholder="0.000">
+                                    </div>
+                                </div>
+                                <div class="metal-row mt-2">
                                     <div>
                                         <label for="weigh-metal-rate">Rate / g</label>
                                         <input class="form-control" id="weigh-metal-rate" readonly tabindex="-1" placeholder="—">
@@ -99,17 +113,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="weigh-pair mt-3">
-                                <div class="weight-field">
-                                    <label for="weigh-gross">Gross weight g</label>
-                                    <input class="form-control bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
-                                </div>
-                                <div class="weight-field">
-                                    <label for="weigh-other-g">Other g</label>
-                                    <input class="form-control" id="weigh-other-g" inputmode="decimal" value="" readonly tabindex="-1" placeholder="0.000">
-                                </div>
-                            </div>
-                            <div class="form-text">Other is gross minus net. It fills itself.</div>
+                            <div class="form-text">Type the scale weight. Leave stone and other blank for plain gold. Net = gross less stone and other, and the rate is on the net weight.</div>
                         </div>
                         <div class="weigh-section">
                             <div class="charges-head">
@@ -308,6 +312,10 @@
             return Math.round((value + Number.EPSILON) * 100) / 100;
         }
 
+        function round3(value) {
+            return Math.round((value + Number.EPSILON) * 1000) / 1000;
+        }
+
         function option(id) {
             const field = document.getElementById(id);
             return field.options[field.selectedIndex];
@@ -407,24 +415,22 @@
             const metal = option('weigh-metal');
             const purity = option('weigh-purity');
             const location = option('weigh-location');
-            const typedNet = Number(document.getElementById('weigh-net').value || 0);
-            const typedGross = Number(document.getElementById('weigh-gross').value || 0);
-            const otherInput = document.getElementById('weigh-other-g');
+            const gross = Number(document.getElementById('weigh-gross').value || 0);
+            const stoneWeight = Number(document.getElementById('weigh-stone').value || 0);
+            const other = Number(document.getElementById('weigh-other-g').value || 0);
+            const net = round3(gross - stoneWeight - other);
+            const netInput = document.getElementById('weigh-net');
+            netInput.value = gross > 0 ? net.toFixed(3) : '';
+            netInput.classList.toggle('is-invalid', gross > 0 && net <= 0);
             const shownRate = metal && purity && location ? currentRate(metal.dataset.id, purity.dataset.id, location.dataset.branch) : null;
             document.getElementById('weigh-metal-rate').value = shownRate ? money.format(Number(shownRate.rate_per_gram)) : '';
-            document.getElementById('weigh-metal-value').value = shownRate && typedNet > 0 ? money.format(round2(typedNet * Number(shownRate.rate_per_gram))) : '';
-            if (typedNet <= 0) {
-                otherInput.value = '';
-                return emptyQuote('Enter the net weight');
+            document.getElementById('weigh-metal-value').value = shownRate && net > 0 ? money.format(round2(net * Number(shownRate.rate_per_gram))) : '';
+            if (gross <= 0) {
+                return emptyQuote('Enter the gross weight');
             }
-            if (typedGross > 0 && typedGross + 0.0005 < typedNet) {
-                otherInput.value = '';
-                return emptyQuote('Gross ' + typedGross.toFixed(3) + ' g is less than net ' + typedNet.toFixed(3) + ' g');
+            if (stoneWeight < 0 || other < 0 || net <= 0) {
+                return emptyQuote('Stone and other weight are more than the gross');
             }
-            const other = typedGross > 0 ? Math.round((typedGross - typedNet) * 1000) / 1000 : 0;
-            otherInput.value = typedGross > 0 ? other.toFixed(3) : '';
-            const net = typedNet;
-            const gross = typedGross > 0 ? typedGross : typedNet;
             if (!metal || !purity || !location) {
                 return emptyQuote('Choose metal and purity');
             }
@@ -469,7 +475,7 @@
                 ...(wastageAmount > 0 ? [chargeRow('Wastage', wastageCode, wastageValue, round2(wastageAmount), 'wastage')] : []),
                 ...(makingAmount > 0 ? [chargeRow(makingLabel, makingCode, makingValue, round2(makingAmount), 'making')] : []),
             ];
-            showBreakdown(parts, line, { gross, net, stone: 0, other });
+            showBreakdown(parts, line, { gross, net, stone: stoneWeight, other });
             return { line, gross, net, metal: metalAmount, making: round2(makingAmount), wastage: round2(wastageAmount), stone: round2(stone), parts, stones };
         }
 
@@ -485,6 +491,7 @@
                 location: field('weigh-location'),
                 net: field('weigh-net'),
                 gross: field('weigh-gross'),
+                stone: field('weigh-stone'),
                 other: field('weigh-other-g'),
                 making: field('weigh-making'),
                 makingValue: field('weigh-making-value'),
@@ -502,9 +509,9 @@
             set('weigh-metal', state.metal);
             set('weigh-purity', state.purity);
             set('weigh-location', state.location);
-            set('weigh-net', state.net);
             set('weigh-gross', state.gross);
-            set('weigh-other-g', state.other);
+            set('weigh-stone', state.stone || '');
+            set('weigh-other-g', state.other || '');
             set('weigh-making', state.making);
             set('weigh-making-value', state.makingValue);
             set('weigh-wastage', state.wastage);
@@ -537,7 +544,7 @@
             showEditing();
             renderBill();
             document.getElementById('weigh-name').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            document.getElementById('weigh-net').focus({ preventScroll: true });
+            document.getElementById('weigh-gross').focus({ preventScroll: true });
         }
 
         function makingName() {
@@ -920,7 +927,7 @@
             document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.remove('active'));
             button.classList.add('active');
             document.getElementById('weigh-name').value = button.dataset.name;
-            document.getElementById('weigh-net').focus();
+            document.getElementById('weigh-gross').focus();
             previewWeigh();
         });
         document.getElementById('use-total').addEventListener('click', () => {
@@ -942,7 +949,8 @@
             error.classList.add('d-none');
             const metal = option('weigh-metal');
             const purity = option('weigh-purity');
-            const stoneWeightTotal = keptStones.reduce((sum, stone) => sum + Number(stone.weight || 0), 0);
+            const typedStone = document.getElementById('weigh-stone').value.trim();
+            const stoneWeightTotal = typedStone !== '' ? Number(typedStone) : keptStones.reduce((sum, stone) => sum + Number(stone.weight || 0), 0);
             const stoneValueTotal = keptStones.reduce((sum, stone) => sum + Number(stone.value || 0), 0);
             const entry = {
                 name,

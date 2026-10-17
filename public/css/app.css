@@ -1572,6 +1572,10 @@ a {
     margin-top: 0.45rem;
 }
 
+.metal-row.sale-weights {
+    grid-template-columns: 1.05fr 0.8fr 0.85fr 0.75fr 0.75fr 0.85fr;
+}
+
 .metal-row label {
     color: #6d6258;
     display: block;
@@ -1640,7 +1644,8 @@ a {
     }
 
     .stone-row,
-    .metal-row {
+    .metal-row,
+    .metal-row.sale-weights {
         grid-template-columns: 1fr 1fr;
     }
 
