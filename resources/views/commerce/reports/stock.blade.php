@@ -19,17 +19,45 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($metalStock as $row)
+                    @php
+                        $gramTotal = function (iterable $rows, string $key): string {
+                            $total = 0;
+                            foreach ($rows as $row) {
+                                $total += (float) $row[$key];
+                            }
+
+                            return number_format($total, 3, '.', '');
+                        };
+                    @endphp
+                    @foreach ($metalStock->groupBy('metal') as $metal => $rows)
+                        @foreach ($rows as $row)
+                            <tr>
+                                <td>{{ $row['metal'] }}</td>
+                                <td>{{ $row['purity'] }}</td>
+                                <td class="num">{{ $weight($row['opening']) }}</td>
+                                <td class="num">{{ $weight($row['purchased']) }}</td>
+                                <td class="num">{{ $weight($row['sold']) }}</td>
+                                <td class="num {{ $row['short'] ? 'text-danger' : '' }}"><strong>{{ $weight($row['balance']) }}</strong></td>
+                            </tr>
+                        @endforeach
                         <tr>
-                            <td>{{ $row['metal'] }}</td>
-                            <td>{{ $row['purity'] }}</td>
-                            <td class="num">{{ $weight($row['opening']) }}</td>
-                            <td class="num">{{ $weight($row['purchased']) }}</td>
-                            <td class="num">{{ $weight($row['sold']) }}</td>
-                            <td class="num {{ $row['short'] ? 'text-danger' : '' }}"><strong>{{ $weight($row['balance']) }}</strong></td>
+                            <td colspan="2">{{ $metal }} total</td>
+                            <td class="num">{{ $weight($gramTotal($rows, 'opening')) }}</td>
+                            <td class="num">{{ $weight($gramTotal($rows, 'purchased')) }}</td>
+                            <td class="num">{{ $weight($gramTotal($rows, 'sold')) }}</td>
+                            <td class="num"><strong>{{ $weight($gramTotal($rows, 'balance')) }}</strong></td>
                         </tr>
                     @endforeach
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2">Grand total</td>
+                        <td class="num">{{ $weight($gramTotal($metalStock, 'opening')) }}</td>
+                        <td class="num">{{ $weight($gramTotal($metalStock, 'purchased')) }}</td>
+                        <td class="num">{{ $weight($gramTotal($metalStock, 'sold')) }}</td>
+                        <td class="num"><strong>{{ $weight($gramTotal($metalStock, 'balance')) }}</strong></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
         @if ($supplierName)
@@ -208,40 +236,6 @@
             </div>
         </div>
     </form>
-    @if (! request()->boolean('report') && ! request()->boolean('grams'))
-        <div class="card mb-3">
-            <div class="card-header bg-white">Pieces in hand</div>
-            <div class="card-body">
-                <p class="text-secondary small">For information. The full list is in the Stock report.</p>
-                @if ($metalTotals->isEmpty())
-                    <p class="mb-0">No pieces in hand.</p>
-                @else
-                    <div class="table-responsive">
-                        <table class="table mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Metal</th>
-                                    <th class="num">Pieces</th>
-                                    <th class="num">Gross</th>
-                                    <th class="num">Net</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($metalTotals as $row)
-                                    <tr>
-                                        <td>{{ $row['label'] }}</td>
-                                        <td class="num">{{ $row['pieces'] }}</td>
-                                        <td class="num">{{ $row['gross'] }}</td>
-                                        <td class="num">{{ $row['net'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
-        </div>
-    @endif
     @if (request()->boolean('report'))
     <article class="report-sheet">
         <header class="report-head">

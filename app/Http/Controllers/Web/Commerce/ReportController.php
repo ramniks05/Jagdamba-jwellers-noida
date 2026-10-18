@@ -55,7 +55,7 @@ class ReportController extends Controller
         $grossTotal = $format->weight('0.000', $company);
         $netTotal = $grossTotal;
 
-        if (! $request->boolean('grams')) {
+        if ($request->boolean('report')) {
             $query = Item::query()
                 ->where('own_gold', false)
                 ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
@@ -90,17 +90,14 @@ class ReportController extends Controller
             $pieceCount = (int) $totals->pieces;
             $grossTotal = $format->weight($this->decimal($totals->gross, 3), $company);
             $netTotal = $format->weight($this->decimal($totals->net, 3), $company);
-
-            if ($request->boolean('report')) {
-                $query->with(['metalType', 'purity', 'category', 'location.branch']);
-                match ($sort) {
-                    'newest' => $query->orderByDesc('id'),
-                    'heaviest' => $query->orderByDesc('net_weight')->orderBy('item_code'),
-                    default => $query->orderBy('item_code'),
-                };
-                $query->orderBy('id');
-                $pieces = $this->page($query, $request, $pieceCount);
-            }
+            $query->with(['metalType', 'purity', 'category', 'location.branch']);
+            match ($sort) {
+                'newest' => $query->orderByDesc('id'),
+                'heaviest' => $query->orderByDesc('net_weight')->orderBy('item_code'),
+                default => $query->orderBy('item_code'),
+            };
+            $query->orderBy('id');
+            $pieces = $this->page($query, $request, $pieceCount);
         }
 
         $canCorrect = ! $request->boolean('report') && ! $request->boolean('grams') && $request->user()?->can('inventory.create');

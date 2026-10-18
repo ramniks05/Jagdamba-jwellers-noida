@@ -110,7 +110,9 @@ class MetalStockTest extends TestCase
             ->assertSee('570.000')
             ->assertSee('18K')
             ->assertSee('100.000')
-            ->assertSee('For information. The full list is in the Stock report.')
+            ->assertSee('Gold total')
+            ->assertSee('Grand total')
+            ->assertDontSee('Pieces in hand')
             ->assertDontSee('Stock on hand');
 
         $sale = Sale::query()->latest('id')->firstOrFail();
