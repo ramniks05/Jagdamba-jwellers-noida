@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('customer-form/{company}', [CustomerFormController::class, 'create'])->name('customer-form.create');
 Route::get('bill/{sale}', [BillLinkController::class, 'show'])->middleware(['signed', 'throttle:60,1'])->name('bills.show');
+Route::get('shop-files/{path}', [CompanyProfileController::class, 'file'])->where('path', '.*')->name('company.file');
 Route::post('customer-form/{company}', [CustomerFormController::class, 'store'])->middleware('throttle:customer-form')->name('customer-form.store');
 
 Route::middleware('guest')->group(function () {

@@ -111,7 +111,7 @@
                 <div class="card mb-3">
                     <div class="card-body">
                         <div class="weigh-section-title"><i class="bi bi-pen"></i> Signature on the bill</div>
-                        <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature" class="shop-signature" id="signature-preview">
+                        <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature" class="shop-signature signature-preview" id="signature-preview">
                         @if ($company->signature_path)
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" role="switch" id="remove_signature" name="remove_signature" value="1">
@@ -275,7 +275,7 @@
                     document.getElementById('signature-preview').src = URL.createObjectURL(file);
                 }
                 savingSignature = true;
-                form.submit();
+                form.requestSubmit();
             });
         })();
     </script>

@@ -175,6 +175,40 @@ class CompanyProfileTest extends TestCase
         ])->assertStatus(429);
     }
 
+    public function test_a_saved_logo_and_signature_open_without_the_public_storage_link(): void
+    {
+        Storage::fake('public');
+        $user = $this->shopUser();
+
+        $this->actingAs($user)
+            ->put(route('company.update'), $this->profile($user, [
+                'logo' => UploadedFile::fake()->image('logo.jpg', 80, 80),
+                'signature' => $this->signaturePhoto(),
+            ]))
+            ->assertRedirect(route('company.edit'))
+            ->assertSessionHasNoErrors();
+
+        $company = $user->company->fresh();
+        $this->assertNotNull($company->logo_path);
+        $this->assertNotNull($company->signature_path);
+
+        $this->actingAs($user)
+            ->get(route('company.edit'))
+            ->assertOk()
+            ->assertSee('/shop-files/'.$company->logo_path, false)
+            ->assertSee('/shop-files/'.$company->signature_path, false);
+
+        $this->get('/shop-files/'.$company->logo_path)
+            ->assertOk()
+            ->assertHeader('content-type', 'image/jpeg');
+        $this->get('/shop-files/'.$company->signature_path)
+            ->assertOk()
+            ->assertHeader('content-type', 'image/png');
+
+        $this->get('/shop-files/../.env')->assertNotFound();
+        $this->get('/shop-files/companies/'.$company->uuid.'/notes.txt')->assertNotFound();
+    }
+
     private function signaturePhoto(bool $withInk = true): UploadedFile
     {
         $image = imagecreatetruecolor(240, 80);

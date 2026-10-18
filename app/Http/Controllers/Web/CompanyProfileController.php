@@ -7,7 +7,9 @@ use App\Http\Requests\Foundation\CompanyProfileRequest;
 use App\Services\Foundation\CompanyProfileService;
 use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CompanyProfileController extends Controller
 {
@@ -38,6 +40,20 @@ class CompanyProfileController extends Controller
         );
 
         return redirect()->route('company.edit')->with('status', 'Shop profile saved.');
+    }
+
+    public function file(string $path): StreamedResponse
+    {
+        $path = str_replace('\\', '/', $path);
+        abort_unless(
+            preg_match('#^companies/[0-9a-f-]{36}/(?:logo|signature)-[a-z0-9]+\.(?:jpg|png|webp)$#', $path) === 1,
+            404,
+        );
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, headers: [
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
     }
 
     /**

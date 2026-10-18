@@ -1417,6 +1417,11 @@ a {
     margin: 0 0 0.75rem;
 }
 
+.signature-preview {
+    background: #fff;
+    mix-blend-mode: normal;
+}
+
 .signature-adjust {
     margin-top: 0.75rem;
 }

@@ -140,6 +140,6 @@ class Company extends Model
             return null;
         }
 
-        return asset('storage/'.ltrim($path, '/'));
+        return '/shop-files/'.ltrim($path, '/');
     }
 }
