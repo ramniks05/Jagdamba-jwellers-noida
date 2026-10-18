@@ -71,9 +71,7 @@
                             </div>
                         </div>
                         @if ($fromOldGold ?? null)
-                            <div class="form-text mt-2">Source: <strong>Old gold</strong></div>
-                        @elseif (! $sourceEditable)
-                            <div class="form-text mt-2">Source: <strong>{{ $item->source->label() }}</strong></div>
+                            <div class="form-text mt-2">This piece is made from old gold.</div>
                         @endif
                         @if ($topCategories->isNotEmpty())
                             <div class="bill-products mt-2" id="category-chips">

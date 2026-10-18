@@ -66,7 +66,6 @@
                 <div class="customer-stat"><div class="stat-label">Gross</div><div>{{ $weight((string) $item->gross_weight) }}</div></div>
                 <div class="customer-stat"><div class="stat-label">Net</div><div>{{ $weight((string) $item->net_weight) }}</div></div>
                 <div class="customer-stat"><div class="stat-label">Price today</div><div>{{ $price ? $money($price['line_amount']) : '—' }}</div></div>
-                <div class="customer-stat"><div class="stat-label">Source</div><div>{{ $item->source->label() }}</div></div>
             </div>
         </div>
     </div>

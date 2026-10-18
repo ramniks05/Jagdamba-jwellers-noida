@@ -151,7 +151,7 @@
                                 </div>
                             </div>
                             <div class="form-check mt-3">
-                                <input class="form-check-input" type="checkbox" id="weigh-own" checked>
+                                <input class="form-check-input" type="checkbox" id="weigh-own">
                                 <label class="form-check-label" for="weigh-own">Own</label>
                             </div>
                             <div class="form-text">Tick Own when this gold is only for the bill. It is not added to stock, and the main stock is not reduced. Those pieces are listed under Own gold. Untick it only when the weight should come off the main stock.</div>

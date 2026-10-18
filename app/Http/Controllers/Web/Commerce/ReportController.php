@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Web\Commerce;
 
-use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Enums\MetalStockKind;
 use App\Enums\PartyType;
@@ -47,7 +46,6 @@ class ReportController extends Controller
         $location = trim((string) $request->query('location', ''));
         $status = in_array($request->query('status'), ['available', 'reserved'], true) ? (string) $request->query('status') : 'all';
         $sort = in_array($request->query('sort'), ['code', 'newest', 'heaviest'], true) ? (string) $request->query('sort') : 'code';
-        $source = ItemSource::tryFrom((string) $request->query('source', ''))?->value ?? '';
 
         $metalTotals = collect();
         $pieces = null;
@@ -60,7 +58,6 @@ class ReportController extends Controller
                 ->where('own_gold', false)
                 ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
                 ->when($status !== 'all', fn ($rows) => $rows->where('status', $status))
-                ->when($source !== '', fn ($rows) => $rows->where('source', $source))
                 ->when($search !== '', function ($rows) use ($search): void {
                     $like = $this->like($search);
                     $rows->where(fn ($inner) => $inner->where('item_code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('huid', 'like', $like)->orWhere('barcode', 'like', $like));
@@ -135,9 +132,8 @@ class ReportController extends Controller
             'suppliers' => Supplier::query()->where(fn ($rows) => $rows->where('is_active', true)->when($supplierUuid !== '', fn ($rows) => $rows->orWhere('uuid', $supplierUuid)))->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->orderBy('name')->get(),
-            'filters' => compact('search', 'metal', 'purity', 'supplierUuid', 'category', 'location', 'status', 'source', 'sort'),
-            'filtered' => $search !== '' || $metal !== '' || $purity !== '' || $supplierUuid !== '' || $category !== '' || $location !== '' || $status !== 'all' || $source !== '',
-            'sources' => ItemSource::cases(),
+            'filters' => compact('search', 'metal', 'purity', 'supplierUuid', 'category', 'location', 'status', 'sort'),
+            'filtered' => $search !== '' || $metal !== '' || $purity !== '' || $supplierUuid !== '' || $category !== '' || $location !== '' || $status !== 'all',
             'pieceCount' => $pieceCount,
             'grossTotal' => $grossTotal,
             'netTotal' => $netTotal,

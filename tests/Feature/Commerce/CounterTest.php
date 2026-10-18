@@ -275,6 +275,7 @@ class CounterTest extends TestCase
             ->get(route('sales.create'))
             ->assertOk()
             ->assertSee('id="weigh-own"', false)
+            ->assertDontSee('id="weigh-own" checked', false)
             ->assertSee('id="weigh-huid"', false)
             ->assertDontSee('for="weigh-hsn"', false)
             ->assertSee('bill-products', false)

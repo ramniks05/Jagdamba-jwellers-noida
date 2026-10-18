@@ -111,7 +111,7 @@ class PieceFormTest extends TestCase
         $this->assertSame(0, $item->stones()->count());
         $this->assertSame('6.000', (string) $item->net_weight);
 
-        $this->actingAs($owner)->get(route('items.index'))->assertOk()->assertSee('PC0001')->assertSee('In stock');
+        $this->actingAs($owner)->get(route('items.index'))->assertOk()->assertSee('PC0001')->assertSee('In stock')->assertDontSee('>Purchased<', false);
         $this->actingAs($owner)->get(route('items.index', ['status' => 'sold']))->assertOk()->assertDontSee('Plain ring');
     }
 

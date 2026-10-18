@@ -25,24 +25,14 @@
     <div class="d-flex flex-wrap gap-2 mb-2">
         @foreach ($filters as $key => $label)
             @php($count = $key === '' ? $counts->sum() : ($counts[$key] ?? 0))
-            <a class="btn btn-sm {{ $status === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $key] + array_filter(['search' => $search, 'source' => $source])) }}">{{ $label }} <span class="opacity-75">{{ $count }}</span></a>
+            <a class="btn btn-sm {{ $status === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $key] + array_filter(['search' => $search])) }}">{{ $label }} <span class="opacity-75">{{ $count }}</span></a>
         @endforeach
         @if (! array_key_exists($status, $filters))
             <span class="btn btn-sm btn-primary disabled">{{ App\Enums\ItemStatus::tryFrom($status)?->label() }}</span>
         @endif
     </div>
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <span class="small text-secondary">Source</span>
-        <a class="btn btn-sm {{ $source === '' ? 'btn-dark' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $status] + array_filter(['search' => $search])) }}">All</a>
-        @foreach ($sources as $option)
-            <a class="btn btn-sm {{ $source === $option->value ? 'btn-dark' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $status, 'source' => $option->value] + array_filter(['search' => $search])) }}">{{ $option->label() }}</a>
-        @endforeach
-    </div>
     <form class="filter-bar" method="GET" action="{{ route('items.index') }}">
         <input type="hidden" name="status" value="{{ $status }}">
-        @if ($source !== '')
-            <input type="hidden" name="source" value="{{ $source }}">
-        @endif
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label class="form-label" for="piece-search">Find</label>
@@ -51,7 +41,7 @@
             <div class="col-auto d-flex gap-2">
                 <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
                 @if ($search !== '')
-                    <a class="btn btn-outline-secondary" href="{{ route('items.index', ['status' => $status] + array_filter(['source' => $source])) }}">Clear</a>
+                    <a class="btn btn-outline-secondary" href="{{ route('items.index', ['status' => $status]) }}">Clear</a>
                 @endif
             </div>
         </div>
@@ -78,7 +68,6 @@
                         <th class="num">Gross</th>
                         <th class="num">Net</th>
                         <th>Kept at</th>
-                        <th>Source</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -95,7 +84,6 @@
                             <td class="num">{{ $weight((string) $item->gross_weight) }}</td>
                             <td class="num">{{ $weight((string) $item->net_weight) }}</td>
                             <td class="text-nowrap">{{ $item->location?->label() }}</td>
-                            <td class="text-nowrap">{{ $item->source->label() }}</td>
                             <td><span class="order-status {{ $pill($item->status->value) }}">{{ $item->status->label() }}</span></td>
                             <td class="text-end text-nowrap">
                                 @if ($canPrint)
@@ -105,7 +93,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $canPrint ? 10 : 9 }}">{{ $search !== '' ? 'Nothing found.' : 'No pieces here yet.' }}</td></tr>
+                        <tr><td colspan="{{ $canPrint ? 9 : 8 }}">{{ $search !== '' ? 'Nothing found.' : 'No pieces here yet.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
