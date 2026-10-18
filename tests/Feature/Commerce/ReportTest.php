@@ -32,54 +32,56 @@ class ReportTest extends TestCase
             $this->addPiece($owner, sprintf('RING%02d', $number));
         }
 
-        $this->actingAs($owner)->get(route('reports.stock'))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1]))
             ->assertOk()
             ->assertSee('Showing 1–25 of 27 pieces')
             ->assertSee('RING01')
             ->assertSee('RING25')
             ->assertDontSee('RING26')
             ->assertSee('Total · 27 pieces')
+            ->assertSee('Grand total')
+            ->assertSee('Gold')
             ->assertSee('270.000')
             ->assertSee('Print report');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['page' => 2]))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'page' => 2]))
             ->assertOk()
             ->assertSee('Showing 26–27 of 27 pieces')
             ->assertSee('RING27')
             ->assertDontSee('RING01');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['per_page' => 50]))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'per_page' => 50]))
             ->assertOk()
             ->assertSee('RING27')
             ->assertSee('Showing 1–27 of 27 pieces');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['per_page' => 50, 'page' => 9]))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'per_page' => 50, 'page' => 9]))
             ->assertOk()
             ->assertSee('Showing 1–27 of 27 pieces');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['all' => 1, 'print' => 1]))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'all' => 1, 'print' => 1]))
             ->assertOk()
             ->assertSee('RING01')
             ->assertSee('RING27')
             ->assertDontSee('Showing 1–')
             ->assertSee('window.print()', false);
 
-        $this->actingAs($owner)->get(route('reports.stock', ['search' => 'RING27']))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'search' => 'RING27']))
             ->assertOk()
             ->assertSee('Total · 1 piece')
             ->assertSee('RING27')
             ->assertDontSee('RING01');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['search' => '%']))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'search' => '%']))
             ->assertOk()
             ->assertSee('No pieces in stock for this filter.');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['sort' => 'newest']))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'sort' => 'newest']))
             ->assertOk()
             ->assertSee('RING27')
             ->assertDontSee('RING01');
 
-        $this->actingAs($owner)->get(route('reports.stock', ['status' => 'reserved']))
+        $this->actingAs($owner)->get(route('reports.stock', ['report' => 1, 'status' => 'reserved']))
             ->assertOk()
             ->assertSee('No pieces in stock for this filter.');
     }

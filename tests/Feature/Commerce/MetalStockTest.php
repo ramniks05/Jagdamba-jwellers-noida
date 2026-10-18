@@ -109,7 +109,9 @@ class MetalStockTest extends TestCase
             ->assertOk()
             ->assertSee('570.000')
             ->assertSee('18K')
-            ->assertSee('100.000');
+            ->assertSee('100.000')
+            ->assertSee('For information. The full list is in the Stock report.')
+            ->assertDontSee('Stock on hand');
 
         $sale = Sale::query()->latest('id')->firstOrFail();
         $line = SaleLine::query()->where('sale_id', $sale->id)->firstOrFail();

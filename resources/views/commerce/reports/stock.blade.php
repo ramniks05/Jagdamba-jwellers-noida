@@ -3,7 +3,7 @@
 @section('title', request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase'))
 
 @section('content')
-    @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase')])
+    @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase'), 'print' => request()->boolean('report') || request()->boolean('grams')])
     @if (! request()->boolean('report'))
     @if ($metalStock->isNotEmpty())
         <div class="table-responsive mb-3">
@@ -208,22 +208,41 @@
             </div>
         </div>
     </form>
-    @unless (request()->boolean('grams'))
-    @if ($byMetal->isNotEmpty())
-        <div class="row g-3 mb-3 no-print">
-            @foreach ($byMetal as $row)
-                <div class="col-md-3 col-6">
-                    <div class="card stat-card h-100">
-                        <div class="card-body">
-                            <div class="stat-label">{{ $row['label'] }}</div>
-                            <div class="fw-semibold">{{ $row['pieces'] }} {{ $row['pieces'] === 1 ? 'piece' : 'pieces' }}</div>
-                            <div>{{ $row['net'] }}</div>
-                        </div>
+    @if (! request()->boolean('report') && ! request()->boolean('grams'))
+        <div class="card mb-3">
+            <div class="card-header bg-white">Pieces in hand</div>
+            <div class="card-body">
+                <p class="text-secondary small">For information. The full list is in the Stock report.</p>
+                @if ($metalTotals->isEmpty())
+                    <p class="mb-0">No pieces in hand.</p>
+                @else
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Metal</th>
+                                    <th class="num">Pieces</th>
+                                    <th class="num">Gross</th>
+                                    <th class="num">Net</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($metalTotals as $row)
+                                    <tr>
+                                        <td>{{ $row['label'] }}</td>
+                                        <td class="num">{{ $row['pieces'] }}</td>
+                                        <td class="num">{{ $row['gross'] }}</td>
+                                        <td class="num">{{ $row['net'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
-                </div>
-            @endforeach
+                @endif
+            </div>
         </div>
     @endif
+    @if (request()->boolean('report'))
     <article class="report-sheet">
         <header class="report-head">
             <div>
@@ -236,6 +255,38 @@
                 <div>Net {{ $netTotal }}</div>
             </div>
         </header>
+        @if ($metalTotals->isNotEmpty())
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Metal</th>
+                            <th class="num">Pieces</th>
+                            <th class="num">Gross</th>
+                            <th class="num">Net</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($metalTotals as $row)
+                            <tr>
+                                <td>{{ $row['label'] }}</td>
+                                <td class="num">{{ $row['pieces'] }}</td>
+                                <td class="num">{{ $row['gross'] }}</td>
+                                <td class="num">{{ $row['net'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td>Grand total</td>
+                            <td class="num">{{ $pieceCount }}</td>
+                            <td class="num">{{ $grossTotal }}</td>
+                            <td class="num">{{ $netTotal }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        @endif
         <div class="table-responsive">
             <table class="table mb-0">
                 <thead>
@@ -282,7 +333,7 @@
         </div>
     </article>
     @include('commerce.reports.partials.pager', ['rows' => $pieces, 'noun' => 'pieces'])
-    @endunless
+    @endif
 @endsection
 
 @push('scripts')

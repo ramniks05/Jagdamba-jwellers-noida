@@ -14,7 +14,6 @@ use App\Models\Item;
 use App\Models\LedgerEntry;
 use App\Models\MetalStockMovement;
 use App\Models\MetalType;
-use App\Models\Purity;
 use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleReturnLine;
@@ -50,45 +49,59 @@ class ReportController extends Controller
         $sort = in_array($request->query('sort'), ['code', 'newest', 'heaviest'], true) ? (string) $request->query('sort') : 'code';
         $source = ItemSource::tryFrom((string) $request->query('source', ''))?->value ?? '';
 
-        $query = Item::query()
-            ->where('own_gold', false)
-            ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
-            ->when($status !== 'all', fn ($rows) => $rows->where('status', $status))
-            ->when($source !== '', fn ($rows) => $rows->where('source', $source))
-            ->when($search !== '', function ($rows) use ($search): void {
-                $like = $this->like($search);
-                $rows->where(fn ($inner) => $inner->where('item_code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('huid', 'like', $like)->orWhere('barcode', 'like', $like));
-            })
-            ->when($metal !== '', fn ($rows) => $rows->whereHas('metalType', fn ($metals) => $metals->where('uuid', $metal)))
-            ->when($purity !== '', fn ($rows) => $rows->whereHas('purity', fn ($purities) => $purities->where('uuid', $purity)))
-            ->when($category !== '', fn ($rows) => $rows->where('category_id', (int) $category))
-            ->when($location !== '', fn ($rows) => $rows->whereHas('location', fn ($places) => $places->where('uuid', $location)));
+        $metalTotals = collect();
+        $pieces = null;
+        $pieceCount = 0;
+        $grossTotal = $format->weight('0.000', $company);
+        $netTotal = $grossTotal;
 
-        $totals = (clone $query)->toBase()
-            ->selectRaw('count(*) as pieces, coalesce(sum(gross_weight), 0) as gross, coalesce(sum(net_weight), 0) as net')
-            ->first();
-        $groups = (clone $query)->toBase()
-            ->selectRaw('metal_type_id, purity_id, count(*) as pieces, coalesce(sum(net_weight), 0) as net')
-            ->groupBy('metal_type_id', 'purity_id')
-            ->get();
-        $metalNames = MetalType::query()->whereIn('id', $groups->pluck('metal_type_id')->filter())->pluck('name', 'id');
-        $purityNames = Purity::query()->whereIn('id', $groups->pluck('purity_id')->filter())->pluck('name', 'id');
-        $byMetal = $groups
-            ->map(fn ($row) => [
-                'label' => trim(($metalNames[$row->metal_type_id] ?? 'Other').' '.($purityNames[$row->purity_id] ?? '')),
-                'pieces' => (int) $row->pieces,
-                'net' => $format->weight($this->decimal($row->net, 3), $company),
-            ])
-            ->sortBy('label')
-            ->values();
+        if (! $request->boolean('grams')) {
+            $query = Item::query()
+                ->where('own_gold', false)
+                ->when($status === 'all', fn ($rows) => $rows->whereIn('status', [ItemStatus::Available, ItemStatus::Reserved]))
+                ->when($status !== 'all', fn ($rows) => $rows->where('status', $status))
+                ->when($source !== '', fn ($rows) => $rows->where('source', $source))
+                ->when($search !== '', function ($rows) use ($search): void {
+                    $like = $this->like($search);
+                    $rows->where(fn ($inner) => $inner->where('item_code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('huid', 'like', $like)->orWhere('barcode', 'like', $like));
+                })
+                ->when($metal !== '', fn ($rows) => $rows->whereHas('metalType', fn ($metals) => $metals->where('uuid', $metal)))
+                ->when($purity !== '', fn ($rows) => $rows->whereHas('purity', fn ($purities) => $purities->where('uuid', $purity)))
+                ->when($category !== '', fn ($rows) => $rows->where('category_id', (int) $category))
+                ->when($location !== '', fn ($rows) => $rows->whereHas('location', fn ($places) => $places->where('uuid', $location)));
 
-        $query->with(['metalType', 'purity', 'category', 'location.branch']);
-        match ($sort) {
-            'newest' => $query->orderByDesc('id'),
-            'heaviest' => $query->orderByDesc('net_weight')->orderBy('item_code'),
-            default => $query->orderBy('item_code'),
-        };
-        $query->orderBy('id');
+            $totals = (clone $query)->toBase()
+                ->selectRaw('count(*) as pieces, coalesce(sum(gross_weight), 0) as gross, coalesce(sum(net_weight), 0) as net')
+                ->first();
+            $grouped = (clone $query)->toBase()
+                ->selectRaw('metal_type_id, count(*) as pieces, coalesce(sum(gross_weight), 0) as gross, coalesce(sum(net_weight), 0) as net')
+                ->groupBy('metal_type_id')
+                ->get();
+            $metalNames = MetalType::query()->whereIn('id', $grouped->pluck('metal_type_id')->filter())->pluck('name', 'id');
+            $metalTotals = $grouped
+                ->map(fn ($row) => [
+                    'label' => $metalNames[$row->metal_type_id] ?? 'Other',
+                    'pieces' => (int) $row->pieces,
+                    'gross' => $format->weight($this->decimal($row->gross, 3), $company),
+                    'net' => $format->weight($this->decimal($row->net, 3), $company),
+                ])
+                ->sortBy('label')
+                ->values();
+            $pieceCount = (int) $totals->pieces;
+            $grossTotal = $format->weight($this->decimal($totals->gross, 3), $company);
+            $netTotal = $format->weight($this->decimal($totals->net, 3), $company);
+
+            if ($request->boolean('report')) {
+                $query->with(['metalType', 'purity', 'category', 'location.branch']);
+                match ($sort) {
+                    'newest' => $query->orderByDesc('id'),
+                    'heaviest' => $query->orderByDesc('net_weight')->orderBy('item_code'),
+                    default => $query->orderBy('item_code'),
+                };
+                $query->orderBy('id');
+                $pieces = $this->page($query, $request, $pieceCount);
+            }
+        }
 
         $canCorrect = ! $request->boolean('report') && ! $request->boolean('grams') && $request->user()?->can('inventory.create');
         $editUuid = $canCorrect ? trim((string) $request->query('edit', '')) : '';
@@ -116,8 +129,8 @@ class ReportController extends Controller
                 ->values();
 
         return view('commerce.reports.stock', [
-            'pieces' => $this->page($query, $request, (int) $totals->pieces),
-            'byMetal' => $byMetal,
+            'pieces' => $pieces,
+            'metalTotals' => $metalTotals,
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->where('is_active', true)->orderByDesc('fineness')])->where('is_active', true)->orderBy('name')->get(),
             'branches' => Branch::query()->visibleTo($request->user())->orderByDesc('is_head_office')->orderBy('name')->get(),
             'metalStock' => $balances,
@@ -128,9 +141,9 @@ class ReportController extends Controller
             'filters' => compact('search', 'metal', 'purity', 'supplierUuid', 'category', 'location', 'status', 'source', 'sort'),
             'filtered' => $search !== '' || $metal !== '' || $purity !== '' || $supplierUuid !== '' || $category !== '' || $location !== '' || $status !== 'all' || $source !== '',
             'sources' => ItemSource::cases(),
-            'pieceCount' => (int) $totals->pieces,
-            'grossTotal' => $format->weight($this->decimal($totals->gross, 3), $company),
-            'netTotal' => $format->weight($this->decimal($totals->net, 3), $company),
+            'pieceCount' => $pieceCount,
+            'grossTotal' => $grossTotal,
+            'netTotal' => $netTotal,
             'perPage' => $this->perPage($request),
             'company' => $company,
             'weight' => fn (string $amount) => $format->weight($amount, $company),

@@ -76,7 +76,7 @@ class WorkshopTest extends TestCase
         $this->assertSame(ItemSource::Own, Item::query()->where('item_code', 'OWN01')->sole()->source);
         $this->assertSame(ItemSource::Purchased, Item::query()->where('item_code', 'BOUGHT01')->sole()->source);
 
-        $codes = fn (string $route, string $key, string $source) => $this->actingAs($owner)->get(route($route, ['source' => $source]))
+        $codes = fn (string $route, string $key, string $source) => $this->actingAs($owner)->get(route($route, $route === 'reports.stock' ? ['source' => $source, 'report' => 1] : ['source' => $source]))
             ->assertOk()->viewData($key)->pluck('item_code')->sort()->values()->all();
 
         $this->assertTrue(Item::query()->where('item_code', 'CHAIN01')->sole()->own_gold);
