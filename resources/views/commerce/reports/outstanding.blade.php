@@ -55,6 +55,9 @@
                         <th>Mobile</th>
                         <th>Last bill</th>
                         <th class="num">{{ $advance ? 'Advance' : 'Balance' }}</th>
+                        @unless ($advance)
+                            <th class="no-print"></th>
+                        @endunless
                     </tr>
                 </thead>
                 <tbody>
@@ -65,9 +68,18 @@
                             <td class="text-nowrap">{{ $customer->mobile ?: '—' }}</td>
                             <td class="text-nowrap">{{ $customer->last_bill_at ? \Illuminate\Support\Carbon::parse($customer->last_bill_at)->timezone(config('app.timezone'))->format('d M Y') : '—' }}</td>
                             <td class="num">{{ $money(number_format(abs((float) $customer->balance), 2, '.', '')) }}</td>
+                            @unless ($advance)
+                                <td class="text-end text-nowrap no-print">
+                                    @forelse ($openBills->get($customer->id, collect()) as $sale)
+                                        <div><a href="{{ route('sales.show', $sale) }}">Pay {{ $sale->number }}</a></div>
+                                    @empty
+                                        <a href="{{ route('customers.show', $customer) }}#receive">Receive</a>
+                                    @endforelse
+                                </td>
+                            @endunless
                         </tr>
                     @empty
-                        <tr><td colspan="5">{{ $advance ? 'No customer has an advance with the shop.' : 'Nobody has an outstanding balance.' }}</td></tr>
+                        <tr><td colspan="{{ $advance ? 5 : 6 }}">{{ $advance ? 'No customer has an advance with the shop.' : 'Nobody has an outstanding balance.' }}</td></tr>
                     @endforelse
                 </tbody>
                 @if ($customerCount > 0)
@@ -75,6 +87,9 @@
                         <tr>
                             <td colspan="4">Total · {{ $customerCount }} {{ $customerCount === 1 ? 'customer' : 'customers' }}</td>
                             <td class="num">{{ $total }}</td>
+                            @unless ($advance)
+                                <td class="no-print"></td>
+                            @endunless
                         </tr>
                     </tfoot>
                 @endif

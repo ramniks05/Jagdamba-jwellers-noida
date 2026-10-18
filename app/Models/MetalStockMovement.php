@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 #[Fillable([
     'company_id', 'branch_id', 'metal_type_id', 'purity_id', 'kind', 'grams',
-    'rate_per_gram', 'taxable_amount', 'tax_percent', 'tax_amount', 'total_amount',
+    'rate_per_gram', 'taxable_amount', 'tax_percent', 'tax_amount', 'total_amount', 'supplier_bill_number',
     'reference_type', 'reference_id', 'user_id', 'occurred_at',
 ])]
 class MetalStockMovement extends Model

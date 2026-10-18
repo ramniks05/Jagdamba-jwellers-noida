@@ -41,7 +41,7 @@ class MetalStockTest extends TestCase
             ->assertOk()
             ->assertSee('Add Purchase to stock')
             ->assertSee('Purchase')
-            ->assertSee('weight times the rate, then GST, is the total')
+            ->assertSee('needs that supplier’s bill number')
             ->assertSee('Rate / g')
             ->assertSee('Others');
 
@@ -111,9 +111,13 @@ class MetalStockTest extends TestCase
             ->assertSee('18K')
             ->assertSee('100.000')
             ->assertSee('Gold total')
-            ->assertSee('Grand total')
+            ->assertDontSee('Grand total')
             ->assertDontSee('Pieces in hand')
-            ->assertDontSee('Stock on hand');
+            ->assertDontSee('Stock on hand')
+            ->assertDontSee('All suppliers');
+        $grams = $this->actingAs($owner)->get(route('reports.stock', ['grams' => 1, 'purity' => $lighter->uuid]));
+        $grams->assertOk()->assertSee('Gram stock report')->assertSee('All suppliers');
+        $this->assertSame(['18K'], collect($grams->viewData('metalStock'))->pluck('purity')->all());
 
         $sale = Sale::query()->latest('id')->firstOrFail();
         $line = SaleLine::query()->where('sale_id', $sale->id)->firstOrFail();
@@ -194,6 +198,7 @@ class MetalStockTest extends TestCase
             'grams' => '5',
             'rate_per_gram' => '6000',
             'supplier_uuid' => $first->uuid,
+            'supplier_bill_number' => 'SUP-5',
         ])->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($owner)->post(route('reports.stock.store'), [
             'kind' => 'purchase',
@@ -203,6 +208,7 @@ class MetalStockTest extends TestCase
             'grams' => '7',
             'rate_per_gram' => '6000',
             'supplier_uuid' => $second->uuid,
+            'supplier_bill_number' => 'SUP-7',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $this->seeShop($owner);
@@ -211,7 +217,7 @@ class MetalStockTest extends TestCase
         $this->assertSame('5.000', $filtered['purchased']);
         $this->assertSame('112.000', $filtered['balance']);
 
-        $this->actingAs($owner)->get(route('reports.stock', ['supplier' => $first->uuid]))
+        $this->actingAs($owner)->get(route('reports.stock', ['grams' => 1, 'supplier' => $first->uuid]))
             ->assertOk()
             ->assertSee('All suppliers')
             ->assertSee('Purchased grams are from Stock Supplier')
@@ -235,6 +241,7 @@ class MetalStockTest extends TestCase
             'purity_uuid' => $purity->uuid,
             'grams' => '2',
             'supplier_uuid' => $supplier->uuid,
+            'supplier_bill_number' => 'GST-2',
         ])->assertSessionHasErrors('rate_per_gram');
 
         $this->actingAs($owner)->post(route('reports.stock.store'), [
@@ -245,11 +252,23 @@ class MetalStockTest extends TestCase
             'grams' => '2',
             'rate_per_gram' => '10000',
             'supplier_uuid' => $supplier->uuid,
+        ])->assertSessionHasErrors('supplier_bill_number');
+
+        $this->actingAs($owner)->post(route('reports.stock.store'), [
+            'kind' => 'purchase',
+            'branch_uuid' => $branch->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'grams' => '2',
+            'rate_per_gram' => '10000',
+            'supplier_uuid' => $supplier->uuid,
+            'supplier_bill_number' => 'GST-2',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $this->seeShop($owner);
         $bought = MetalStockMovement::query()->where('kind', MetalStockKind::Purchase)->firstOrFail();
         $this->assertSame('2.000', (string) $bought->grams);
+        $this->assertSame('GST-2', $bought->supplier_bill_number);
         $this->assertSame('10000.00', (string) $bought->rate_per_gram);
         $this->assertSame('20000.00', (string) $bought->taxable_amount);
         $this->assertSame('3.00', (string) $bought->tax_percent);
@@ -280,7 +299,8 @@ class MetalStockTest extends TestCase
             ->assertOk()
             ->assertSee('Correct purchase')
             ->assertSee('Save correction')
-            ->assertSee('Stock Supplier');
+            ->assertSee('Stock Supplier')
+            ->assertSee('BILL-1');
         $this->actingAs($owner)->get(route('reports.stock', ['report' => 1]))
             ->assertOk()
             ->assertDontSee('Correct purchase');
@@ -299,6 +319,7 @@ class MetalStockTest extends TestCase
             'grams' => '3',
             'rate_per_gram' => '8000',
             'supplier_uuid' => $second->uuid,
+            'supplier_bill_number' => 'CORR-3',
         ])->assertRedirect(route('reports.stock'))->assertSessionHasNoErrors();
 
         $this->seeShop($owner);
@@ -306,6 +327,7 @@ class MetalStockTest extends TestCase
         $this->assertSame($other->id, $bought->purity_id);
         $this->assertSame($second->id, $bought->reference_id);
         $this->assertSame('3.000', (string) $bought->grams);
+        $this->assertSame('CORR-3', $bought->supplier_bill_number);
         $this->assertSame('8000.00', (string) $bought->rate_per_gram);
         $this->assertSame('24000.00', (string) $bought->taxable_amount);
         $this->assertSame('720.00', (string) $bought->tax_amount);
@@ -333,7 +355,36 @@ class MetalStockTest extends TestCase
             'grams' => '1',
             'rate_per_gram' => '1000',
             'supplier_uuid' => $second->uuid,
+            'supplier_bill_number' => 'SALE-1',
         ])->assertNotFound();
+    }
+
+    public function test_the_purchase_list_shows_only_the_latest_five(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '18K')->firstOrFail();
+        $branch = StockLocation::query()->where('code', 'MAIN')->firstOrFail()->branch;
+
+        foreach (range(1, 6) as $number) {
+            $supplier = $this->makeSupplier($owner, 'LST0'.$number, 'Purchase '.$number);
+            $this->actingAs($owner)->post(route('reports.stock.store'), [
+                'kind' => 'purchase',
+                'branch_uuid' => $branch->uuid,
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'grams' => '1',
+                'rate_per_gram' => '1000',
+                'supplier_uuid' => $supplier->uuid,
+                'supplier_bill_number' => 'LST-'.$number,
+            ])->assertRedirect()->assertSessionHasNoErrors();
+        }
+
+        $this->seeShop($owner);
+        $page = $this->actingAs($owner)->get(route('reports.stock'))->assertOk()->assertSee('Last 5 purchases');
+        $names = $page->viewData('purchases')->map(fn ($row) => $row->reference?->name)->all();
+        $this->assertSame(['Purchase 6', 'Purchase 5', 'Purchase 4', 'Purchase 3', 'Purchase 2'], $names);
     }
 
     private function makeSupplier(User $owner, string $code, string $name): Supplier
@@ -375,6 +426,7 @@ class MetalStockTest extends TestCase
 
             $payload['supplier_uuid'] = $supplier->uuid;
             $payload['rate_per_gram'] = '6000';
+            $payload['supplier_bill_number'] = 'BILL-1';
         }
 
         $this->actingAs($owner)->post(route('reports.stock.store'), $payload)

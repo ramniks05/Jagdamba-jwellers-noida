@@ -37,7 +37,7 @@
     </div>
     @can('create', App\Models\Payment::class)
         @if (! $customer->is_system)
-            <form class="card mb-4" method="POST" action="{{ route('customers.payments.store', $customer) }}">
+            <form class="card mb-4" id="receive" method="POST" action="{{ route('customers.payments.store', $customer) }}">
                 @csrf
                 <div class="card-header bg-white">Receive payment</div>
                 <div class="card-body row g-2">

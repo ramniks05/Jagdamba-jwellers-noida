@@ -165,7 +165,11 @@ class SaleService
                 $freshPieces[] = $attributes['new_piece'];
             }
 
+            $pieceRates = [];
+
             foreach ($freshPieces as $row) {
+                $typedRate = trim((string) ($row['rate_per_gram'] ?? ''));
+                unset($row['rate_per_gram']);
                 $code = $this->nextPieceCode();
                 $created = $this->items->create($company, $row + [
                     'item_code' => $code,
@@ -173,6 +177,10 @@ class SaleService
                     'own_gold' => $row['own'] ?? false,
                 ], $userId);
                 $uuids[] = $created->uuid;
+
+                if ($typedRate !== '') {
+                    $pieceRates[$created->id] = $typedRate;
+                }
             }
 
             if ($uuids === []) {
@@ -212,6 +220,11 @@ class SaleService
                 }
 
                 $rate = $this->rateForPiece($piece, $order, $attributes);
+                $typedRate = $pieceRates[$piece->id] ?? null;
+
+                if ($typedRate !== null) {
+                    $rate = $this->pricedRate($rate, $typedRate);
+                }
 
                 if (! $rate) {
                     throw ValidationException::withMessages([
@@ -633,6 +646,19 @@ class SaleService
 
         return $this->orderRate($order, $piece)
             ?? $this->rates->current((int) $piece->metal_type_id, (int) $piece->purity_id, (int) $piece->branch_id);
+    }
+
+    private function pricedRate(?MetalRate $rate, string $amount): MetalRate
+    {
+        $custom = $rate ? clone $rate : new MetalRate;
+        $custom->rate_per_gram = (string) BigDecimal::of($amount)->toScale(2, RoundingMode::HalfUp);
+
+        if (! $rate) {
+            $custom->exists = false;
+            $custom->id = null;
+        }
+
+        return $custom;
     }
 
     private function orderRate(?AdvanceOrder $order, Item $piece): ?MetalRate

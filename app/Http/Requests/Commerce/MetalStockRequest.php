@@ -19,6 +19,9 @@ class MetalStockRequest extends FormRequest
         if ($this->input('rate_per_gram') === '') {
             $this->merge(['rate_per_gram' => null]);
         }
+
+        $bill = trim((string) $this->input('supplier_bill_number', ''));
+        $this->merge(['supplier_bill_number' => $bill === '' ? null : $bill]);
     }
 
     /**
@@ -35,7 +38,18 @@ class MetalStockRequest extends FormRequest
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'grams' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'supplier_uuid' => ['required_if:kind,purchase', 'nullable', 'uuid', Rule::exists('suppliers', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id))],
+            'supplier_bill_number' => ['required_if:kind,purchase', 'nullable', 'string', 'max:40'],
             'rate_per_gram' => ['required_if:kind,purchase', 'nullable', 'numeric', 'gt:0', Limits::MONEY],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'supplier_bill_number.required_if' => 'Enter the supplier bill number.',
         ];
     }
 
@@ -46,6 +60,7 @@ class MetalStockRequest extends FormRequest
     {
         return [
             'rate_per_gram' => 'rate',
+            'supplier_bill_number' => 'supplier bill number',
         ];
     }
 }

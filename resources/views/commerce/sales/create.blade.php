@@ -49,72 +49,120 @@
                 <div class="card mb-3">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-4 col-6">
-                                <label for="weigh-metal">Metal</label>
-                                <select class="form-select" id="weigh-metal">
-                                    @foreach ($metals as $metal)
-                                        <option value="{{ $metal->uuid }}" data-id="{{ $metal->id }}" data-hsn="{{ $metal->hsn_code }}" @selected($order && (int) $order->metal_type_id === (int) $metal->id)>{{ $metal->name }}</option>
+                        <div class="weigh-section-title">Piece</div>
+                        <div class="bill-products" id="weigh-products">
+                            @foreach ($categories as $category)
+                                <button type="button" data-name="{{ $category->name }}">{{ $category->name }}</button>
+                            @endforeach
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label" for="weigh-name">Name</label>
+                            <input class="form-control" id="weigh-name" placeholder="Ring" value="{{ $order?->description }}">
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label" for="weigh-huid">HUID</label>
+                            <input class="form-control text-uppercase" id="weigh-huid" maxlength="32" placeholder="Type the hallmark ID if this piece is not in stock" autocomplete="off">
+                        </div>
+                        <div class="weigh-section">
+                            <div class="weigh-section-title">Weight</div>
+                            <div class="stone-box mt-0">
+                                <div class="metal-row sale-weights">
+                                    <div>
+                                        <label for="weigh-metal">Metal</label>
+                                        <select class="form-select" id="weigh-metal">
+                                            @foreach ($metals as $metal)
+                                                <option value="{{ $metal->uuid }}" data-id="{{ $metal->id }}" data-hsn="{{ $metal->hsn_code }}" @selected($order && (int) $order->metal_type_id === (int) $metal->id)>{{ $metal->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="weigh-purity">Purity</label>
+                                        <select class="form-select" id="weigh-purity">
+                                            @foreach ($metals as $metal)
+                                                @foreach ($metal->purities->sortByDesc('fineness') as $purity)
+                                                    <option value="{{ $purity->uuid }}" data-id="{{ $purity->id }}" data-metal="{{ $metal->id }}" @selected($order && (int) $order->purity_id === (int) $purity->id)>{{ $purity->name }}</option>
+                                                @endforeach
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="weigh-gross">Gross g</label>
+                                        <input class="form-control metal-net bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-stone">Stone g</label>
+                                        <input class="form-control" id="weigh-stone" inputmode="decimal" placeholder="0.000">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-other-g">Other g</label>
+                                        <input class="form-control" id="weigh-other-g" inputmode="decimal" placeholder="0.000">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-net">Net g</label>
+                                        <input class="form-control" id="weigh-net" readonly tabindex="-1" placeholder="0.000">
+                                    </div>
+                                </div>
+                                <div class="metal-row mt-2">
+                                    <div>
+                                        <label for="weigh-metal-rate">Rate / g</label>
+                                        <input class="form-control" id="weigh-metal-rate" inputmode="decimal" placeholder="Today's rate">
+                                    </div>
+                                    <div>
+                                        <label for="weigh-metal-value">Value</label>
+                                        <input class="form-control" id="weigh-metal-value" readonly tabindex="-1" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text">Type the scale weight. Leave stone and other blank for plain gold. Net = gross less stone and other, and the rate is on the net weight.</div>
+                        </div>
+                        <div class="weigh-section">
+                            <div class="charges-head">
+                                <div class="weigh-section-title">Charges</div>
+                                <select class="form-select form-select-sm" id="making-mode" name="making_mode" aria-label="GST on making charge">
+                                    <option value="inside" @selected($makingMode === 'inside')>Making inside jewellery GST</option>
+                                    <option value="separate" @selected($makingMode === 'separate')>Making with own GST {{ $makingGstPercent }}%</option>
+                                    <option value="processing" @selected($makingMode === 'processing')>Processing charge, no GST</option>
+                                </select>
+                            </div>
+                            <div class="weigh-metrics">
+                                <div class="weight-field">
+                                    <label for="weigh-making" id="weigh-making-label">Making</label>
+                                    <div class="input-group">
+                                        <select class="form-select charge-method" id="weigh-making">
+                                            <option value="">None</option>
+                                            @foreach ($making as $method)
+                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input class="form-control charge-value" id="weigh-making-value" inputmode="decimal" value="0" aria-label="Making amount">
+                                    </div>
+                                </div>
+                                <div class="weight-field">
+                                    <label for="weigh-wastage">Wastage</label>
+                                    <div class="input-group">
+                                        <select class="form-select charge-method" id="weigh-wastage">
+                                            <option value="">None</option>
+                                            @foreach ($wastage as $method)
+                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input class="form-control charge-value" id="weigh-wastage-value" inputmode="decimal" value="0" aria-label="Wastage amount">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="weigh-own" checked>
+                                <label class="form-check-label" for="weigh-own">Own</label>
+                            </div>
+                            <div class="form-text">Tick Own when this gold is only for the bill. It is not added to stock, and the main stock is not reduced. Those pieces are listed under Own gold. Untick it only when the weight should come off the main stock.</div>
+                            <div class="mt-2 {{ $locations->count() < 2 ? 'd-none' : '' }}">
+                                <label class="form-label" for="weigh-location">Location</label>
+                                <select class="form-select" id="weigh-location">
+                                    @foreach ($locations as $location)
+                                        <option value="{{ $location->uuid }}" data-branch="{{ $location->branch_id }}">{{ $location->branch?->name }} / {{ $location->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-2 col-6">
-                                <label for="weigh-hsn">HSN</label>
-                                <input class="form-control" id="weigh-hsn" readonly tabindex="-1" placeholder="—">
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label for="weigh-purity">Purity</label>
-                                <select class="form-select" id="weigh-purity">
-                                    @foreach ($metals as $metal)
-                                        @foreach ($metal->purities->sortByDesc('fineness') as $purity)
-                                            <option value="{{ $purity->uuid }}" data-id="{{ $purity->id }}" data-metal="{{ $metal->id }}" @selected($order && (int) $order->purity_id === (int) $purity->id)>{{ $purity->name }}</option>
-                                        @endforeach
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label for="weigh-gross">Gross g</label>
-                                <input class="form-control metal-net bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
-                            </div>
-                            <div class="col-md-4 col-6">
-                                <label for="weigh-metal-rate">Rate / g</label>
-                                <input class="form-control" id="weigh-metal-rate" readonly tabindex="-1" placeholder="—">
-                            </div>
-                            <div class="col-md-4 col-6">
-                                <label for="weigh-metal-value">Total value</label>
-                                <input class="form-control" id="weigh-metal-value" readonly tabindex="-1" placeholder="0">
-                            </div>
-                        </div>
-                        <div class="form-check mt-3">
-                            <input class="form-check-input" type="checkbox" id="weigh-own" checked>
-                            <label class="form-check-label" for="weigh-own">Own</label>
-                        </div>
-                        <div class="form-text">Tick Own when this gold is only for the bill. It is not added to stock, and the main stock is not reduced. Those pieces are listed under Own gold. Untick it only when the weight should come off the main stock.</div>
-                        <div class="mt-2 {{ $locations->count() < 2 ? 'd-none' : '' }}">
-                            <label class="form-label" for="weigh-location">Location</label>
-                            <select class="form-select" id="weigh-location">
-                                @foreach ($locations as $location)
-                                    <option value="{{ $location->uuid }}" data-branch="{{ $location->branch_id }}">{{ $location->branch?->name }} / {{ $location->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="d-none" id="weigh-legacy">
-                            <div id="weigh-products"></div>
-                            <input id="weigh-name" value="{{ $order?->description }}">
-                            <input id="weigh-huid">
-                            <input id="weigh-stone">
-                            <input id="weigh-other-g">
-                            <input id="weigh-net">
-                            <span id="weigh-making-label"></span>
-                            <select id="making-mode" name="making_mode">
-                                <option value="inside" @selected($makingMode === 'inside')>Making inside jewellery GST</option>
-                                <option value="separate" @selected($makingMode === 'separate')>Making with own GST {{ $makingGstPercent }}%</option>
-                                <option value="processing" @selected($makingMode === 'processing')>Processing charge, no GST</option>
-                            </select>
-                            <select id="weigh-making"><option value="">None</option>@foreach ($making as $method)<option value="{{ $method->uuid }}" data-code="{{ $method->code }}">{{ $method->name }}</option>@endforeach</select>
-                            <input id="weigh-making-value" value="">
-                            <select id="weigh-wastage"><option value="">None</option>@foreach ($wastage as $method)<option value="{{ $method->uuid }}" data-code="{{ $method->code }}">{{ $method->name }}</option>@endforeach</select>
-                            <input id="weigh-wastage-value" value="">
                         </div>
                         <div class="weigh-section">
                             <div class="weigh-section-title">Price</div>
@@ -152,6 +200,7 @@
                         </div>
                         <div class="bill-block">
                             <div class="bill-row d-none" id="bill-discount-row"><span>Discount</span><span id="bill-discount">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-after-discount-row"><span>After discount</span><span id="bill-after-discount">0.00</span></div>
                             <div class="bill-row"><span id="bill-tax-label">GST {{ $gstPercent }}%</span><span id="bill-tax">0.00</span></div>
                             <div class="bill-row d-none" id="bill-making-tax-row"><span id="bill-making-tax-label">GST {{ $makingGstPercent }}% on making</span><span id="bill-making-tax">0.00</span></div>
                             <div class="bill-row d-none" id="bill-round-row"><span>Round off</span><span id="bill-round">0.00</span></div>
@@ -263,6 +312,7 @@
         const freshLines = [];
         let editingIndex = null;
         let weighDefaults = null;
+        let rateEdited = false;
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
 
         function round2(value) {
@@ -367,17 +417,16 @@
             target.appendChild(gross);
         }
 
+        function readRate() {
+            const typed = Number(String(document.getElementById('weigh-metal-rate').value).replace(/,/g, ''));
+            return Number.isFinite(typed) && typed > 0 ? typed : 0;
+        }
+
         function previewWeigh() {
             syncPurities();
             const metal = option('weigh-metal');
             const purity = option('weigh-purity');
             const location = option('weigh-location');
-            const hsn = document.getElementById('weigh-hsn');
-            if (hsn) hsn.value = metal ? (metal.dataset.hsn || '') : '';
-            const nameInput = document.getElementById('weigh-name');
-            if (nameInput && metal && purity) {
-                nameInput.value = (metal.text + ' ' + purity.text).trim();
-            }
             const gross = Number(document.getElementById('weigh-gross').value || 0);
             const stoneWeight = Number(document.getElementById('weigh-stone').value || 0);
             const other = Number(document.getElementById('weigh-other-g').value || 0);
@@ -386,8 +435,12 @@
             netInput.value = gross > 0 ? net.toFixed(3) : '';
             netInput.classList.toggle('is-invalid', gross > 0 && net <= 0);
             const shownRate = metal && purity && location ? currentRate(metal.dataset.id, purity.dataset.id, location.dataset.branch) : null;
-            document.getElementById('weigh-metal-rate').value = shownRate ? money.format(Number(shownRate.rate_per_gram)) : '';
-            document.getElementById('weigh-metal-value').value = shownRate && net > 0 ? money.format(round2(net * Number(shownRate.rate_per_gram))) : '';
+            const rateField = document.getElementById('weigh-metal-rate');
+            if (!rateEdited) {
+                rateField.value = shownRate ? Number(shownRate.rate_per_gram).toFixed(2) : '';
+            }
+            const rateValue = readRate();
+            document.getElementById('weigh-metal-value').value = rateValue > 0 && net > 0 ? money.format(round2(net * rateValue)) : '';
             if (gross <= 0) {
                 return emptyQuote('Enter the gross weight');
             }
@@ -397,11 +450,9 @@
             if (!metal || !purity || !location) {
                 return emptyQuote('Choose metal and purity');
             }
-            const rate = currentRate(metal.dataset.id, purity.dataset.id, location.dataset.branch);
-            if (!rate) {
-                return emptyQuote('Set today\'s ' + metal.text + ' ' + purity.text + ' rate');
+            if (rateValue <= 0) {
+                return emptyQuote('Enter the rate per gram');
             }
-            const rateValue = Number(rate.rate_per_gram);
             const making = option('weigh-making');
             const wastage = option('weigh-wastage');
             const makingCode = making && making.value ? (making.dataset.code || 'fixed') : 'fixed';
@@ -461,11 +512,12 @@
                 wastage: field('weigh-wastage'),
                 wastageValue: field('weigh-wastage-value'),
                 own: document.getElementById('weigh-own').checked ? '1' : '0',
+                rate: field('weigh-metal-rate'),
                 stones: [],
             };
         }
 
-        function applyWeigh(state) {
+        function applyWeigh(state, keepRate) {
             const set = (id, value) => { document.getElementById(id).value = value; };
             set('weigh-name', state.name);
             set('weigh-huid', state.huid || '');
@@ -481,6 +533,8 @@
             set('weigh-wastage', state.wastage);
             set('weigh-wastage-value', state.wastageValue);
             document.getElementById('weigh-own').checked = state.own === '1' || state.own === true;
+            rateEdited = keepRate === true;
+            if (rateEdited) set('weigh-metal-rate', state.rate || '');
             syncCharge('making');
             syncCharge('wastage');
             document.getElementById('weigh-error').classList.add('d-none');
@@ -499,13 +553,13 @@
 
         function resetWeigh() {
             editingIndex = null;
-            applyWeigh(weighDefaults);
+            applyWeigh(weighDefaults, false);
             showEditing();
         }
 
         function editLine(index) {
             editingIndex = index;
-            applyWeigh(freshLines[index].form);
+            applyWeigh(freshLines[index].form, true);
             showEditing();
             renderBill();
             document.getElementById('weigh-name').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -580,7 +634,7 @@
                 const huid = line.kind === 'stock' ? line.row.huid : line.row.fields.huid;
                 meta.textContent = line.kind === 'stock'
                     ? [line.row.code, huid ? 'HUID ' + huid : '', line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
-                    : [line.row.metal, line.row.hsn ? 'HSN ' + line.row.hsn : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
+                    : [line.row.metal, huid ? 'HUID ' + huid : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
                 nameCell.append(head, meta);
                 const split = document.createElement('div');
                 split.className = 'piece-split bill-line-split';
@@ -690,6 +744,7 @@
             showRow('bill-making', making, making > 0);
             showRow('bill-discount', discount, discount > 0);
             document.getElementById('bill-discount').textContent = '− ' + money.format(discount);
+            showRow('bill-after-discount', round2(subtotal - discount), discount > 0);
             document.getElementById('bill-making-label').textContent = {
                 inside: 'Making (in jewellery GST)',
                 separate: 'Making (own GST)',
@@ -867,10 +922,18 @@
             previewWeigh();
         });
         document.getElementById('bill-form').addEventListener('input', (event) => {
+            if (event.target.id === 'weigh-metal' || event.target.id === 'weigh-purity') rateEdited = false;
+            if (event.target.id === 'weigh-metal-rate') rateEdited = true;
             if ((event.target.id && event.target.id.startsWith('weigh-')) || event.target.closest('#stone-list')) previewWeigh();
         });
-        document.getElementById('weigh-metal').addEventListener('change', previewWeigh);
-        document.getElementById('weigh-purity').addEventListener('change', previewWeigh);
+        document.getElementById('weigh-metal').addEventListener('change', () => {
+            rateEdited = false;
+            previewWeigh();
+        });
+        document.getElementById('weigh-purity').addEventListener('change', () => {
+            rateEdited = false;
+            previewWeigh();
+        });
         function syncCharge(kind) {
             const method = document.getElementById('weigh-' + kind);
             const value = document.getElementById('weigh-' + kind + '-value');
@@ -907,7 +970,7 @@
             const stones = collectStones();
             const keptStones = stones.length ? stones : (editingIndex !== null ? (freshLines[editingIndex].stones || []) : []);
             if (name === '' || quote === null) {
-                error.textContent = name === '' ? 'Choose the metal.' : document.getElementById('weigh-price').textContent;
+                error.textContent = name === '' ? 'Choose a product.' : document.getElementById('weigh-price').textContent;
                 error.classList.remove('d-none');
                 return;
             }
@@ -929,7 +992,6 @@
                 stoneAmount: quote.stone,
                 parts: quote.parts,
                 stones: keptStones,
-                hsn: document.getElementById('weigh-hsn').value,
                 fields: {
                     name,
                     huid: document.getElementById('weigh-huid').value.trim().toUpperCase(),
@@ -945,6 +1007,7 @@
                     wastage_method_uuid: option('weigh-wastage').value,
                     wastage_value: document.getElementById('weigh-wastage-value').value || '0',
                     own: document.getElementById('weigh-own').checked ? '1' : '0',
+                    rate_per_gram: readRate().toFixed(2),
                 },
             };
             if (editingIndex !== null) {

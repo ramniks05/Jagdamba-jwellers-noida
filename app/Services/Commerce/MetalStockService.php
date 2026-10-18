@@ -68,7 +68,7 @@ class MetalStockService
             ]);
         }
 
-        return $this->purchase($company, $branch, $metal, $purity, $grams, $supplier, (string) $attributes['rate_per_gram'], $userId);
+        return $this->purchase($company, $branch, $metal, $purity, $grams, $supplier, (string) $attributes['rate_per_gram'], trim((string) $attributes['supplier_bill_number']), $userId);
     }
 
     /**
@@ -112,7 +112,7 @@ class MetalStockService
 
         $priced = $this->price($company, $grams, (string) $attributes['rate_per_gram'], $movement->tax_percent !== null ? (string) $movement->tax_percent : null);
 
-        return DB::transaction(function () use ($company, $movement, $branch, $metal, $purity, $grams, $supplier, $priced, $userId) {
+        return DB::transaction(function () use ($company, $movement, $branch, $metal, $purity, $grams, $supplier, $priced, $attributes, $userId) {
             $movement->branch_id = $branch->id;
             $movement->metal_type_id = $metal->id;
             $movement->purity_id = $purity->id;
@@ -122,11 +122,12 @@ class MetalStockService
             $movement->tax_percent = $priced['taxPercent'];
             $movement->tax_amount = $priced['priced']->taxAmount;
             $movement->total_amount = $priced['priced']->total;
+            $movement->supplier_bill_number = trim((string) $attributes['supplier_bill_number']);
             $movement->reference_type = $supplier->getMorphClass();
             $movement->reference_id = $supplier->id;
             $movement->save();
 
-            $narration = $this->narration($metal, $purity, $grams);
+            $narration = $this->narration($metal, $purity, $grams, $movement->supplier_bill_number);
             $entry = LedgerEntry::query()
                 ->where('reference_type', $movement->getMorphClass())
                 ->where('reference_id', $movement->id)
@@ -146,17 +147,18 @@ class MetalStockService
         });
     }
 
-    private function purchase(Company $company, Branch $branch, MetalType $metal, Purity $purity, BigDecimal $grams, Supplier $supplier, string $ratePerGram, ?int $userId): MetalStockMovement
+    private function purchase(Company $company, Branch $branch, MetalType $metal, Purity $purity, BigDecimal $grams, Supplier $supplier, string $ratePerGram, string $billNumber, ?int $userId): MetalStockMovement
     {
         $priced = $this->price($company, $grams, $ratePerGram);
 
-        return DB::transaction(function () use ($company, $branch, $metal, $purity, $grams, $supplier, $priced, $userId) {
+        return DB::transaction(function () use ($company, $branch, $metal, $purity, $grams, $supplier, $priced, $billNumber, $userId) {
             $movement = $this->record((int) $branch->id, (int) $metal->id, (int) $purity->id, $grams, MetalStockKind::Purchase, $supplier, $userId, [
                 'rate_per_gram' => (string) $priced['rate'],
                 'taxable_amount' => $priced['priced']->taxableAmount,
                 'tax_percent' => $priced['taxPercent'],
                 'tax_amount' => $priced['priced']->taxAmount,
                 'total_amount' => $priced['priced']->total,
+                'supplier_bill_number' => $billNumber,
             ]);
             $this->ledger->post(
                 (int) $company->id,
@@ -164,7 +166,7 @@ class MetalStockService
                 (int) $supplier->id,
                 LedgerDirection::Credit,
                 $priced['priced']->total,
-                $this->narration($metal, $purity, $grams),
+                $this->narration($metal, $purity, $grams, $billNumber),
                 $movement,
                 $userId,
             );
@@ -201,9 +203,11 @@ class MetalStockService
         ];
     }
 
-    private function narration(MetalType $metal, Purity $purity, BigDecimal $grams): string
+    private function narration(MetalType $metal, Purity $purity, BigDecimal $grams, ?string $billNumber = null): string
     {
-        return 'Gram purchase '.$metal->name.' '.$purity->name.' '.$grams->toScale(3, RoundingMode::HalfUp).' g';
+        $text = 'Gram purchase '.$metal->name.' '.$purity->name.' '.$grams->toScale(3, RoundingMode::HalfUp).' g';
+
+        return $billNumber ? $text.' · Bill '.$billNumber : $text;
     }
 
     public function sell(int $branchId, int $metalId, int $purityId, string $grams, Model $reference, ?int $userId = null): void
@@ -311,7 +315,7 @@ class MetalStockService
     }
 
     /**
-     * @param  array{rate_per_gram: string, taxable_amount: string, tax_percent: string, tax_amount: string, total_amount: string}|null  $money
+     * @param  array{rate_per_gram: string, taxable_amount: string, tax_percent: string, tax_amount: string, total_amount: string, supplier_bill_number?: string}|null  $money
      */
     private function record(int $branchId, int $metalId, int $purityId, BigDecimal $grams, MetalStockKind $kind, ?Model $reference, ?int $userId, ?array $money = null): MetalStockMovement
     {
@@ -326,6 +330,7 @@ class MetalStockService
             'tax_percent' => $money['tax_percent'] ?? null,
             'tax_amount' => $money['tax_amount'] ?? null,
             'total_amount' => $money['total_amount'] ?? null,
+            'supplier_bill_number' => $money['supplier_bill_number'] ?? null,
             'reference_type' => $reference?->getMorphClass(),
             'reference_id' => $reference?->getKey(),
             'user_id' => $userId,

@@ -113,7 +113,7 @@ class ReportController extends Controller
                 ->where('kind', MetalStockKind::Purchase)
                 ->orderByDesc('occurred_at')
                 ->orderByDesc('id')
-                ->limit(50)
+                ->limit(5)
                 ->get()
             : collect();
 
@@ -261,9 +261,20 @@ class ReportController extends Controller
 
         $money = fn (string $amount) => $format->money($amount, $company);
         $total = $this->decimal($totals->balance);
+        $rows = $this->page($query, $request, (int) $totals->customers);
+        $openBills = $show === 'due'
+            ? Sale::query()
+                ->whereIn('customer_id', $rows->getCollection()->pluck('id'))
+                ->whereRaw('paid_amount + 0.004 < total + coalesce(previous_due, 0)')
+                ->orderBy('sold_at')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('customer_id')
+            : collect();
 
         return view('commerce.reports.outstanding', [
-            'rows' => $this->page($query, $request, (int) $totals->customers),
+            'rows' => $rows,
+            'openBills' => $openBills,
             'filters' => compact('search', 'show', 'sort'),
             'customerCount' => (int) $totals->customers,
             'total' => $money(ltrim($total, '-')),

@@ -116,6 +116,7 @@ class SaleRequest extends FormRequest
             'new_pieces.*.stone_value' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_pieces.*.huid' => ['nullable', 'string', 'max:32'],
             'new_pieces.*.own' => ['nullable', 'boolean'],
+            'new_pieces.*.rate_per_gram' => ['nullable', 'numeric', 'gt:0', Limits::RATE],
             'new_pieces.*.stones' => ['array'],
             'new_pieces.*.stones.*.name' => ['required', 'string', 'max:80'],
             'new_pieces.*.stones.*.weight' => ['required', 'numeric', 'gte:0', Limits::WEIGHT],

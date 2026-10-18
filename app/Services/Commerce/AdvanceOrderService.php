@@ -66,6 +66,11 @@ class AdvanceOrderService
                 ]);
             }
 
+            $typed = trim((string) ($attributes['rate_per_gram'] ?? ''));
+            $perGram = $typed !== ''
+                ? BigDecimal::of($typed)->toScale(2, RoundingMode::HalfUp)
+                : BigDecimal::of((string) $rate->rate_per_gram);
+
             $advance = BigDecimal::of((string) $attributes['advance'])->toScale(2, RoundingMode::HalfUp);
 
             if ($advance->isNegativeOrZero()) {
@@ -86,7 +91,7 @@ class AdvanceOrderService
                 'description' => trim((string) $attributes['description']),
                 'design_notes' => trim((string) ($attributes['design_notes'] ?? '')) ?: null,
                 'expected_weight' => $attributes['expected_weight'],
-                'rate_per_gram' => $rate->rate_per_gram,
+                'rate_per_gram' => (string) $perGram,
                 'estimated_making' => $attributes['estimated_making'] ?? '0',
                 'advance_paid' => '0',
                 'advance_refunded' => '0',

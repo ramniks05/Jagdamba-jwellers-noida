@@ -68,6 +68,7 @@
                 <th class="num">#</th>
                 <th>Particulars</th>
                 <th>HUID</th>
+                <th>HSN</th>
                 <th class="num">Gross</th>
                 <th class="num">Net</th>
                 <th class="num">Rate / g</th>
@@ -81,7 +82,7 @@
                     <td class="num">{{ $loop->iteration }}</td>
                     <td>
                         <strong>{{ $line->name }}</strong>
-                        <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}@if ($line->hsn_code) · HSN {{ $line->hsn_code }}@endif</div>
+                        <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}</div>
                         <div class="invoice-split">
                             <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>
                             @if ((float) $line->wastage_amount > 0)
@@ -106,7 +107,8 @@
                             @endforelse
                         </div>
                     </td>
-                    <td>{{ $line->item?->huid ?: '—' }}</td>
+                    <td>{{ $line->item?->huid }}</td>
+                    <td>{{ $line->hsn_code }}</td>
                     <td class="num">{{ $weight((string) $line->gross_weight) }}</td>
                     <td class="num">{{ $weight((string) $line->net_weight) }}</td>
                     <td class="num">{{ $money((string) $line->rate_per_gram) }}</td>
@@ -139,7 +141,7 @@
             </tr>
             @if ($sale->making_mode === 'inside')
                 <tr>
-                    <td>Taxable value</td>
+                    <td>{{ (float) $sale->discount_amount !== 0.0 ? 'Pieces total' : 'Taxable value' }}</td>
                     <td>{{ $money((string) $sale->lines_amount) }}</td>
                 </tr>
             @else
@@ -156,8 +158,14 @@
             @if ((float) $sale->discount_amount !== 0.0)
                 <tr>
                     <td>Discount</td>
-                    <td>{{ $money((string) $sale->discount_amount) }}</td>
+                    <td>− {{ $money((string) $sale->discount_amount) }}</td>
                 </tr>
+                @if ($sale->making_mode === 'inside')
+                    <tr>
+                        <td>Taxable value</td>
+                        <td>{{ $money((string) $sale->taxable_amount) }}</td>
+                    </tr>
+                @endif
             @endif
             @foreach ($taxes as $tax)
                 <tr>

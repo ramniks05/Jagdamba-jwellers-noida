@@ -116,6 +116,21 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame(0, AdvanceOrder::query()->count());
     }
 
+    public function test_an_order_can_keep_a_rate_other_than_today(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+
+        $this->actingAs($owner)->post(route('orders.store'), $this->booking($customer, $gold, $purity, '1000') + [
+            'rate_per_gram' => '4500',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $order = AdvanceOrder::query()->latest('id')->firstOrFail();
+        $this->assertSame('4500.00', (string) $order->rate_per_gram);
+        $this->assertSame('5000.00', (string) $order->metalRate->rate_per_gram);
+    }
+
     private function book(User $owner, Customer $customer, MetalType $gold, Purity $purity, string $advance): AdvanceOrder
     {
         $this->actingAs($owner)->post(route('orders.store'), $this->booking($customer, $gold, $purity, $advance))->assertRedirect();

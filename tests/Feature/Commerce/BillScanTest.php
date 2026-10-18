@@ -37,6 +37,7 @@ class BillScanTest extends TestCase
             ->assertJsonPath('piece.barcode', 'JJ0000123')
             ->assertJsonPath('piece.purity', '22K')
             ->assertJsonPath('piece.metal', 'Gold 22K')
+            ->assertJsonPath('piece.hsn', '7113')
             ->assertJsonPath('piece.ready', true);
 
         $this->assertEquals(28160, $response->json('piece.line'));

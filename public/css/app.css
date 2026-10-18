@@ -68,9 +68,12 @@ a {
 }
 
 .sidebar-nav {
-    flex: 1;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
     gap: 0.15rem;
+    min-height: 0;
     overflow: auto;
+    overscroll-behavior: contain;
     padding: 0.25rem 0.75rem 1rem;
 }
 
@@ -430,6 +433,94 @@ a {
     border-bottom-width: 0;
     border-top: 2px solid var(--gold);
     font-weight: 700;
+}
+
+.stock-boards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.stock-board {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    overflow: hidden;
+}
+
+.stock-board-total {
+    align-items: center;
+    background:
+        linear-gradient(115deg, rgba(198, 161, 91, 0.16), transparent 42%),
+        #2a1c16;
+    color: #fff8ea;
+    display: grid;
+    gap: 0.85rem 1.25rem;
+    grid-template-columns: minmax(7.5rem, 0.55fr) minmax(0, 1fr);
+    padding: 0.95rem 1.1rem;
+}
+
+.stock-board-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+}
+
+.stock-board-figures {
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stock-board-figures > div {
+    background: rgba(255, 248, 234, 0.08);
+    border-radius: 0.65rem;
+    padding: 0.45rem 0.7rem 0.5rem;
+}
+
+.stock-board-figures span {
+    color: #ead9b8;
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.stock-board-figures strong {
+    display: block;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    margin-top: 0.12rem;
+}
+
+.stock-board-figures .is-hand {
+    background: rgba(198, 161, 91, 0.28);
+}
+
+.stock-board-figures .is-hand strong {
+    color: #f6e2b0;
+}
+
+.stock-board-figures .is-short strong {
+    color: #ffb4b4;
+}
+
+.stock-board .table thead th {
+    background: #fffaf4;
+}
+
+@media (max-width: 767.98px) {
+    .stock-board-total {
+        grid-template-columns: 1fr;
+        padding: 0.85rem;
+    }
+
+    .stock-board-figures {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 .filter-bar {
@@ -2733,8 +2824,17 @@ a {
 }
 
 @media (min-width: 992px) {
+    html,
+    body {
+        height: 100%;
+        overflow: hidden;
+    }
+
     .app-shell {
         display: flex;
+        height: 100vh;
+        max-height: 100vh;
+        overflow: hidden;
     }
 
     .app-sidebar {
@@ -2743,14 +2843,26 @@ a {
         position: sticky;
         top: 0;
         height: 100vh;
-        overflow: auto;
+        max-height: 100vh;
+        overflow: hidden;
         background-color: var(--sidebar) !important;
         color: var(--sidebar-text);
     }
 
+    .app-sidebar .offcanvas-body {
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+    }
+
     .app-main {
         flex: 1;
+        height: 100vh;
+        max-height: 100vh;
         min-width: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
     }
 
     .sidebar-collapsed .app-sidebar {
@@ -2810,10 +2922,15 @@ a {
         padding: 0 !important;
     }
 
+    html,
+    body,
     .app-shell,
     .app-main,
     .app-main .container-fluid {
         display: block !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
         width: auto !important;
         max-width: none !important;
         min-height: 0 !important;
@@ -2866,6 +2983,19 @@ a {
         max-width: none !important;
         overflow: visible !important;
         padding: 0 !important;
+    }
+
+    .stock-board-total {
+        background: #fff !important;
+        color: #1c1612 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .stock-board-figures span,
+    .stock-board-figures .is-hand strong,
+    .stock-board-figures .is-short strong {
+        color: #1c1612 !important;
     }
 }
 

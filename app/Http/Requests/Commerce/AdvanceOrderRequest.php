@@ -38,6 +38,7 @@ class AdvanceOrderRequest extends FormRequest
             'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            'rate_per_gram' => ['nullable', 'numeric', 'gt:0', Limits::RATE],
             'estimated_making' => ['required', 'numeric', 'gte:0', Limits::MONEY],
             'due_on' => ['nullable', 'date', 'after_or_equal:today'],
             'advance' => ['required', 'numeric', 'gt:0', Limits::MONEY],

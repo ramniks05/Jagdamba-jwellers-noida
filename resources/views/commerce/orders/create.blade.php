@@ -37,7 +37,7 @@
                             <div class="weigh-section-title">Metal</div>
                             <div class="stone-box mt-0">
                                 <div class="stone-box-head">
-                                    <span class="weigh-step-label">Rate is locked today</span>
+                                    <span class="weigh-step-label">Today's rate. Change it for this order</span>
                                 </div>
                                 <div class="metal-row">
                                     <div>
@@ -64,7 +64,7 @@
                                     </div>
                                     <div>
                                         <label for="order-rate">Rate / g</label>
-                                        <input class="form-control" id="order-rate" readonly tabindex="-1" placeholder="—">
+                                        <input class="form-control" id="order-rate" name="rate_per_gram" inputmode="decimal" placeholder="Today's rate">
                                     </div>
                                     <div>
                                         <label for="order-metal-value">Value</label>
@@ -127,7 +127,7 @@
                             <div class="bill-row"><span>Advance now</span><span id="sum-advance">− 0.00</span></div>
                             <div class="bill-grand"><span>Balance at delivery (about)</span><strong id="sum-balance">0.00</strong></div>
                         </div>
-                        <p class="text-secondary small mb-0 mt-2">Only an estimate. The bill on delivery uses the actual weight of the finished piece at this locked rate.</p>
+                        <p class="text-secondary small mb-0 mt-2">Only an estimate. The bill on delivery starts from this rate and can still be changed.</p>
                     </div>
                 </div>
                 <div class="card mb-3">
@@ -193,6 +193,7 @@
         const order = JSON.parse(document.getElementById('order-config').textContent);
         const money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const $ = (id) => document.getElementById(id);
+        let rateEdited = false;
 
         function round2(value) {
             return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -243,14 +244,19 @@
             const metal = selected('metal');
             const purity = selected('purity');
             const rate = metal && purity ? currentRate(metal.dataset.id, purity.dataset.id) : null;
-            const rateValue = rate ? Number(rate.rate_per_gram) : 0;
+            const rateField = $('order-rate');
+            if (!rateEdited) {
+                rateField.value = rate ? Number(rate.rate_per_gram).toFixed(2) : '';
+            }
+            const typed = Number(String(rateField.value).replace(/,/g, ''));
+            const rateValue = Number.isFinite(typed) && typed > 0 ? typed : 0;
             const weight = Number($('weight').value || 0);
             const metalValue = round2(weight * rateValue);
             const missing = $('rate-missing');
-            missing.classList.toggle('d-none', !!rate);
-            missing.textContent = rate ? '' : 'No ' + (metal ? metal.text : '') + ' ' + (purity ? purity.text : '') + ' rate yet. Enter today’s rate in Metal rates first.';
-            $('order-rate').value = rate ? money.format(rateValue) : '';
-            $('order-metal-value').value = rate && weight > 0 ? money.format(metalValue) : '';
+            missing.classList.toggle('d-none', rateValue > 0);
+            missing.textContent = rateValue > 0 ? '' : 'Enter the rate per gram. Today’s rate fills in when it is set.';
+            $('order-rate').value = rateEdited ? rateField.value : (rate ? Number(rate.rate_per_gram).toFixed(2) : '');
+            $('order-metal-value').value = rateValue > 0 && weight > 0 ? money.format(metalValue) : '';
 
             const method = selected('making-method');
             const code = method && method.value ? (method.dataset.code || 'fixed') : '';
@@ -260,8 +266,8 @@
 
             const empty = $('order-empty');
             const sums = $('order-sums');
-            if (weight <= 0 || !rate) {
-                empty.textContent = rate ? 'Enter the expected weight' : 'Set today’s rate for this metal';
+            if (weight <= 0 || rateValue <= 0) {
+                empty.textContent = rateValue > 0 ? 'Enter the expected weight' : 'Enter the rate per gram';
                 empty.classList.remove('d-none');
                 sums.classList.add('d-none');
                 return;
@@ -321,9 +327,14 @@
             $('description').value = button.dataset.name;
             $('weight').focus();
         });
+        function refreshOrder(event) {
+            if (event && (event.target.id === 'metal' || event.target.id === 'purity')) rateEdited = false;
+            if (event && event.target.id === 'order-rate') rateEdited = true;
+            renderOrder();
+        }
         $('making-method').addEventListener('change', syncMaking);
-        $('order-form').addEventListener('input', renderOrder);
-        $('order-form').addEventListener('change', renderOrder);
+        $('order-form').addEventListener('input', refreshOrder);
+        $('order-form').addEventListener('change', refreshOrder);
         $('order-form').addEventListener('submit', (event) => {
             renderOrder();
             if (!picker.ensure()) event.preventDefault();

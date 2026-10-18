@@ -89,6 +89,7 @@ class BillScanService
             'name' => $item->name,
             'barcode' => $item->barcode,
             'huid' => $item->huid,
+            'hsn' => (string) ($item->metalType?->hsn_code ?? ''),
             'metal' => trim(($item->metalType?->name ?? '').' '.($item->purity?->name ?? '')),
             'purity' => $item->purity?->name,
             'gross' => $this->format->weight((string) $item->gross_weight, $company),

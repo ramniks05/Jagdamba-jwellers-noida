@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Item;
 use App\Models\MetalType;
 use App\Models\Purity;
+use App\Models\Sale;
 use App\Models\StockLocation;
 use App\Models\User;
 use App\Services\Access\AccessProvisioner;
@@ -147,11 +148,14 @@ class ReportTest extends TestCase
         $this->seeShop($owner);
         app(LedgerService::class)->post((int) $owner->company_id, PartyType::Customer, (int) $ravi->id, LedgerDirection::Credit, '5000.00', 'Order advance');
 
+        $bill = Sale::query()->where('customer_id', $meera->id)->firstOrFail();
         $this->actingAs($owner)->get(route('reports.outstanding'))
             ->assertOk()
             ->assertSee('Meera Shah')
             ->assertDontSee('Ravi Verma')
             ->assertSee('60,555.00')
+            ->assertSee('Pay '.$bill->number)
+            ->assertSee(route('sales.show', $bill), false)
             ->assertSee('Total · 1 customer');
 
         $this->actingAs($owner)->get(route('reports.outstanding', ['show' => 'advance']))

@@ -90,6 +90,8 @@ class CounterTest extends TestCase
             ->get(route('sales.show', $line->sale))
             ->assertOk()
             ->assertSee('70,555.00')
+            ->assertSee('Pieces total')
+            ->assertSee('Discount')
             ->assertSee('UPI123');
 
         $this->actingAs($owner)->post(route('items.store'), $this->piece('RING02', $gold, $purity))->assertRedirect();
@@ -134,6 +136,51 @@ class CounterTest extends TestCase
 
         $this->seeShop($owner);
         $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+    }
+
+    public function test_a_bill_can_use_a_rate_other_than_today(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $walkIn->uuid,
+            'discount' => '500',
+            'new_pieces' => [[
+                'name' => 'Rate check',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '2',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+                'rate_per_gram' => '5500',
+            ]],
+            'payments' => [
+                ['method' => 'cash', 'amount' => '10815'],
+            ],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $line = SaleLine::query()->where('name', 'Rate check')->firstOrFail();
+        $this->assertSame('5500.00', (string) $line->rate_per_gram);
+        $this->assertSame('11000.00', (string) $line->metal_amount);
+        $this->actingAs($owner)->get(route('sales.show', $line->sale))
+            ->assertOk()
+            ->assertSee('Discount')
+            ->assertSee('10,815.00');
     }
 
     public function test_a_cashier_can_see_pieces_but_cannot_add_one(): void
@@ -228,8 +275,11 @@ class CounterTest extends TestCase
             ->get(route('sales.create'))
             ->assertOk()
             ->assertSee('id="weigh-own"', false)
-            ->assertSee('data-hsn="7113"', false)
-            ->assertDontSee('Type the hallmark ID if this piece is not in stock');
+            ->assertSee('id="weigh-huid"', false)
+            ->assertDontSee('for="weigh-hsn"', false)
+            ->assertSee('bill-products', false)
+            ->assertSee('>Ring<', false)
+            ->assertSee('Type the hallmark ID if this piece is not in stock');
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $walkIn->uuid,
@@ -259,7 +309,9 @@ class CounterTest extends TestCase
             ->get(route('sales.show', $sale))
             ->assertOk()
             ->assertSee('Loose bangle')
-            ->assertSee('AB12CD');
+            ->assertSee('AB12CD')
+            ->assertSeeInOrder(['<th>HUID</th>', '<th>HSN</th>'], false)
+            ->assertSee('7113');
     }
 
     public function test_two_rings_keep_their_own_stones_on_the_bill(): void
