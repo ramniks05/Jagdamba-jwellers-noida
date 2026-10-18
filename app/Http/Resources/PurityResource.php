@@ -20,7 +20,7 @@ class PurityResource extends JsonResource
             'code' => $this->code,
             'name' => $this->name,
             'fineness' => $this->fineness,
-            'fineness_percent' => Fineness::percentFromRatio((string) $this->fineness),
+            'fineness_percent' => $this->fineness === null ? null : Fineness::percentFromRatio((string) $this->fineness),
             'is_active' => $this->is_active,
             'sort_order' => $this->sort_order,
         ];

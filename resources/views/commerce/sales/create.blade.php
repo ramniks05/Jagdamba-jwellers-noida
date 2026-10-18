@@ -187,9 +187,12 @@
                     </div>
                     <div class="card-body bill-sums">
                         <div class="bill-settings">
+                            <label class="form-label mb-0" for="customer-pays">Customer will pay ₹</label>
+                            <input class="form-control form-control-sm" id="customer-pays" inputmode="decimal" placeholder="Final amount" autocomplete="off">
                             <label class="form-label mb-0" for="discount">Discount ₹</label>
                             <input class="form-control form-control-sm" id="discount" name="discount" inputmode="decimal" value="{{ old('discount', $sale?->discount_amount ?? '0') }}">
                         </div>
+                        <p class="text-secondary small d-none mb-2" id="customer-pays-note"></p>
                         <div class="bill-block">
                             <div class="bill-row bill-row-muted"><span>Net weight</span><span id="bill-net-weight">0.000 g</span></div>
                             <div class="bill-row"><span>Metal value</span><span id="bill-metal">0.00</span></div>
@@ -705,36 +708,124 @@
             renderTotals();
         }
 
-        function renderTotals() {
+        function pieceBase() {
             const rows = [...stockLines, ...freshLines];
             const subtotal = round2(rows.reduce((sum, row) => sum + Number(row.line || row.amount || 0), 0));
+
+            return {
+                rows,
+                subtotal,
+                making: Math.min(subtotal, round2(rows.reduce((sum, row) => sum + Number(row.makingAmount || 0), 0))),
+                stoneTotal: round2(rows.reduce((sum, row) => sum + Number(row.stoneAmount || 0), 0)),
+                wastageTotal: round2(rows.reduce((sum, row) => sum + Number(row.wastageAmount || 0), 0)),
+                netWeight: rows.reduce((sum, row) => sum + Number(row.netWeight || 0), 0),
+                metalValue: round2(rows.reduce((sum, row) => sum + Number(row.metalAmount || 0), 0)),
+            };
+        }
+
+        function pricedBill(discountValue) {
+            const base = pieceBase();
             const mode = document.getElementById('making-mode').value;
-            const making = Math.min(subtotal, round2(rows.reduce((sum, row) => sum + Number(row.makingAmount || 0), 0)));
-            const discount = Math.min(subtotal, Math.max(0, Number(document.getElementById('discount').value || 0)));
+            const discount = Math.min(base.subtotal, Math.max(0, round2(Number(discountValue) || 0)));
             const taxOf = (amount, percent) => percent > 0
                 ? round2(bill.exclusive ? amount * percent / 100 : amount * percent / (percent + 100))
                 : 0;
             let tax = 0;
             let makingTax = 0;
-            let taxBase = round2(subtotal - discount);
+            let taxBase = round2(base.subtotal - discount);
             let makingBase = 0;
             let exact = taxBase;
             if (mode === 'inside') {
                 tax = taxOf(exact, bill.gst);
                 if (bill.exclusive) exact = round2(exact + tax);
             } else {
-                const jewellery = round2(subtotal - making);
+                const jewellery = round2(base.subtotal - base.making);
                 const jewelleryDiscount = Math.min(discount, jewellery);
                 const jewelleryNet = round2(jewellery - jewelleryDiscount);
-                const makingNet = round2(making - (discount - jewelleryDiscount));
+                const makingNet = round2(base.making - (discount - jewelleryDiscount));
                 taxBase = jewelleryNet;
                 makingBase = makingNet;
                 tax = taxOf(jewelleryNet, bill.gst);
                 makingTax = mode === 'separate' ? taxOf(makingNet, bill.makingGst) : 0;
                 exact = round2(jewelleryNet + makingNet + (bill.exclusive ? tax + makingTax : 0));
             }
-            const stoneTotal = round2(rows.reduce((sum, row) => sum + Number(row.stoneAmount || 0), 0));
-            const wastageTotal = round2(rows.reduce((sum, row) => sum + Number(row.wastageAmount || 0), 0));
+            let total = exact;
+            let roundOff = 0;
+            if (bill.round) {
+                total = Math.round(exact);
+                roundOff = round2(total - exact);
+            }
+
+            return { ...base, mode, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff };
+        }
+
+        function discountForPayable(target) {
+            const subtotal = pieceBase().subtotal;
+            if (subtotal <= 0 || !(target > 0)) {
+                return 0;
+            }
+            const desired = bill.round ? Math.round(target) : round2(target);
+            if (desired >= pricedBill(0).total) {
+                return 0;
+            }
+            let low = 0;
+            let high = Math.round(subtotal * 100);
+            let edge = high;
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                if (pricedBill(mid / 100).total > desired) {
+                    low = mid + 1;
+                } else {
+                    edge = mid;
+                    high = mid - 1;
+                }
+            }
+            let best = edge;
+            let bestGap = Math.abs(pricedBill(edge / 100).exact - desired);
+            const ceiling = Math.round(subtotal * 100);
+            for (let step = edge; step <= ceiling; step += 1) {
+                const quote = pricedBill(step / 100);
+                if (quote.total !== desired) {
+                    break;
+                }
+                const gap = Math.abs(quote.exact - desired);
+                if (gap < bestGap) {
+                    best = step;
+                    bestGap = gap;
+                }
+                if (gap < 0.001) {
+                    break;
+                }
+            }
+
+            return best / 100;
+        }
+
+        let payLocked = false;
+
+        function renderTotals() {
+            if (payLocked) {
+                const raw = String(document.getElementById('customer-pays').value).replace(/,/g, '').trim();
+                const target = Number(raw);
+                if (raw !== '' && Number.isFinite(target) && target >= 0) {
+                    document.getElementById('discount').value = discountForPayable(target).toFixed(2);
+                    document.getElementById('discount').readOnly = true;
+                }
+            }
+            const priced = pricedBill(document.getElementById('discount').value);
+            const rows = priced.rows;
+            const subtotal = priced.subtotal;
+            const mode = priced.mode;
+            const making = priced.making;
+            const discount = priced.discount;
+            const tax = priced.tax;
+            const makingTax = priced.makingTax;
+            const taxBase = priced.taxBase;
+            const makingBase = priced.makingBase;
+            const roundOff = priced.roundOff;
+            const total = priced.total;
+            const stoneTotal = priced.stoneTotal;
+            const wastageTotal = priced.wastageTotal;
             const showRow = (id, amount, show) => {
                 document.getElementById(id + '-row').classList.toggle('d-none', !show);
                 document.getElementById(id).textContent = money.format(amount);
@@ -761,12 +852,6 @@
             document.getElementById('bill-making-tax-label').textContent = 'GST ' + bill.makingGst + '% on making' + (subtotal > 0 ? (bill.exclusive ? ' ' + money.format(makingBase) : ' (included)') : '');
             document.getElementById('bill-making-tax').textContent = money.format(makingTax);
             document.getElementById('weigh-making-label').textContent = mode === 'processing' ? 'Processing charge' : 'Making';
-            let total = exact;
-            let roundOff = 0;
-            if (bill.round) {
-                total = Math.round(exact);
-                roundOff = round2(total - exact);
-            }
             const netWeight = rows.reduce((sum, row) => sum + Number(row.netWeight || 0), 0);
             const metalValue = round2(rows.reduce((sum, row) => sum + Number(row.metalAmount || 0), 0));
             document.getElementById('bill-net-weight').textContent = netWeight.toFixed(3) + ' g';
@@ -776,6 +861,25 @@
             showRow('bill-round', roundOff, roundOff !== 0);
             document.getElementById('bill-total').textContent = money.format(total);
             document.getElementById('bill-form').dataset.total = String(total);
+            const payNote = document.getElementById('customer-pays-note');
+            if (payLocked) {
+                const typed = Number(String(document.getElementById('customer-pays').value).replace(/,/g, ''));
+                const desired = bill.round ? Math.round(typed) : round2(typed);
+                if (desired > pricedBill(0).total) {
+                    payNote.textContent = 'Above this bill, so the discount stays zero.';
+                    payNote.classList.remove('d-none');
+                } else if (total !== desired) {
+                    payNote.textContent = 'Closest total is ' + money.format(total) + '.';
+                    payNote.classList.remove('d-none');
+                } else {
+                    payNote.textContent = '';
+                    payNote.classList.add('d-none');
+                }
+            } else {
+                payNote.textContent = '';
+                payNote.classList.add('d-none');
+                document.getElementById('discount').readOnly = false;
+            }
             let payNow = total;
             if (bill.order) {
                 const advance = Math.min(bill.order.advance, total);
@@ -914,7 +1018,17 @@
             event.preventDefault();
         });
 
-        document.getElementById('discount').addEventListener('input', renderTotals);
+        document.getElementById('discount').addEventListener('input', () => {
+            payLocked = false;
+            document.getElementById('customer-pays').value = '';
+            document.getElementById('discount').readOnly = false;
+            renderTotals();
+        });
+        document.getElementById('customer-pays').addEventListener('input', () => {
+            const raw = String(document.getElementById('customer-pays').value).replace(/,/g, '').trim();
+            payLocked = raw !== '';
+            renderTotals();
+        });
         document.getElementById('use-credit-toggle').addEventListener('change', renderTotals);
         document.getElementById('include-previous').addEventListener('change', renderTotals);
         document.getElementById('making-mode').addEventListener('change', () => {

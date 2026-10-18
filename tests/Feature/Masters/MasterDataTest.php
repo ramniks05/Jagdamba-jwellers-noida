@@ -109,6 +109,23 @@ class MasterDataTest extends TestCase
         $purity = Purity::query()->where('code', '23K')->firstOrFail();
         $this->assertSame('0.958000', (string) $purity->fineness);
 
+        $silver = MetalType::query()->where('code', 'SILVER')->firstOrFail();
+        $this->actingAs($owner)->post(route('metals.purities.store', $silver), [
+            'name' => 'Coin',
+            'code' => 'COIN',
+            'fineness_percent' => '',
+            'sort_order' => 0,
+            'is_active' => '1',
+        ])->assertRedirect(route('metals.purities.index', $silver))->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $plain = Purity::query()->where('metal_type_id', $silver->id)->where('code', 'COIN')->firstOrFail();
+        $this->assertNull($plain->fineness);
+        $this->actingAs($owner)->get(route('metals.purities.index', $silver))
+            ->assertOk()
+            ->assertSee('Coin')
+            ->assertSee('—');
+
         $this->actingAs($owner)
             ->from(route('metals.index'))
             ->delete(route('metals.destroy', $gold))

@@ -18,7 +18,7 @@ class PurityService
         /** @var Purity $purity */
         $purity = $this->records->create(Purity::class, $company, $attributes, function (Purity $purity, array $attributes) use ($metal) {
             $purity->metal_type_id = $metal->id;
-            $purity->fineness = Fineness::ratioFromPercent((string) $attributes['fineness_percent']);
+            $purity->fineness = self::ratio($attributes);
         });
 
         return $purity;
@@ -31,7 +31,7 @@ class PurityService
     {
         /** @var Purity $purity */
         $purity = $this->records->update($purity, $attributes, function (Purity $purity, array $attributes) {
-            $purity->fineness = Fineness::ratioFromPercent((string) $attributes['fineness_percent']);
+            $purity->fineness = self::ratio($attributes);
         });
 
         return $purity;
@@ -40,5 +40,15 @@ class PurityService
     public function delete(Purity $purity): void
     {
         $this->records->delete($purity);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private static function ratio(array $attributes): ?string
+    {
+        $percent = trim((string) ($attributes['fineness_percent'] ?? ''));
+
+        return $percent === '' ? null : Fineness::ratioFromPercent($percent);
     }
 }

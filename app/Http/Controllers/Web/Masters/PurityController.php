@@ -63,7 +63,7 @@ class PurityController extends Controller
         return view('masters.purities.form', [
             'metal' => $metal,
             'purity' => $purity,
-            'finenessPercent' => Fineness::percentFromRatio((string) $purity->fineness),
+            'finenessPercent' => $purity->fineness === null ? '' : Fineness::percentFromRatio((string) $purity->fineness),
         ]);
     }
 

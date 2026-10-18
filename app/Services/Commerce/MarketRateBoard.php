@@ -34,7 +34,7 @@ class MarketRateBoard
             ->map(function (Purity $purity) use ($quote, $reference): array {
                 $rate = '';
 
-                if ($quote) {
+                if ($quote && $purity->fineness !== null && (float) $purity->fineness > 0) {
                     $base = $purity->metalType?->code === 'SILVER' ? $quote->silverPerGram : $quote->goldPerGram;
                     $rate = (string) BigDecimal::of($base)
                         ->multipliedBy((string) $purity->fineness)

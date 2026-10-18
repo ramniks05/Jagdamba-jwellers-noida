@@ -5,7 +5,7 @@
 @section('content')
     @include('masters.partials.head', [
         'title' => $metal->name.' purity',
-        'intro' => 'Fineness sets the pure metal in each gram. Rates, pieces and girvi are entered per purity.',
+        'intro' => 'Add any purity for this metal. Fineness can be left blank. Rates, pieces and girvi are entered per purity.',
         'actions' => array_values(array_filter([
             ['url' => route('metals.index'), 'label' => 'All metals', 'icon' => 'arrow-left'],
             auth()->user()->can('create', App\Models\Purity::class)
@@ -32,7 +32,7 @@
                         <tr>
                             <td class="fw-semibold">{{ $purity->name }}</td>
                             <td class="text-nowrap">{{ $purity->code }}</td>
-                            <td class="num">{{ \App\Services\Masters\Fineness::percentFromRatio((string) $purity->fineness) }}%</td>
+                            <td class="num">{{ $purity->fineness === null ? '—' : \App\Services\Masters\Fineness::percentFromRatio((string) $purity->fineness).'%' }}</td>
                             <td class="num">{{ $purity->items_count }}</td>
                             <td>@include('masters.partials.status', ['active' => $purity->is_active])</td>
                             @include('masters.partials.row-actions', [

@@ -31,6 +31,9 @@ class PurityRequest extends FormRequest
         if ($this->input('sort_order') === null || $this->input('sort_order') === '') {
             $this->merge(['sort_order' => 0]);
         }
+
+        $fineness = trim((string) $this->input('fineness_percent', ''));
+        $this->merge(['fineness_percent' => $fineness === '' ? null : $fineness]);
     }
 
     /**
@@ -52,7 +55,7 @@ class PurityRequest extends FormRequest
                         ->where('metal_type_id', $metal?->id))
                     ->ignore($purity?->id),
             ],
-            'fineness_percent' => ['required', 'numeric', 'gt:0', 'lte:100', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
+            'fineness_percent' => ['nullable', 'numeric', 'gt:0', 'lte:100', 'regex:/^\d{1,3}(\.\d{1,4})?$/'],
             'sort_order' => ['required', 'integer', 'between:0,9999'],
             'is_active' => ['required', 'boolean'],
         ];
