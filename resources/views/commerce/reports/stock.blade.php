@@ -82,27 +82,30 @@
                     @else
                         <input type="hidden" name="branch_uuid" value="{{ $editing?->branch?->uuid ?? $branches->first()?->uuid }}">
                     @endif
+                    @php
+                        $showPurchase = $editing || old('kind', 'purchase') === 'purchase';
+                    @endphp
                     @unless ($editing)
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-kind">Add as</label>
                         <select class="form-select" id="stock-kind" name="kind">
-                            <option value="opening" @selected(old('kind', 'opening') === 'opening')>Opening stock</option>
-                            <option value="purchase" @selected(old('kind') === 'purchase')>Purchase</option>
+                            <option value="opening" @selected(! $showPurchase)>Opening stock</option>
+                            <option value="purchase" @selected($showPurchase)>Purchase</option>
                         </select>
                     </div>
                     @endunless
-                    <div class="col-md-3 col-12 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-supplier-wrap">
+                    <div class="col-md-3 col-12 {{ $showPurchase ? '' : 'd-none' }}" id="stock-supplier-wrap">
                         <label class="form-label" for="stock-supplier">Supplier</label>
-                        <select class="form-select" id="stock-supplier" name="supplier_uuid" @required($editing)>
+                        <select class="form-select" id="stock-supplier" name="supplier_uuid" @required($showPurchase)>
                             <option value="">Choose</option>
                             @foreach ($suppliers as $supplier)
                                 <option value="{{ $supplier->uuid }}" @selected(old('supplier_uuid', $editingSupplier) === $supplier->uuid)>{{ $supplier->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3 col-12 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-bill-wrap">
+                    <div class="col-md-3 col-12 {{ $showPurchase ? '' : 'd-none' }}" id="stock-bill-wrap">
                         <label class="form-label" for="stock-bill">Supplier bill no.</label>
-                        <input class="form-control @error('supplier_bill_number') is-invalid @enderror" id="stock-bill" name="supplier_bill_number" value="{{ old('supplier_bill_number', $editing?->supplier_bill_number) }}" maxlength="40" placeholder="Bill number" autocomplete="off" @required($editing)>
+                        <input class="form-control @error('supplier_bill_number') is-invalid @enderror" id="stock-bill" name="supplier_bill_number" value="{{ old('supplier_bill_number', $editing?->supplier_bill_number) }}" maxlength="40" placeholder="Bill number" autocomplete="off" @required($showPurchase)>
                         @error('supplier_bill_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-2 col-6">
@@ -127,11 +130,11 @@
                         <label class="form-label" for="stock-grams">Grams</label>
                         <input class="form-control" id="stock-grams" name="grams" value="{{ old('grams', $editing ? rtrim(rtrim((string) $editing->grams, '0'), '.') : '') }}" inputmode="decimal" placeholder="0.000" required>
                     </div>
-                    <div class="col-md-2 col-6 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-rate-wrap">
+                    <div class="col-md-2 col-6 {{ $showPurchase ? '' : 'd-none' }}" id="stock-rate-wrap">
                         <label class="form-label" for="stock-rate">Rate / g</label>
-                        <input class="form-control @error('rate_per_gram') is-invalid @enderror" id="stock-rate" name="rate_per_gram" value="{{ old('rate_per_gram', $editing?->rate_per_gram) }}" inputmode="decimal" placeholder="0.00" @required($editing)>
+                        <input class="form-control @error('rate_per_gram') is-invalid @enderror" id="stock-rate" name="rate_per_gram" value="{{ old('rate_per_gram', $editing?->rate_per_gram) }}" inputmode="decimal" placeholder="0.00" @required($showPurchase)>
                     </div>
-                    <div class="col-12 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-quote">
+                    <div class="col-12 {{ $showPurchase ? '' : 'd-none' }}" id="stock-quote">
                         <p class="small mb-0">Metal value <strong id="stock-metal-value">0.00</strong> · GST {{ $purchaseGst }}% <strong id="stock-gst">0.00</strong> · Total <strong id="stock-total">0.00</strong></p>
                     </div>
                     <div class="col-auto d-flex gap-2">

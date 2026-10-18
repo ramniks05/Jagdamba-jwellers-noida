@@ -41,6 +41,7 @@ class MetalStockTest extends TestCase
             ->assertOk()
             ->assertSee('Add Purchase to stock')
             ->assertSee('Purchase')
+            ->assertSee('value="purchase" selected', false)
             ->assertSee('needs that supplier’s bill number')
             ->assertSee('Rate / g')
             ->assertSee('Others');
