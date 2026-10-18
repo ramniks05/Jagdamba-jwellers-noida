@@ -14,6 +14,13 @@ class MetalStockRequest extends FormRequest
         return (bool) $this->user()?->can('inventory.create');
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('rate_per_gram') === '') {
+            $this->merge(['rate_per_gram' => null]);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -28,6 +35,17 @@ class MetalStockRequest extends FormRequest
             'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'grams' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'supplier_uuid' => ['required_if:kind,purchase', 'nullable', 'uuid', Rule::exists('suppliers', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id))],
+            'rate_per_gram' => ['required_if:kind,purchase', 'nullable', 'numeric', 'gt:0', Limits::MONEY],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'rate_per_gram' => 'rate',
         ];
     }
 }

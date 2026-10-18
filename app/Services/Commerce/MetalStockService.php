@@ -2,13 +2,17 @@
 
 namespace App\Services\Commerce;
 
+use App\Enums\LedgerDirection;
 use App\Enums\MetalStockKind;
+use App\Enums\PartyType;
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\LedgerEntry;
 use App\Models\MetalStockMovement;
 use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\Supplier;
+use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -19,7 +23,12 @@ use Illuminate\Validation\ValidationException;
 
 class MetalStockService
 {
-    public function __construct(private readonly CompanyContext $context) {}
+    public function __construct(
+        private readonly CompanyContext $context,
+        private readonly JewelleryPricer $pricer,
+        private readonly LedgerService $ledger,
+        private readonly SettingService $settings,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -59,7 +68,142 @@ class MetalStockService
             ]);
         }
 
-        return $this->record((int) $branch->id, (int) $metal->id, (int) $purity->id, $grams, MetalStockKind::Purchase, $supplier, $userId);
+        return $this->purchase($company, $branch, $metal, $purity, $grams, $supplier, (string) $attributes['rate_per_gram'], $userId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function updatePurchase(Company $company, MetalStockMovement $movement, array $attributes, ?int $userId = null): MetalStockMovement
+    {
+        $this->context->ensureId((int) $company->id);
+
+        if ($movement->kind !== MetalStockKind::Purchase) {
+            throw ValidationException::withMessages([
+                'kind' => 'Only a purchase can be corrected.',
+            ]);
+        }
+
+        $branch = Branch::query()->where('uuid', $attributes['branch_uuid'])->first();
+        $metal = MetalType::query()->where('uuid', $attributes['metal_uuid'])->where('is_active', true)->first();
+        $purity = Purity::query()->where('uuid', $attributes['purity_uuid'])->where('is_active', true)->first();
+
+        if (! $branch || ! $metal || ! $purity || (int) $purity->metal_type_id !== (int) $metal->id) {
+            throw ValidationException::withMessages([
+                'purity_uuid' => 'Choose a purity of the selected metal.',
+            ]);
+        }
+
+        $grams = BigDecimal::of((string) $attributes['grams'])->toScale(3, RoundingMode::HalfUp);
+
+        if ($grams->isNegativeOrZero()) {
+            throw ValidationException::withMessages([
+                'grams' => 'Enter the grams.',
+            ]);
+        }
+
+        $supplier = Supplier::query()->where('uuid', $attributes['supplier_uuid'] ?? '')->where('is_active', true)->first();
+
+        if (! $supplier) {
+            throw ValidationException::withMessages([
+                'supplier_uuid' => 'Choose the supplier for this purchase.',
+            ]);
+        }
+
+        $priced = $this->price($company, $grams, (string) $attributes['rate_per_gram'], $movement->tax_percent !== null ? (string) $movement->tax_percent : null);
+
+        return DB::transaction(function () use ($company, $movement, $branch, $metal, $purity, $grams, $supplier, $priced, $userId) {
+            $movement->branch_id = $branch->id;
+            $movement->metal_type_id = $metal->id;
+            $movement->purity_id = $purity->id;
+            $movement->grams = (string) $grams;
+            $movement->rate_per_gram = (string) $priced['rate'];
+            $movement->taxable_amount = $priced['priced']->taxableAmount;
+            $movement->tax_percent = $priced['taxPercent'];
+            $movement->tax_amount = $priced['priced']->taxAmount;
+            $movement->total_amount = $priced['priced']->total;
+            $movement->reference_type = $supplier->getMorphClass();
+            $movement->reference_id = $supplier->id;
+            $movement->save();
+
+            $narration = $this->narration($metal, $purity, $grams);
+            $entry = LedgerEntry::query()
+                ->where('reference_type', $movement->getMorphClass())
+                ->where('reference_id', $movement->id)
+                ->first();
+
+            if ($entry) {
+                $entry->party_type = PartyType::Supplier;
+                $entry->party_id = $supplier->id;
+                $entry->amount = $priced['priced']->total;
+                $entry->narration = $narration;
+                $entry->save();
+            } else {
+                $this->ledger->post((int) $company->id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Credit, $priced['priced']->total, $narration, $movement, $userId);
+            }
+
+            return $movement;
+        });
+    }
+
+    private function purchase(Company $company, Branch $branch, MetalType $metal, Purity $purity, BigDecimal $grams, Supplier $supplier, string $ratePerGram, ?int $userId): MetalStockMovement
+    {
+        $priced = $this->price($company, $grams, $ratePerGram);
+
+        return DB::transaction(function () use ($company, $branch, $metal, $purity, $grams, $supplier, $priced, $userId) {
+            $movement = $this->record((int) $branch->id, (int) $metal->id, (int) $purity->id, $grams, MetalStockKind::Purchase, $supplier, $userId, [
+                'rate_per_gram' => (string) $priced['rate'],
+                'taxable_amount' => $priced['priced']->taxableAmount,
+                'tax_percent' => $priced['taxPercent'],
+                'tax_amount' => $priced['priced']->taxAmount,
+                'total_amount' => $priced['priced']->total,
+            ]);
+            $this->ledger->post(
+                (int) $company->id,
+                PartyType::Supplier,
+                (int) $supplier->id,
+                LedgerDirection::Credit,
+                $priced['priced']->total,
+                $this->narration($metal, $purity, $grams),
+                $movement,
+                $userId,
+            );
+
+            return $movement;
+        });
+    }
+
+    /**
+     * @return array{rate: BigDecimal, taxPercent: string, priced: PricingBreakdown}
+     */
+    private function price(Company $company, BigDecimal $grams, string $ratePerGram, ?string $taxPercent = null): array
+    {
+        $rate = BigDecimal::of($ratePerGram)->toScale(2, RoundingMode::HalfUp);
+
+        if ($rate->isNegativeOrZero()) {
+            throw ValidationException::withMessages([
+                'rate_per_gram' => 'Enter the rate per gram.',
+            ]);
+        }
+
+        $percent = $taxPercent ?? (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0');
+
+        return [
+            'rate' => $rate,
+            'taxPercent' => $percent,
+            'priced' => $this->pricer->bill(
+                (string) $grams->multipliedBy($rate)->toScale(2, RoundingMode::HalfUp),
+                '0',
+                $percent,
+                true,
+                (bool) $this->settings->get('pricing.round_rupee', $company),
+            ),
+        ];
+    }
+
+    private function narration(MetalType $metal, Purity $purity, BigDecimal $grams): string
+    {
+        return 'Gram purchase '.$metal->name.' '.$purity->name.' '.$grams->toScale(3, RoundingMode::HalfUp).' g';
     }
 
     public function sell(int $branchId, int $metalId, int $purityId, string $grams, Model $reference, ?int $userId = null): void
@@ -166,7 +310,10 @@ class MetalStockService
         });
     }
 
-    private function record(int $branchId, int $metalId, int $purityId, BigDecimal $grams, MetalStockKind $kind, ?Model $reference, ?int $userId): MetalStockMovement
+    /**
+     * @param  array{rate_per_gram: string, taxable_amount: string, tax_percent: string, tax_amount: string, total_amount: string}|null  $money
+     */
+    private function record(int $branchId, int $metalId, int $purityId, BigDecimal $grams, MetalStockKind $kind, ?Model $reference, ?int $userId, ?array $money = null): MetalStockMovement
     {
         return MetalStockMovement::query()->create([
             'branch_id' => $branchId,
@@ -174,6 +321,11 @@ class MetalStockService
             'purity_id' => $purityId,
             'kind' => $kind,
             'grams' => (string) $grams->toScale(3, RoundingMode::HalfUp),
+            'rate_per_gram' => $money['rate_per_gram'] ?? null,
+            'taxable_amount' => $money['taxable_amount'] ?? null,
+            'tax_percent' => $money['tax_percent'] ?? null,
+            'tax_amount' => $money['tax_amount'] ?? null,
+            'total_amount' => $money['total_amount'] ?? null,
             'reference_type' => $reference?->getMorphClass(),
             'reference_id' => $reference?->getKey(),
             'user_id' => $userId,

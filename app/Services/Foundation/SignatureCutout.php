@@ -86,6 +86,74 @@ class SignatureCutout
             }
         }
 
+        if ($ink < 20) {
+            imagedestroy($canvas);
+
+            return $this->opaquePicture($source, $width, $height);
+        }
+
+        imagedestroy($source);
+
+        $pad = 8;
+        $cropX = max(0, $minX - $pad);
+        $cropY = max(0, $minY - $pad);
+        $cropW = min($width - $cropX, ($maxX - $minX + 1) + ($pad * 2));
+        $cropH = min($height - $cropY, ($maxY - $minY + 1) + ($pad * 2));
+        $cropped = imagecrop($canvas, ['x' => $cropX, 'y' => $cropY, 'width' => $cropW, 'height' => $cropH]);
+        imagedestroy($canvas);
+
+        if ($cropped === false) {
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
+        }
+
+        imagealphablending($cropped, false);
+        imagesavealpha($cropped, true);
+        ob_start();
+        imagepng($cropped);
+        imagedestroy($cropped);
+        $png = ob_get_clean();
+
+        return is_string($png) && $png !== '' ? $png : null;
+    }
+
+    /**
+     * A picture already cropped to the signature, or a transparent PNG, has no white paper to remove.
+     */
+    private function opaquePicture(\GdImage $source, int $width, int $height): string
+    {
+        $canvas = imagecreatetruecolor($width, $height);
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        $clear = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+        imagefilledrectangle($canvas, 0, 0, $width, $height, $clear);
+
+        $minX = $width;
+        $minY = $height;
+        $maxX = 0;
+        $maxY = 0;
+        $ink = 0;
+
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $width; $x++) {
+                $pixel = imagecolorat($source, $x, $y);
+                $red = ($pixel >> 16) & 255;
+                $green = ($pixel >> 8) & 255;
+                $blue = $pixel & 255;
+                $existing = ($pixel >> 24) & 127;
+
+                if ($existing > 110 || ($red > 245 && $green > 245 && $blue > 245)) {
+                    continue;
+                }
+
+                imagesetpixel($canvas, $x, $y, imagecolorallocatealpha($canvas, $red, $green, $blue, 0));
+                $ink++;
+                $minX = min($minX, $x);
+                $minY = min($minY, $y);
+                $maxX = max($maxX, $x);
+                $maxY = max($maxY, $y);
+            }
+        }
+
         imagedestroy($source);
 
         if ($ink < 20) {
@@ -113,7 +181,11 @@ class SignatureCutout
         imagedestroy($cropped);
         $png = ob_get_clean();
 
-        return is_string($png) && $png !== '' ? $png : null;
+        if (! is_string($png) || $png === '') {
+            throw new SignaturePictureRejected('This photo could not be read. Choose a JPEG or PNG picture of the signature.');
+        }
+
+        return $png;
     }
 
     /**

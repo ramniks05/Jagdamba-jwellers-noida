@@ -39,24 +39,35 @@
     @endif
     @can('inventory.create')
         @if (! request()->boolean('report'))
+        @php
+            $purchaseGst = $editing?->tax_percent !== null && $editing?->tax_percent !== ''
+                ? rtrim(rtrim((string) $editing->tax_percent, '0'), '.')
+                : $gstPercent;
+            $editingSupplier = $editing?->reference instanceof App\Models\Supplier ? $editing->reference->uuid : null;
+        @endphp
         <div class="card mb-3 no-print">
-            <div class="card-header bg-white">Add grams</div>
+            <div class="card-header bg-white">{{ $editing ? 'Correct purchase' : 'Add Purchase to stock' }}</div>
             <div class="card-body">
-                <p class="text-secondary small">Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds more grams from a supplier. A normal bill takes those grams off.</p>
-                <form method="POST" action="{{ route('reports.stock.store') }}" class="row g-2 align-items-end" id="metal-stock-form">
+                <p class="text-secondary small">{{ $editing ? 'Change the supplier, metal, grams, or rate. Stock and the amount owed are updated.' : 'Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds grams from a supplier: weight times the rate, then GST, is the total. A normal bill takes those grams off.' }}</p>
+                <form method="POST" action="{{ $editing ? route('reports.stock.update', $editing) : route('reports.stock.store') }}" class="row g-2 align-items-end" id="metal-stock-form" data-gst="{{ $purchaseGst }}" data-round="{{ $roundRupee ? '1' : '0' }}">
                     @csrf
+                    @if ($editing)
+                        @method('PUT')
+                        <input type="hidden" name="kind" value="purchase">
+                    @endif
                     @if ($branches->count() > 1)
                         <div class="col-md-2 col-6">
                             <label class="form-label" for="stock-branch">Branch</label>
                             <select class="form-select" id="stock-branch" name="branch_uuid" required>
                                 @foreach ($branches as $branch)
-                                    <option value="{{ $branch->uuid }}" @selected(old('branch_uuid', $branches->first()?->uuid) === $branch->uuid)>{{ $branch->name }}</option>
+                                    <option value="{{ $branch->uuid }}" @selected(old('branch_uuid', $editing?->branch?->uuid ?? $branches->first()?->uuid) === $branch->uuid)>{{ $branch->name }}</option>
                                 @endforeach
                             </select>
                         </div>
                     @else
-                        <input type="hidden" name="branch_uuid" value="{{ $branches->first()?->uuid }}">
+                        <input type="hidden" name="branch_uuid" value="{{ $editing?->branch?->uuid ?? $branches->first()?->uuid }}">
                     @endif
+                    @unless ($editing)
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-kind">Add as</label>
                         <select class="form-select" id="stock-kind" name="kind">
@@ -64,12 +75,13 @@
                             <option value="purchase" @selected(old('kind') === 'purchase')>Purchase</option>
                         </select>
                     </div>
-                    <div class="col-md-3 col-12 {{ old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-supplier-wrap">
+                    @endunless
+                    <div class="col-md-3 col-12 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-supplier-wrap">
                         <label class="form-label" for="stock-supplier">Supplier</label>
-                        <select class="form-select" id="stock-supplier" name="supplier_uuid">
+                        <select class="form-select" id="stock-supplier" name="supplier_uuid" @required($editing)>
                             <option value="">Choose</option>
                             @foreach ($suppliers as $supplier)
-                                <option value="{{ $supplier->uuid }}" @selected(old('supplier_uuid') === $supplier->uuid)>{{ $supplier->name }}</option>
+                                <option value="{{ $supplier->uuid }}" @selected(old('supplier_uuid', $editingSupplier) === $supplier->uuid)>{{ $supplier->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -77,7 +89,7 @@
                         <label class="form-label" for="stock-metal">Metal</label>
                         <select class="form-select" id="stock-metal" name="metal_uuid" required>
                             @foreach ($metals as $metal)
-                                <option value="{{ $metal->uuid }}" @selected(old('metal_uuid') === $metal->uuid)>{{ $metal->name }}</option>
+                                <option value="{{ $metal->uuid }}" @selected(old('metal_uuid', $editing?->metalType?->uuid) === $metal->uuid)>{{ $metal->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -86,21 +98,66 @@
                         <select class="form-select" id="stock-purity" name="purity_uuid" required>
                             @foreach ($metals as $metal)
                                 @foreach ($metal->purities as $purity)
-                                    <option value="{{ $purity->uuid }}" data-metal="{{ $metal->uuid }}" @selected(old('purity_uuid') === $purity->uuid)>{{ $purity->name }}</option>
+                                    <option value="{{ $purity->uuid }}" data-metal="{{ $metal->uuid }}" @selected(old('purity_uuid', $editing?->purity?->uuid) === $purity->uuid)>{{ $purity->name }}</option>
                                 @endforeach
                             @endforeach
                         </select>
                     </div>
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-grams">Grams</label>
-                        <input class="form-control" id="stock-grams" name="grams" value="{{ old('grams') }}" inputmode="decimal" placeholder="0.000" required>
+                        <input class="form-control" id="stock-grams" name="grams" value="{{ old('grams', $editing ? rtrim(rtrim((string) $editing->grams, '0'), '.') : '') }}" inputmode="decimal" placeholder="0.000" required>
                     </div>
-                    <div class="col-auto">
-                        <button class="btn btn-primary" type="submit">Add to stock</button>
+                    <div class="col-md-2 col-6 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-rate-wrap">
+                        <label class="form-label" for="stock-rate">Rate / g</label>
+                        <input class="form-control @error('rate_per_gram') is-invalid @enderror" id="stock-rate" name="rate_per_gram" value="{{ old('rate_per_gram', $editing?->rate_per_gram) }}" inputmode="decimal" placeholder="0.00" @required($editing)>
+                    </div>
+                    <div class="col-12 {{ $editing || old('kind') === 'purchase' ? '' : 'd-none' }}" id="stock-quote">
+                        <p class="small mb-0">Metal value <strong id="stock-metal-value">0.00</strong> · GST {{ $purchaseGst }}% <strong id="stock-gst">0.00</strong> · Total <strong id="stock-total">0.00</strong></p>
+                    </div>
+                    <div class="col-auto d-flex gap-2">
+                        <button class="btn btn-primary" type="submit">{{ $editing ? 'Save correction' : 'Add to stock' }}</button>
+                        @if ($editing)
+                            <a class="btn btn-outline-secondary" href="{{ route('reports.stock') }}">Cancel</a>
+                        @endif
                     </div>
                 </form>
             </div>
         </div>
+        @if ($purchases->isNotEmpty())
+            <div class="card mb-3 no-print">
+                <div class="card-header bg-white">Purchases</div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Supplier</th>
+                                <th>Metal</th>
+                                <th>Purity</th>
+                                <th class="num">Grams</th>
+                                <th class="num">Rate</th>
+                                <th class="num">Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($purchases as $purchase)
+                                <tr @class(['table-active' => $editing && $editing->id === $purchase->id])>
+                                    <td>{{ $purchase->occurred_at?->timezone(config('app.timezone'))->format('d-m-Y') }}</td>
+                                    <td>{{ $purchase->reference instanceof App\Models\Supplier ? $purchase->reference->name : '—' }}</td>
+                                    <td>{{ $purchase->metalType?->name }}</td>
+                                    <td>{{ $purchase->purity?->name }}</td>
+                                    <td class="num">{{ $weight((string) $purchase->grams) }}</td>
+                                    <td class="num">{{ $purchase->rate_per_gram !== null ? $money((string) $purchase->rate_per_gram) : '—' }}</td>
+                                    <td class="num">{{ $purchase->total_amount !== null ? $money((string) $purchase->total_amount) : '—' }}</td>
+                                    <td class="text-end"><a href="{{ route('reports.stock', ['edit' => $purchase->uuid]) }}">Edit</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
         @endif
     @endcan
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.stock') }}">
@@ -245,15 +302,49 @@
         const stockKind = document.getElementById('stock-kind');
         const stockSupplierWrap = document.getElementById('stock-supplier-wrap');
         const stockSupplier = document.getElementById('stock-supplier');
-        if (stockKind && stockSupplierWrap && stockSupplier) {
+        const stockRateWrap = document.getElementById('stock-rate-wrap');
+        const stockRate = document.getElementById('stock-rate');
+        const stockQuote = document.getElementById('stock-quote');
+        const stockForm = document.getElementById('metal-stock-form');
+        const stockGrams = document.getElementById('stock-grams');
+        const money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+        const previewPurchase = () => {
+            if (!stockForm || !stockQuote) return;
+            const grams = Number(stockGrams?.value || 0);
+            const rate = Number(stockRate?.value || 0);
+            const gstPercent = Number(stockForm.dataset.gst || 0);
+            const metalValue = grams > 0 && rate > 0 ? round2(grams * rate) : 0;
+            const gst = round2(metalValue * gstPercent / 100);
+            let total = round2(metalValue + gst);
+            if (stockForm.dataset.round === '1') total = Math.round(total);
+            const metalNode = document.getElementById('stock-metal-value');
+            const gstNode = document.getElementById('stock-gst');
+            const totalNode = document.getElementById('stock-total');
+            if (metalNode) metalNode.textContent = money.format(metalValue);
+            if (gstNode) gstNode.textContent = money.format(gst);
+            if (totalNode) totalNode.textContent = money.format(total);
+        };
+        if (stockKind && stockSupplierWrap && stockSupplier && stockRateWrap && stockRate && stockQuote) {
             const syncStockSupplier = () => {
                 const purchase = stockKind.value === 'purchase';
                 stockSupplierWrap.classList.toggle('d-none', !purchase);
                 stockSupplier.required = purchase;
                 stockSupplier.disabled = !purchase;
+                stockRateWrap.classList.toggle('d-none', !purchase);
+                stockQuote.classList.toggle('d-none', !purchase);
+                stockRate.required = purchase;
+                stockRate.disabled = !purchase;
+                previewPurchase();
             };
             stockKind.addEventListener('change', syncStockSupplier);
+            stockGrams?.addEventListener('input', previewPurchase);
+            stockRate.addEventListener('input', previewPurchase);
             syncStockSupplier();
+        } else if (stockRate && stockQuote) {
+            stockGrams?.addEventListener('input', previewPurchase);
+            stockRate.addEventListener('input', previewPurchase);
+            previewPurchase();
         }
         const filterMetal = document.getElementById('filter-metal');
         const filterPurity = document.getElementById('filter-purity');

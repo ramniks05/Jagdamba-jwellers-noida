@@ -122,8 +122,16 @@
                         @endif
                         <button class="btn btn-outline-secondary" id="signature-open" type="button"><i class="bi bi-upload"></i> Choose signature</button>
                         <input class="d-none" id="signature" name="signature" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                        <div class="signature-adjust d-none" id="signature-adjust">
+                            <div class="signature-frame" id="signature-frame">
+                                <img alt="" id="signature-move">
+                            </div>
+                            <label class="form-label mt-2 mb-1" for="signature-zoom">Fit the signature</label>
+                            <input class="form-range" id="signature-zoom" type="range" min="1" max="4" step="0.01" value="1">
+                            <div class="form-text">Drag the picture and move the slider so the signature fills the box. A cropped JPEG or PNG is fine.</div>
+                        </div>
                         <div class="alert alert-danger py-2 px-3 mt-2 {{ $errors->has('signature') ? '' : 'd-none' }}" id="signature-error" role="alert">{{ $errors->first('signature') }}</div>
-                        <div class="form-text mt-2" id="signature-picked">Sign on plain white paper and take a photo. JPEG, PNG or WebP, up to 2 MB. The white background is removed so only the ink prints.</div>
+                        <div class="form-text mt-2" id="signature-picked">JPEG, PNG or WebP, up to 2 MB. A photo on white paper has the paper removed. A picture you already cropped is used as the signature.</div>
                     </div>
                 </div>
 
@@ -162,7 +170,46 @@
                 showPicked(this, document.getElementById('logo-preview'));
             });
             const signatureError = document.getElementById('signature-error');
-            const signatureHint = 'Sign on plain white paper and take a photo. JPEG, PNG or WebP, up to 2 MB. The white background is removed so only the ink prints.';
+            const signatureHint = 'JPEG, PNG or WebP, up to 2 MB. A photo on white paper has the paper removed. A picture you already cropped is used as the signature.';
+            const frame = document.getElementById('signature-frame');
+            const move = document.getElementById('signature-move');
+            const zoom = document.getElementById('signature-zoom');
+            const adjust = document.getElementById('signature-adjust');
+            let fitScale = 1;
+            let scale = 1;
+            let originX = 0;
+            let originY = 0;
+            let drag = null;
+
+            const placeSignature = () => {
+                if (!move.naturalWidth) return;
+                const width = move.naturalWidth * scale;
+                const height = move.naturalHeight * scale;
+                move.style.width = width + 'px';
+                move.style.height = height + 'px';
+                move.style.left = originX + 'px';
+                move.style.top = originY + 'px';
+            };
+            const fitSignature = () => {
+                const box = frame.getBoundingClientRect();
+                fitScale = Math.min(box.width / move.naturalWidth, box.height / move.naturalHeight);
+                scale = fitScale * Number(zoom.value || 1);
+                originX = (box.width - move.naturalWidth * scale) / 2;
+                originY = (box.height - move.naturalHeight * scale) / 2;
+                placeSignature();
+            };
+            const exportSignature = () => new Promise((resolve) => {
+                const box = frame.getBoundingClientRect();
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(box.width * 2);
+                canvas.height = Math.round(box.height * 2);
+                const context = canvas.getContext('2d');
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(move, originX * 2, originY * 2, move.naturalWidth * scale * 2, move.naturalHeight * scale * 2);
+                canvas.toBlob((blob) => {
+                    resolve(blob ? new File([blob], 'signature.png', { type: 'image/png' }) : null);
+                }, 'image/png');
+            });
             const pictureProblem = (file) => {
                 if (!file) return '';
                 const typeOk = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -176,19 +223,59 @@
             };
             document.getElementById('signature-open').addEventListener('click', () => document.getElementById('signature').click());
             document.getElementById('signature').addEventListener('change', function () {
-                const file = showPicked(this, document.getElementById('signature-preview'));
+                const file = this.files && this.files[0];
                 const problem = pictureProblem(file);
                 showSignatureError(problem);
+                adjust.classList.toggle('d-none', Boolean(problem) || !file);
                 document.getElementById('signature-picked').textContent = problem
                     ? signatureHint
-                    : (file ? `Selected ${file.name}. Click Save profile to put it on the bill.` : signatureHint);
+                    : (file ? `Selected ${file.name}. Drag it into place, then click Save profile.` : signatureHint);
+                if (problem || !file) return;
+                zoom.value = '1';
+                move.src = URL.createObjectURL(file);
             });
-            form.addEventListener('submit', (event) => {
-                const problem = pictureProblem(document.getElementById('signature').files[0]);
-                if (!problem) return;
+            move.addEventListener('load', fitSignature);
+            zoom.addEventListener('input', () => {
+                const box = frame.getBoundingClientRect();
+                const previous = scale;
+                const next = fitScale * Number(zoom.value || 1);
+                originX = box.width / 2 - ((box.width / 2 - originX) / previous) * next;
+                originY = box.height / 2 - ((box.height / 2 - originY) / previous) * next;
+                scale = next;
+                placeSignature();
+            });
+            frame.addEventListener('pointerdown', (event) => {
+                drag = { x: event.clientX, y: event.clientY, originX, originY };
+                frame.setPointerCapture(event.pointerId);
+            });
+            frame.addEventListener('pointermove', (event) => {
+                if (!drag) return;
+                originX = drag.originX + event.clientX - drag.x;
+                originY = drag.originY + event.clientY - drag.y;
+                placeSignature();
+            });
+            frame.addEventListener('pointerup', () => { drag = null; });
+            let savingSignature = false;
+            form.addEventListener('submit', async (event) => {
+                const input = document.getElementById('signature');
+                const problem = pictureProblem(input.files[0]);
+                if (problem) {
+                    event.preventDefault();
+                    showSignatureError(problem);
+                    signatureError.scrollIntoView({ block: 'center' });
+                    return;
+                }
+                if (savingSignature || adjust.classList.contains('d-none') || !move.naturalWidth) return;
                 event.preventDefault();
-                showSignatureError(problem);
-                signatureError.scrollIntoView({ block: 'center' });
+                const file = await exportSignature();
+                if (file) {
+                    const transfer = new DataTransfer();
+                    transfer.items.add(file);
+                    input.files = transfer.files;
+                    document.getElementById('signature-preview').src = URL.createObjectURL(file);
+                }
+                savingSignature = true;
+                form.submit();
             });
         })();
     </script>

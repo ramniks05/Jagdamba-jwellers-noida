@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Commerce;
 
 use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
+use App\Enums\MetalStockKind;
 use App\Enums\PartyType;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
@@ -11,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Branch;
 use App\Models\Item;
 use App\Models\LedgerEntry;
+use App\Models\MetalStockMovement;
 use App\Models\MetalType;
 use App\Models\Purity;
 use App\Models\Sale;
@@ -21,6 +23,7 @@ use App\Models\Supplier;
 use App\Services\Commerce\MetalStockService;
 use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
+use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,7 +36,7 @@ class ReportController extends Controller
 {
     private const PAGE_SIZES = [25, 50, 100];
 
-    public function stock(Request $request, NumberFormatService $format, MetalStockService $metalStock, CompanyContext $context): View
+    public function stock(Request $request, NumberFormatService $format, MetalStockService $metalStock, SettingService $settings, CompanyContext $context): View
     {
         $this->authorize('reports.view');
         $company = $context->company();
@@ -87,6 +90,23 @@ class ReportController extends Controller
         };
         $query->orderBy('id');
 
+        $canCorrect = ! $request->boolean('report') && $request->user()?->can('inventory.create');
+        $editUuid = $canCorrect ? trim((string) $request->query('edit', '')) : '';
+        $editing = $editUuid === '' ? null : MetalStockMovement::query()
+            ->with(['branch', 'metalType', 'purity', 'reference'])
+            ->where('uuid', $editUuid)
+            ->where('kind', MetalStockKind::Purchase)
+            ->first();
+        $purchases = $canCorrect
+            ? MetalStockMovement::query()
+                ->with(['metalType', 'purity', 'reference'])
+                ->where('kind', MetalStockKind::Purchase)
+                ->orderByDesc('occurred_at')
+                ->orderByDesc('id')
+                ->limit(50)
+                ->get()
+            : collect();
+
         $chosenSupplier = $supplierUuid === '' ? null : Supplier::query()->where('uuid', $supplierUuid)->first();
         $balances = ($supplierUuid !== '' && ! $chosenSupplier)
             ? collect()
@@ -114,6 +134,11 @@ class ReportController extends Controller
             'perPage' => $this->perPage($request),
             'company' => $company,
             'weight' => fn (string $amount) => $format->weight($amount, $company),
+            'money' => fn (string $amount) => $format->money($amount, $company),
+            'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
+            'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
+            'editing' => $editing,
+            'purchases' => $purchases,
         ]);
     }
 

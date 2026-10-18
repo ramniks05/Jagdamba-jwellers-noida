@@ -1417,6 +1417,35 @@ a {
     margin: 0 0 0.75rem;
 }
 
+.signature-adjust {
+    margin-top: 0.75rem;
+}
+
+.signature-frame {
+    background:
+        linear-gradient(45deg, #efe8df 25%, transparent 25%),
+        linear-gradient(-45deg, #efe8df 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #efe8df 75%),
+        linear-gradient(-45deg, transparent 75%, #efe8df 75%);
+    background-color: #fff;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+    border: 1px dashed #8a7764;
+    border-radius: 0.4rem;
+    cursor: grab;
+    height: 120px;
+    overflow: hidden;
+    position: relative;
+    touch-action: none;
+    width: min(100%, 320px);
+}
+
+.signature-frame img {
+    max-width: none;
+    position: absolute;
+    user-select: none;
+}
+
 .invoice-sign-space {
     height: 64px;
 }
