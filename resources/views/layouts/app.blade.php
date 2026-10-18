@@ -53,7 +53,7 @@
                         <div class="menu-label">Stock</div>
                     @endif
                     @can('reports.view')
-                        <a class="nav-link {{ request()->routeIs('reports.stock') && ! request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock') }}"><i class="bi bi-clipboard-data"></i><span>Gram stock</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && ! request()->boolean('report') && ! request()->boolean('grams') ? 'active' : '' }}" href="{{ route('reports.stock') }}"><i class="bi bi-clipboard-data"></i><span>Stock and purchase</span></a>
                     @endcan
                     @can('items.view')
                         <a class="nav-link {{ request()->routeIs('items.*') ? 'active' : '' }}" href="{{ route('items.index') }}"><i class="bi bi-box-seam"></i><span>Pieces</span></a>
@@ -81,6 +81,7 @@
                     @endcan
                     @can('reports.view')
                         <div class="menu-label">Reports</div>
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('grams') ? 'active' : '' }}" href="{{ route('reports.stock', ['grams' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Gram stock report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock', ['report' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Stock report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-bar-chart"></i><span>Sales report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-cash-coin"></i><span>Outstanding</span></a>

@@ -1,9 +1,10 @@
 @extends('layouts.app')
 
-@section('title', request()->boolean('report') ? 'Stock report' : 'Gram stock')
+@section('title', request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase'))
 
 @section('content')
-    @include('commerce.reports.partials.head', ['title' => request()->boolean('report') ? 'Stock report' : 'Gram stock'])
+    @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase')])
+    @if (! request()->boolean('report'))
     @if ($metalStock->isNotEmpty())
         <div class="table-responsive mb-3">
             <table class="table mb-0">
@@ -37,8 +38,9 @@
     @elseif ($filters['metal'] !== '' || $filters['purity'] !== '' || $filters['supplierUuid'] !== '')
         <p class="text-secondary">No grams for this filter.</p>
     @endif
+    @endif
     @can('inventory.create')
-        @if (! request()->boolean('report'))
+        @if (! request()->boolean('report') && ! request()->boolean('grams'))
         @php
             $purchaseGst = $editing?->tax_percent !== null && $editing?->tax_percent !== ''
                 ? rtrim(rtrim((string) $editing->tax_percent, '0'), '.')
@@ -165,6 +167,9 @@
         @if (request()->boolean('report'))
             <input type="hidden" name="report" value="1">
         @endif
+        @if (request()->boolean('grams'))
+            <input type="hidden" name="grams" value="1">
+        @endif
         <div class="row g-2 align-items-end">
             <div class="col-md-3 col-6">
                 <label class="form-label" for="filter-metal">Metal</label>
@@ -198,11 +203,12 @@
             <div class="col-auto d-flex gap-2">
                 <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-funnel"></i> Show</button>
                 @if ($filtered)
-                    <a class="btn btn-outline-secondary" href="{{ route('reports.stock', request()->boolean('report') ? ['report' => 1] : []) }}">Clear</a>
+                    <a class="btn btn-outline-secondary" href="{{ route('reports.stock', array_filter(['report' => request()->boolean('report') ? 1 : null, 'grams' => request()->boolean('grams') ? 1 : null])) }}">Clear</a>
                 @endif
             </div>
         </div>
     </form>
+    @unless (request()->boolean('grams'))
     @if ($byMetal->isNotEmpty())
         <div class="row g-3 mb-3 no-print">
             @foreach ($byMetal as $row)
@@ -276,6 +282,7 @@
         </div>
     </article>
     @include('commerce.reports.partials.pager', ['rows' => $pieces, 'noun' => 'pieces'])
+    @endunless
 @endsection
 
 @push('scripts')

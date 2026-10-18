@@ -90,7 +90,7 @@ class ReportController extends Controller
         };
         $query->orderBy('id');
 
-        $canCorrect = ! $request->boolean('report') && $request->user()?->can('inventory.create');
+        $canCorrect = ! $request->boolean('report') && ! $request->boolean('grams') && $request->user()?->can('inventory.create');
         $editUuid = $canCorrect ? trim((string) $request->query('edit', '')) : '';
         $editing = $editUuid === '' ? null : MetalStockMovement::query()
             ->with(['branch', 'metalType', 'purity', 'reference'])

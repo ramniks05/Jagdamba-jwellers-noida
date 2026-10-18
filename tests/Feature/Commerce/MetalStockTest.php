@@ -280,6 +280,12 @@ class MetalStockTest extends TestCase
         $this->actingAs($owner)->get(route('reports.stock', ['report' => 1]))
             ->assertOk()
             ->assertDontSee('Correct purchase');
+        $this->actingAs($owner)->get(route('reports.stock', ['grams' => 1]))
+            ->assertOk()
+            ->assertSee('Gram stock report')
+            ->assertSee('2.000')
+            ->assertDontSee('Add Purchase to stock')
+            ->assertDontSee('Stock on hand');
 
         $this->actingAs($owner)->put(route('reports.stock.update', $bought), [
             'kind' => 'purchase',
