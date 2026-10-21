@@ -112,8 +112,19 @@ class InvoiceDuePaymentTest extends TestCase
 
         $this->actingAs($owner)->get(route('sales.create'))
             ->assertOk()
-            ->assertSee($amount.' due', false)
+            ->assertSee('"due":"Old due', false)
+            ->assertSee($amount, false)
             ->assertSee('Meera Shah', false);
+
+        $this->actingAs($owner)->post(route('customers.payments.store', $sale->customer), [
+            'method' => 'upi',
+            'amount' => $due,
+            'reference' => 'SETTLE',
+        ])->assertRedirect();
+
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertDontSee('"due":"Old due', false);
     }
 
     public function test_a_new_bill_takes_the_old_due_and_settles_the_earlier_bills(): void

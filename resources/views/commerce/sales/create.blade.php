@@ -280,17 +280,22 @@
             'rate' => (string) $order->rate_per_gram,
             'advance' => (float) $order->advanceHeld(),
         ] : null,
-        'customers' => $customers->map(fn ($customer) => [
-            'uuid' => $customer->uuid,
-            'name' => $customer->name,
-            'code' => $customer->code,
-            'mobile' => $customer->mobile,
-            'walkin' => (bool) $customer->is_system,
-            'credit' => (float) ($credits[$customer->id] ?? 0),
-            'due' => isset($openDues[$customer->id]) ? $money($openDues[$customer->id]['amount']).' due' : '',
-            'due_amount' => (float) ($openDues[$customer->id]['amount'] ?? 0),
-            'due_bills' => (int) ($openDues[$customer->id]['bills'] ?? 0),
-        ])->values(),
+        'customers' => $customers->map(function ($customer) use ($credits, $openDues, $ledgerDues, $money) {
+            $openBills = (float) ($openDues[$customer->id]['amount'] ?? 0);
+            $owed = $ledgerDues === null ? $openBills : (float) ($ledgerDues[$customer->id] ?? 0);
+
+            return [
+                'uuid' => $customer->uuid,
+                'name' => $customer->name,
+                'code' => $customer->code,
+                'mobile' => $customer->mobile,
+                'walkin' => (bool) $customer->is_system,
+                'credit' => (float) ($credits[$customer->id] ?? 0),
+                'due' => $owed > 0 ? 'Old due '.$money(number_format($owed, 2, '.', '')) : '',
+                'due_amount' => min($openBills, $owed),
+                'due_bills' => (int) ($openDues[$customer->id]['bills'] ?? 0),
+            ];
+        })->values(),
         'scanUrl' => route('sales.scan'),
         'orderUuid' => $order?->uuid,
         'pieces' => $rows->map(fn ($row) => $billScan->present($row['item'], $row['quote'], $shopContext->company()))->values(),

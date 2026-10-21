@@ -154,6 +154,7 @@ class SaleController extends Controller
             'customers' => $customers,
             'credits' => $ledger->spendableCredits($customers->where('is_system', false)->modelKeys()),
             'openDues' => $sales->openDues($customers->where('is_system', false)->modelKeys(), $sale?->id),
+            'ledgerDues' => $sale ? null : $ledger->outstandingDues($customers->where('is_system', false)->modelKeys()),
             'sale' => $sale,
             'draft' => $draft,
             'rows' => $items->map(fn (Item $item): array => [
