@@ -8,6 +8,7 @@
     ])->filter()->implode(', ');
     $phones = collect([$company->phone, $company->mobile])->filter()->implode(' · ');
     $due = $sale->balanceDue();
+    $extra = $sale->extraPaid();
 @endphp
 <article class="invoice-sheet invoice-sheet-compact">
     <header class="invoice-head">
@@ -207,8 +208,14 @@
             @endif
             <tr>
                 <td>Paid</td>
-                <td>{{ $money((string) $sale->paid_amount) }}</td>
+                <td>{{ $money((string) Brick\Math\BigDecimal::of((string) $sale->paid_amount)->plus($extra)->toScale(2)) }}</td>
             </tr>
+            @if ((float) $extra > 0)
+                <tr>
+                    <td>Extra kept as advance</td>
+                    <td>{{ $money($extra) }}</td>
+                </tr>
+            @endif
             <tr>
                 <td>Balance due</td>
                 <td>{{ $money($due) }}</td>

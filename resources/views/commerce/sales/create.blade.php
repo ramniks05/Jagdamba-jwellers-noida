@@ -257,6 +257,7 @@
                                 <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ $savedPayment['reference'] ?? '' }}" placeholder="Reference"></div>
                             </div>
                         @endforeach
+                        <p class="small d-none mb-0" id="pay-extra-note"></p>
                     </div>
                 </div>
                 <button class="btn btn-primary w-100" type="submit">{{ $sale ? 'Update '.$sale->number : 'Save invoice' }}</button>
@@ -292,6 +293,7 @@
                 'walkin' => (bool) $customer->is_system,
                 'credit' => (float) ($credits[$customer->id] ?? 0),
                 'due' => $owed > 0 ? 'Old due '.$money(number_format($owed, 2, '.', '')) : '',
+                'advance' => $owed <= 0 && isset($credits[$customer->id]) ? 'Advance '.$money((string) $credits[$customer->id]) : '',
                 'due_amount' => min($openBills, $owed),
                 'due_bills' => (int) ($openDues[$customer->id]['bills'] ?? 0),
             ];
@@ -322,6 +324,7 @@
         let weighDefaults = null;
         let rateEdited = false;
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
+        let payState = { total: 0, advance: 0, oldDue: 0, creditUsed: 0 };
 
         function round2(value) {
             return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -918,6 +921,34 @@
                 note.textContent = '';
                 note.classList.add('d-none');
             }
+            payState = {
+                total,
+                advance: bill.order ? Math.min(bill.order.advance, total) : 0,
+                oldDue,
+                creditUsed,
+            };
+            renderPayExtra();
+        }
+
+        function renderPayExtra() {
+            const note = document.getElementById('pay-extra-note');
+            const paid = round2(Array.from(document.querySelectorAll('.bill-pay'))
+                .reduce((sum, field) => sum + (Number(String(field.value).replace(/,/g, '')) || 0), 0));
+            const remaining = Math.max(payState.total - paid - payState.advance, 0);
+            const credit = Math.min(payState.creditUsed, remaining);
+            const extra = round2(paid + payState.advance + credit - payState.total - payState.oldDue);
+            if (!customer || payState.total <= 0 || extra <= 0) {
+                note.textContent = '';
+                note.className = 'small d-none mb-0';
+                return;
+            }
+            if (customer.walkin) {
+                note.textContent = '₹ ' + money.format(extra) + ' more than the bill. A walk-in pays the exact total, so give the change back.';
+                note.className = 'small text-danger mb-0';
+                return;
+            }
+            note.textContent = '₹ ' + money.format(extra) + ' more than the bill. It stays on ' + customer.name + '\'s account as advance and can be taken off the next bill.';
+            note.className = 'small text-success fw-semibold mb-0';
         }
 
         const scanInput = document.getElementById('scan-code');
@@ -1081,7 +1112,9 @@
             const field = document.querySelector('.bill-pay');
             const pay = Number(document.getElementById('bill-form').dataset.pay || 0);
             if (field) field.value = pay > 0 ? pay.toFixed(2) : '';
+            renderPayExtra();
         });
+        document.querySelectorAll('.bill-pay').forEach((field) => field.addEventListener('input', renderPayExtra));
         document.getElementById('weigh-add').addEventListener('click', () => {
             const error = document.getElementById('weigh-error');
             const quote = previewWeigh();

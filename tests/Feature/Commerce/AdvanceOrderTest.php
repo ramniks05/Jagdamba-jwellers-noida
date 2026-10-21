@@ -46,14 +46,6 @@ class AdvanceOrderTest extends TestCase
             'order_uuid' => $order->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '0',
-            'payments' => [['method' => 'cash', 'amount' => '31501']],
-        ])->assertSessionHasErrors('payments');
-
-        $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $customer->uuid,
-            'order_uuid' => $order->uuid,
-            'item_ids' => [$item->uuid],
-            'discount' => '0',
             'payments' => [['method' => 'cash', 'amount' => '31500']],
         ])->assertRedirect();
 

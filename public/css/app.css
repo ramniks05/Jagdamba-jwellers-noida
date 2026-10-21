@@ -2029,6 +2029,10 @@ a {
     font-weight: 650;
 }
 
+.customer-due.is-advance {
+    color: #1d6b3a;
+}
+
 .customer-chip-info span {
     color: #6d6258;
     font-size: 0.84rem;

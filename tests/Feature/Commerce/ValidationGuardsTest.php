@@ -225,7 +225,7 @@ class ValidationGuardsTest extends TestCase
             'is_active' => '1',
         ];
 
-        $this->actingAs($owner)->put(route('document-sequences.update', $orders), $data('inv'))
+        $this->actingAs($owner)->put(route('document-sequences.update', $orders), $data('jj'))
             ->assertSessionHasErrors('prefix');
         $this->actingAs($owner)->put(route('document-sequences.update', $orders), $data('ORDR'))
             ->assertSessionHasNoErrors();

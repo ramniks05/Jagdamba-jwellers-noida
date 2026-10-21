@@ -146,7 +146,7 @@ class DocumentNumberService
 
             $locked->fill([
                 'prefix' => $attributes['prefix'],
-                'suffix' => $attributes['suffix'] ?: null,
+                'suffix' => ($attributes['suffix'] ?? '') ?: null,
                 'separator' => $attributes['separator'],
                 'padding' => (int) $attributes['padding'],
                 'next_number' => $next,

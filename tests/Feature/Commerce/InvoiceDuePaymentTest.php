@@ -170,10 +170,61 @@ class InvoiceDuePaymentTest extends TestCase
             ->assertSee('Amount payable');
     }
 
+    public function test_paying_more_than_the_bill_keeps_the_extra_as_advance_for_the_next_bill(): void
+    {
+        [$owner, $sale] = $this->partPaidSale('70000');
+        app(CompanyContext::class)->set($owner->company);
+        $ledger = app(LedgerService::class);
+
+        $this->assertSame('61800.00', (string) $sale->total);
+        $this->assertSame('61800.00', (string) $sale->paid_amount);
+        $this->assertSame('0.00', $sale->balanceDue());
+        $this->assertSame('8200.00', $sale->extraPaid());
+        $this->assertSame('-8200.00', $ledger->balance(PartyType::Customer, (int) $sale->customer_id));
+        $this->assertSame('8200.00', $ledger->spendableCredit((int) $sale->customer_id));
+        $this->assertStringContainsString('8200.00 kept as advance', (string) $sale->payments()->firstOrFail()->narration);
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Extra kept as advance')
+            ->assertSee('8,200.00')
+            ->assertSee('70,000.00');
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertSee('"advance":"Advance', false)
+            ->assertDontSee('"due":"Old due', false);
+
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $sale->customer->uuid,
+            'discount' => '0',
+            'making_mode' => 'inside',
+            'use_credit' => '8200',
+            'new_pieces' => [[
+                'name' => 'Stud',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '1',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+            ]],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        app(CompanyContext::class)->set($owner->company);
+        $next = Sale::query()->latest('id')->firstOrFail();
+        $this->assertSame('6180.00', (string) $next->credit_amount);
+        $this->assertSame('0.00', $next->balanceDue());
+        $this->assertSame('2020.00', $ledger->spendableCredit((int) $sale->customer_id));
+    }
+
     /**
      * @return array{0: User, 1: Sale}
      */
-    private function partPaidSale(): array
+    private function partPaidSale(string $paid = '50000'): array
     {
         $owner = $this->shopUser();
         app(CompanyContext::class)->set($owner->company);
@@ -209,7 +260,7 @@ class InvoiceDuePaymentTest extends TestCase
                 'making_value' => '0',
                 'wastage_value' => '0',
             ]],
-            'payments' => [['method' => 'cash', 'amount' => '50000']],
+            'payments' => [['method' => 'cash', 'amount' => $paid]],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         app(CompanyContext::class)->set($owner->company);

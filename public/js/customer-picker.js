@@ -12,10 +12,11 @@ function customerPicker(options) {
     let current = null;
 
     function dueMark(row) {
-        if (!row.due) return document.createTextNode('');
+        const text = row.due || row.advance;
+        if (!text) return document.createTextNode('');
         const mark = document.createElement('span');
-        mark.className = 'customer-due';
-        mark.textContent = ' (' + row.due + ')';
+        mark.className = row.due ? 'customer-due' : 'customer-due is-advance';
+        mark.textContent = ' (' + text + ')';
         return mark;
     }
 

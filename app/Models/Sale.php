@@ -74,6 +74,16 @@ class Sale extends Model
         return $this->making_mode === 'processing' ? 'Processing charge' : 'Making';
     }
 
+    public function extraPaid(): string
+    {
+        $received = $this->payments->reduce(fn (BigDecimal $sum, Payment $payment) => $sum->plus((string) $payment->amount), BigDecimal::zero())
+            ->plus((string) ($this->advance_amount ?? 0))
+            ->plus((string) ($this->credit_amount ?? 0));
+        $extra = $received->minus((string) $this->total)->minus((string) ($this->previous_due ?? 0));
+
+        return (string) ($extra->isPositive() ? $extra : BigDecimal::zero())->toScale(2, RoundingMode::HalfUp);
+    }
+
     public function balanceDue(): string
     {
         return (string) BigDecimal::of((string) $this->total)

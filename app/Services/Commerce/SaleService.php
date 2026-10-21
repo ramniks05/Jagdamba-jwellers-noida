@@ -308,16 +308,7 @@ class SaleService
             }
 
             $previous = $previous->toScale(2, RoundingMode::HalfUp);
-
-            if ($paid->plus($advance)->isGreaterThan($total->plus($previous))) {
-                throw ValidationException::withMessages([
-                    'payments' => $previous->isPositive()
-                        ? 'Payments are more than today\'s bill plus the old due of '.$previous.'.'
-                        : ($advance->isPositive()
-                            ? 'Payments are more than the bill total after the advance of '.$advance.'.'
-                            : 'Payments are more than the bill total.'),
-                ]);
-            }
+            $payable = $total->plus($previous);
 
             if ($customer->is_system && ! $paid->isEqualTo($total)) {
                 throw ValidationException::withMessages([
@@ -342,6 +333,7 @@ class SaleService
                 $credit = $credit->isGreaterThan($remaining) ? $remaining->toScale(2, RoundingMode::HalfUp) : $credit;
             }
 
+            $extra = BigDecimal::max($paid->plus($advance)->plus($credit)->minus($payable), BigDecimal::zero())->toScale(2, RoundingMode::HalfUp);
             $branch = $items->first()->branch;
             $payload = [
                 'company_id' => $company->id,
@@ -360,8 +352,7 @@ class SaleService
                 'prices_include_tax' => ! $exclusive,
                 'round_off' => $bill->roundOff,
                 'total' => $bill->total,
-                'paid_amount' => (string) $paid->plus($advance)->plus($credit)->toScale(2, RoundingMode::HalfUp),
-                'advance_amount' => (string) $advance->toScale(2, RoundingMode::HalfUp),
+                'paid_amount' => (string) BigDecimal::min($paid->plus($advance)->plus($credit), $payable)->toScale(2, RoundingMode::HalfUp),                'advance_amount' => (string) $advance->toScale(2, RoundingMode::HalfUp),
                 'credit_amount' => (string) $credit,
                 'previous_due' => (string) $previous,
                 'previous_bills' => $existing ? $keptBills : $openSales->count(),
@@ -465,9 +456,9 @@ class SaleService
                     'method' => $row['method'],
                     'amount' => $row['amount'],
                     'reference' => $row['reference'],
-                    'narration' => $previous->isPositive()
+                    'narration' => ($previous->isPositive()
                         ? 'Received against '.$sale->number.' including old due'
-                        : 'Received against '.$sale->number,
+                        : 'Received against '.$sale->number).($extra->isPositive() ? ' · '.$extra.' kept as advance' : ''),
                     'received_at' => now(),
                     'user_id' => $userId,
                 ]);
