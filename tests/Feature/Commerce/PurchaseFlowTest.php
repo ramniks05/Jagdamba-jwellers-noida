@@ -155,7 +155,7 @@ class PurchaseFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Mumbai Bullion')
             ->assertSee('₹ 5,000.00')
-            ->assertSee('You owe ₹ 5,000.00 in all.');
+            ->assertSee('You still owe ₹ 5,000.00.');
         $this->seeShop($owner);
         $this->actingAs($owner)->get(route('suppliers.show', $supplier))
             ->assertOk()

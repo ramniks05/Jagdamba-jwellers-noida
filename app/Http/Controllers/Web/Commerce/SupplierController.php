@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Web\Commerce;
 
 use App\Enums\KycStatus;
 use App\Enums\LedgerDirection;
+use App\Enums\MetalStockKind;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\ReceiptRequest;
 use App\Http\Requests\Commerce\SupplierRequest;
 use App\Models\LedgerEntry;
+use App\Models\MetalStockMovement;
 use App\Models\Supplier;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
@@ -41,7 +43,6 @@ class SupplierController extends Controller
         });
 
         $suppliers = (clone $base)
-            ->withCount('purchases')
             ->when($show === 'owed', fn ($query) => $query->whereRaw($owedSql, $owedBindings))
             ->when($show === 'hidden', fn ($query) => $query->where('is_active', false))
             ->orderByDesc('is_active')
@@ -55,6 +56,14 @@ class SupplierController extends Controller
             ->selectRaw('party_id, sum(case when direction = ? then amount else -amount end) as payable', [LedgerDirection::Credit->value])
             ->groupBy('party_id')
             ->pluck('payable', 'party_id');
+        $bought = MetalStockMovement::query()
+            ->where('kind', MetalStockKind::Purchase)
+            ->where('reference_type', (new Supplier)->getMorphClass())
+            ->whereIn('reference_id', $suppliers->getCollection()->pluck('id'))
+            ->selectRaw('reference_id, coalesce(sum(grams), 0) as grams, coalesce(sum(total_amount), 0) as amount')
+            ->groupBy('reference_id')
+            ->get()
+            ->keyBy('reference_id');
         $owedTotal = LedgerEntry::query()
             ->where('party_type', PartyType::Supplier)
             ->selectRaw('sum(case when direction = ? then amount else -amount end) as payable', [LedgerDirection::Credit->value])
@@ -69,6 +78,10 @@ class SupplierController extends Controller
                 'hidden' => (clone $base)->where('is_active', false)->count(),
             ],
             'suppliers' => $suppliers,
+            'bought' => $bought->map(fn ($row) => [
+                'grams' => (string) BigDecimal::of($row->grams === null || $row->grams === '' ? '0' : (string) $row->grams)->toScale(3, RoundingMode::HalfUp),
+                'amount' => (string) BigDecimal::of($row->amount === null || $row->amount === '' ? '0' : (string) $row->amount)->toScale(2, RoundingMode::HalfUp),
+            ]),
             'payable' => $payable->map(fn ($amount) => (string) BigDecimal::of((string) round((float) $amount, 2))->toScale(2, RoundingMode::HalfUp)),
             'owedTotal' => (string) BigDecimal::of((string) round((float) $owedTotal, 2))->toScale(2, RoundingMode::HalfUp),
             'money' => fn (string $amount) => $format->money($amount, $context->company()),
@@ -124,6 +137,12 @@ class SupplierController extends Controller
             $running = $entry->direction === LedgerDirection::Credit ? $running->minus($amount) : $running->plus($amount);
         }
 
+        $gramPurchases = $supplier->gramPurchases()
+            ->with(['metalType', 'purity'])
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
         $purchases = $supplier->purchases()
             ->withCount('lines')
             ->withSum('returns', 'amount')
@@ -138,6 +157,9 @@ class SupplierController extends Controller
             'methods' => PaymentMethod::cases(),
             'entries' => $entries,
             'balances' => $balances,
+            'gramPurchases' => $gramPurchases,
+            'gramGrams' => (string) BigDecimal::of((string) ($supplier->gramPurchases()->sum('grams') ?: '0'))->toScale(3, RoundingMode::HalfUp),
+            'gramAmount' => (string) BigDecimal::of((string) ($supplier->gramPurchases()->sum('total_amount') ?: '0'))->toScale(2, RoundingMode::HalfUp),
             'purchases' => $purchases,
             'purchaseCount' => $supplier->purchases()->count(),
             'boughtTotal' => (string) BigDecimal::of((string) ($supplier->purchases()->sum('total') ?: '0'))->toScale(2, RoundingMode::HalfUp),

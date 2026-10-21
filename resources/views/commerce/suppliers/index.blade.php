@@ -5,7 +5,7 @@
 @section('content')
     @include('masters.partials.head', [
         'title' => 'Suppliers',
-        'intro' => 'Karigars and wholesalers you buy from. You owe '.$money($owedTotal).' in all.',
+        'intro' => 'Karigars and wholesalers you buy from. Weight and amount are the gram stock purchased from each one. You still owe '.$money($owedTotal).'.',
         'actions' => array_values(array_filter([
             auth()->user()->can('viewAny', App\Models\Purchase::class) ? ['url' => route('purchases.index'), 'label' => 'Own gold', 'icon' => 'gem'] : null,
             auth()->user()->can('create', App\Models\Supplier::class) ? ['url' => route('suppliers.create'), 'label' => 'Add supplier', 'icon' => 'plus-lg', 'primary' => true] : null,
@@ -34,7 +34,8 @@
                         <th>Supplier</th>
                         <th>Contact</th>
                         <th>GSTIN</th>
-                        <th class="num">Purchases</th>
+                        <th class="num">Weight</th>
+                        <th class="num">Amount</th>
                         <th class="num">We owe</th>
                         <th>Status</th>
                         <th></th>
@@ -42,7 +43,10 @@
                 </thead>
                 <tbody>
                     @forelse ($suppliers as $supplier)
-                        @php($owe = $payable[$supplier->id] ?? '0.00')
+                        @php
+                            $owe = $payable[$supplier->id] ?? '0.00';
+                            $row = $bought[$supplier->id] ?? null;
+                        @endphp
                         <tr>
                             <td>
                                 <a class="fw-semibold" href="{{ route('suppliers.show', $supplier) }}">{{ $supplier->name }}</a>
@@ -55,7 +59,8 @@
                                 @endif
                             </td>
                             <td class="text-nowrap">{{ $supplier->gstin ?: '—' }}</td>
-                            <td class="num">{{ $supplier->purchases_count }}</td>
+                            <td class="num">{{ $row ? $row['grams'].' g' : '—' }}</td>
+                            <td class="num">{{ $row ? $money($row['amount']) : '—' }}</td>
                             <td class="num {{ (float) $owe > 0 ? 'text-danger fw-semibold' : 'text-secondary' }}">{{ (float) $owe > 0 ? $money($owe) : ((float) $owe < 0 ? 'Advance '.$money(ltrim($owe, '-')) : '—') }}</td>
                             <td>@include('masters.partials.status', ['active' => $supplier->is_active])</td>
                             <td class="text-end text-nowrap">
@@ -63,7 +68,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">{{ $search !== '' || $show !== 'all' ? 'No supplier matches this search.' : 'No suppliers yet. Add one before you record a stock purchase.' }}</td></tr>
+                        <tr><td colspan="8">{{ $search !== '' || $show !== 'all' ? 'No supplier matches this search.' : 'No suppliers yet. Add one before you record a stock purchase.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -35,13 +35,19 @@
                     {{ $money(ltrim($payable, '-')) }}
                 </div>
                 <div class="customer-stat">
-                    <div class="stat-label">Purchases</div>
-                    {{ $purchaseCount }}
+                    <div class="stat-label">Weight bought</div>
+                    {{ $gramGrams }} g
                 </div>
                 <div class="customer-stat">
-                    <div class="stat-label">Bought in all</div>
-                    {{ $money($boughtTotal) }}
+                    <div class="stat-label">Amount bought</div>
+                    {{ $money($gramAmount) }}
                 </div>
+                @if ($purchaseCount > 0)
+                    <div class="customer-stat">
+                        <div class="stat-label">Own jewellery</div>
+                        {{ $purchaseCount }} · {{ $money($boughtTotal) }}
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -49,8 +55,39 @@
     <div class="row g-3 align-items-start">
         <div class="col-lg-8">
             <div class="card mb-3">
+                <div class="card-header bg-white">Purchases</div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bill</th>
+                                <th>Metal</th>
+                                <th class="num">Weight</th>
+                                <th class="num">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($gramPurchases as $movement)
+                                <tr>
+                                    <td class="text-nowrap">{{ $movement->occurred_at?->timezone(config('app.timezone'))->format('d-m-Y') }}</td>
+                                    <td>{{ $movement->supplier_bill_number ?: '—' }}</td>
+                                    <td>{{ $movement->metalType?->name }} {{ $movement->purity?->name }}</td>
+                                    <td class="num">{{ $movement->grams }} g</td>
+                                    <td class="num">{{ $movement->total_amount ? $money((string) $movement->total_amount) : '—' }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5">No gram purchases from this supplier yet.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @if ($purchaseCount > 0)
+            <div class="card mb-3">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <span>Purchases</span>
+                    <span>Own jewellery</span>
                     @if ($purchaseCount > $purchases->count())
                         <a class="small" href="{{ route('purchases.index', ['search' => $supplier->name]) }}">See all {{ $purchaseCount }}</a>
                     @endif
@@ -91,6 +128,7 @@
                     </table>
                 </div>
             </div>
+            @endif
 
             <div class="card">
                 <div class="card-header bg-white">Account</div>

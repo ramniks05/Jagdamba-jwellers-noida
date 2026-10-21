@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Enums\KycStatus;
+use App\Enums\MetalStockKind;
 use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -30,5 +32,10 @@ class Supplier extends Model
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class);
+    }
+
+    public function gramPurchases(): MorphMany
+    {
+        return $this->morphMany(MetalStockMovement::class, 'reference')->where('kind', MetalStockKind::Purchase);
     }
 }

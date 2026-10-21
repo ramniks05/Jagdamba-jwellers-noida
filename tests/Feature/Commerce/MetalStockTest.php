@@ -279,6 +279,18 @@ class MetalStockTest extends TestCase
         $this->assertSame(LedgerDirection::Credit, $entry->direction);
         $this->assertSame('20600.00', (string) $entry->amount);
         $this->assertSame('2.000', $this->balance('18K'));
+
+        $this->actingAs($owner)->get(route('suppliers.index'))
+            ->assertOk()
+            ->assertSee('Stock Supplier')
+            ->assertSee('2.000 g')
+            ->assertSee('₹ 20,600.00');
+        $this->actingAs($owner)->get(route('suppliers.show', $supplier))
+            ->assertOk()
+            ->assertSee('GST-2')
+            ->assertSee('Gold 18K')
+            ->assertSee('2.000 g')
+            ->assertSee('₹ 20,600.00');
     }
 
     public function test_a_purchase_can_be_corrected(): void
