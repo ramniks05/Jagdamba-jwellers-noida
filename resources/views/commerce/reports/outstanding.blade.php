@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Outstanding')
+@section('title', 'Customer dues report')
 
 @section('content')
     @php($advance = $filters['show'] === 'advance')
-    @include('commerce.reports.partials.head', ['title' => 'Outstanding report'])
+    @include('commerce.reports.partials.head', ['title' => 'Customer dues report'])
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.outstanding') }}">
         <input type="hidden" name="per_page" value="{{ $perPage }}">
         <input type="hidden" name="show" value="{{ $filters['show'] }}">

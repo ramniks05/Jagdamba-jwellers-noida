@@ -147,7 +147,12 @@ class SaleController extends Controller
             ->orderBy('item_code')
             ->limit(300)
             ->get();
-        $customers = Customer::query()->where('is_active', true)->orderBy('name')->get();
+        $customers = Customer::query()
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->where('is_system', false)
+                ->when($sale?->customer?->is_system, fn ($query) => $query->orWhere('id', $sale->customer_id)))
+            ->orderBy('name')
+            ->get();
 
         return view('commerce.sales.create', [
             'order' => $order,

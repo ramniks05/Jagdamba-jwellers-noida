@@ -1,9 +1,9 @@
 @extends('layouts.app')
 
-@section('title', 'Own gold bills')
+@section('title', 'Own gold report')
 
 @section('content')
-    <h1 class="page-title h3 mb-1">Own gold bills</h1>
+    <h1 class="page-title h3 mb-1">Own gold report</h1>
     <p class="text-secondary mb-3">Pieces marked Own on a bill. They are not in stock, and a bill for them does not change the main stock.</p>
     <div class="table-responsive">
         <table class="table mb-0">

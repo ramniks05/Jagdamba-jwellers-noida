@@ -74,9 +74,12 @@ class SaleRequest extends FormRequest
     public function rules(): array
     {
         $shop = fn ($query) => $query->where('company_id', $this->user()->company_id)->whereNull('deleted_at');
+        $editing = $this->route('sale');
+        $keepWalkIn = $editing instanceof Sale && (bool) $editing->customer?->is_system;
+        $named = fn ($query) => $shop($query)->when(! $keepWalkIn, fn ($query) => $query->where('is_system', false));
 
         return [
-            'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where($shop)],
+            'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where($named)],
             'order_uuid' => ['nullable', 'uuid', Rule::exists('advance_orders', 'uuid')->where('company_id', $this->user()->company_id)],
             'item_ids' => ['array'],
             'item_ids.*' => ['uuid', 'distinct'],
@@ -132,6 +135,17 @@ class SaleRequest extends FormRequest
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'include_previous' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'customer_uuid.required' => 'Choose the customer by name or mobile number, or add them as a new customer.',
+            'customer_uuid.exists' => 'Choose the customer by name or mobile number, or add them as a new customer.',
         ];
     }
 

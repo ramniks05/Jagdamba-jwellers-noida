@@ -24,7 +24,7 @@ class StoneRateTest extends TestCase
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $this->actingAs($owner)->post(route('rates.store'), [
             'metal_uuid' => $gold->uuid,
             'purity_uuid' => $purity->uuid,
@@ -33,7 +33,7 @@ class StoneRateTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'making_mode' => 'inside',
             'new_pieces' => [[

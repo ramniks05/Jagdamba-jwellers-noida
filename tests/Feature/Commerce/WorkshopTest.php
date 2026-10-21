@@ -98,13 +98,13 @@ class WorkshopTest extends TestCase
     public function test_a_sale_can_be_returned_once_and_restocked(): void
     {
         [$owner, $gold, $purity] = $this->counter();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $this->actingAs($owner)->post(route('items.store'), $this->plainPiece($gold, $purity, 'COIN01'))->assertRedirect();
         $this->seeShop($owner);
         $item = Item::query()->where('item_code', 'COIN01')->firstOrFail();
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '0',
             'payments' => [
@@ -124,7 +124,7 @@ class WorkshopTest extends TestCase
         $this->seeShop($owner);
         $item->refresh();
         $this->assertSame(ItemStatus::Available, $item->status);
-        $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $walkIn->id));
+        $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $buyer->id));
 
         $this->actingAs($owner)->post(route('sales.returns.store', $line->sale), [
             'lines' => [$line->uuid],

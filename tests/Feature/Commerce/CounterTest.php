@@ -32,7 +32,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
 
         $this->actingAs($owner)->post(route('rates.store'), [
             'metal_uuid' => $gold->uuid,
@@ -48,17 +48,20 @@ class CounterTest extends TestCase
         $this->assertSame(ItemStatus::Available, $item->status);
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => Customer::query()->where('code', 'WALKIN')->firstOrFail()->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '500',
             'making_mode' => 'inside',
             'payments' => [
-                ['method' => 'cash', 'amount' => '20000'],
+                ['method' => 'cash', 'amount' => '70555'],
             ],
-        ])->assertSessionHasErrors('payments');
+        ])->assertSessionHasErrors(['customer_uuid' => 'Choose the customer by name or mobile number, or add them as a new customer.']);
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertDontSee('"walkin":true', false);
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '500',
             'making_mode' => 'inside',
@@ -108,7 +111,7 @@ class CounterTest extends TestCase
 
         $this->seeShop($owner);
         $customer = Customer::query()->where('name', 'Meera Shah')->firstOrFail();
-        $this->assertSame('CUS0001', $customer->code);
+        $this->assertSame('CUS0002', $customer->code);
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $customer->uuid,
@@ -144,7 +147,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
 
         $this->actingAs($owner)->post(route('rates.store'), [
@@ -155,7 +158,7 @@ class CounterTest extends TestCase
         ])->assertRedirect(route('rates.index'));
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '500',
             'new_pieces' => [[
                 'name' => 'Rate check',
@@ -204,7 +207,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
         $making = ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('code', 'per_gram')->firstOrFail();
         $wastage = ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('code', 'percentage')->firstOrFail();
@@ -226,7 +229,7 @@ class CounterTest extends TestCase
             ->assertSee('Find customer');
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'making_mode' => 'inside',
             'new_piece' => [
@@ -261,7 +264,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
 
         $this->actingAs($owner)->post(route('rates.store'), [
@@ -283,7 +286,7 @@ class CounterTest extends TestCase
             ->assertSee('Type the hallmark ID if this piece is not in stock');
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Loose bangle',
@@ -321,7 +324,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
 
         $this->actingAs($owner)->post(route('rates.store'), [
@@ -346,7 +349,7 @@ class CounterTest extends TestCase
         };
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [
                 $piece('Ring A', '10', [['name' => 'Diamond', 'weight' => '1', 'value' => '5000']]),
@@ -391,7 +394,7 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
         $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
 
         $this->actingAs($owner)->post(route('rates.store'), [
@@ -430,7 +433,7 @@ class CounterTest extends TestCase
         $this->actingAs($owner)->get(route('items.show', $item))->assertOk()->assertSee('Diamond');
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'item_ids' => [$item->uuid],
             'payments' => [

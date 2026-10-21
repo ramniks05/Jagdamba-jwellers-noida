@@ -28,7 +28,7 @@ class InvoiceEditTest extends TestCase
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
         $branch = StockLocation::query()->where('code', 'MAIN')->firstOrFail()->branch;
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
 
         $this->actingAs($owner)->post(route('reports.stock.store'), [
             'kind' => 'opening',
@@ -46,7 +46,7 @@ class InvoiceEditTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Loose bangle',
@@ -76,7 +76,7 @@ class InvoiceEditTest extends TestCase
             ->assertSee('Update '.$number);
 
         $this->actingAs($owner)->put(route('sales.update', $sale), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Loose bangle',
@@ -103,7 +103,7 @@ class InvoiceEditTest extends TestCase
         $this->assertSame('8.000', (string) $line->net_weight);
         $this->assertSame('AB12CD', $line->item?->huid);
         $this->assertSame('92.000', $this->balance());
-        $this->assertSame('0.00', $this->ledger((int) $walkIn->id));
+        $this->assertSame('0.00', $this->ledger((int) $buyer->id));
 
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
@@ -117,7 +117,7 @@ class InvoiceEditTest extends TestCase
         $this->seeShop($owner);
         $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
         $purity = Purity::query()->where('code', '22K')->firstOrFail();
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
 
         $this->actingAs($owner)->post(route('rates.store'), [
             'metal_uuid' => $gold->uuid,
@@ -127,7 +127,7 @@ class InvoiceEditTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Loose bangle',

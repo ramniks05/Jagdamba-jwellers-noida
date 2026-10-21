@@ -45,6 +45,14 @@ class ValidationGuardsTest extends TestCase
 
         $this->actingAs($owner)->post(route('customers.store'), $this->customerData(['name' => 'Baby', 'mobile' => '', 'dob' => now()->addDay()->toDateString()]))
             ->assertSessionHasErrors(['dob' => 'Date of birth cannot be in the future.']);
+
+        $this->actingAs($owner)->postJson(route('customers.store'), $this->customerData(['name' => '', 'mobile' => '']))
+            ->assertJsonValidationErrors(['name' => 'Enter the customer\'s name or mobile number.']);
+        $byMobile = $this->actingAs($owner)->postJson(route('customers.store'), $this->customerData(['name' => '', 'mobile' => '9123456780']))
+            ->assertOk()->json();
+        $this->assertSame('9123456780', $byMobile['name']);
+        $this->actingAs($owner)->postJson(route('customers.store'), $this->customerData(['name' => 'Ravi', 'mobile' => '']))
+            ->assertOk();
     }
 
     public function test_supplier_mobile_and_bank_details_get_plain_messages(): void

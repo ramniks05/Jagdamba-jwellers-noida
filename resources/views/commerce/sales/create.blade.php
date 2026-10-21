@@ -31,7 +31,7 @@
         <div id="bill-piece-inputs"></div>
         <div class="row g-3">
             <div class="col-lg-7">
-                @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill'])
+                @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill', 'errorText' => 'Choose the customer by name or mobile number, or add them as a new customer.'])
                 <div class="card mb-3 scan-card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-upc-scan"></i> Scan tag</span>

@@ -2,9 +2,12 @@
 
 namespace Tests;
 
+use App\Models\Customer;
 use App\Models\User;
 use App\Services\Access\AccessProvisioner;
+use App\Services\Commerce\CustomerService;
 use App\Services\Foundation\ShopProvisioner;
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -45,5 +48,15 @@ abstract class TestCase extends BaseTestCase
         app(AccessProvisioner::class)->grant($account, $role);
 
         return $account;
+    }
+
+    /**
+     * A named customer for bills, now that a bill cannot go to Walk-in.
+     */
+    protected function counterCustomer(User $owner, string $name = 'Counter Customer'): Customer
+    {
+        app(CompanyContext::class)->set($owner->company);
+
+        return app(CustomerService::class)->create($owner->company, ['name' => $name]);
     }
 }

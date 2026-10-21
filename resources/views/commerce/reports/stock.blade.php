@@ -1,9 +1,9 @@
 @extends('layouts.app')
 
-@section('title', request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase'))
+@section('title', request()->boolean('grams') ? 'Stock and purchase report' : (request()->boolean('report') ? 'Pieces report' : 'Stock and purchase'))
 
 @section('content')
-    @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Gram stock report' : (request()->boolean('report') ? 'Stock report' : 'Stock and purchase'), 'print' => request()->boolean('report') || request()->boolean('grams')])
+    @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Stock and purchase report' : (request()->boolean('report') ? 'Pieces report' : 'Stock and purchase'), 'print' => request()->boolean('report') || request()->boolean('grams')])
     @if (request()->boolean('report') || request()->boolean('grams'))
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.stock') }}">
         <input type="hidden" name="per_page" value="{{ $perPage }}">

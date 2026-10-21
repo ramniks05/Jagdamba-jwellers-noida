@@ -36,10 +36,10 @@ class SaleReturnTest extends TestCase
         $this->seeShop($owner);
         $first = $this->piece($owner, $gold, $purity, 'RETA', '5000');
         $second = $this->piece($owner, $gold, $purity, 'RETB', '1000');
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'item_ids' => [$first->uuid, $second->uuid],
             'discount' => '0',
             'making_mode' => 'inside',

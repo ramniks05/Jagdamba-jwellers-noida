@@ -11,7 +11,8 @@
                 @endisset
                 <div class="mb-3">
                     <label class="form-label" for="new-customer-name">Name</label>
-                    <input class="form-control" id="new-customer-name" required>
+                    <input class="form-control" id="new-customer-name">
+                    <div class="form-text">Enter a name, a mobile number, or both.</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="new-customer-mobile">Mobile</label>

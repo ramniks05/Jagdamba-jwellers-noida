@@ -66,10 +66,10 @@ class MakingChargeTest extends TestCase
 
     private function sell(User $owner, Item $item, ?string $mode, string $pay): void
     {
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = Customer::query()->where('is_system', false)->first() ?? $this->counterCustomer($owner);
 
         $this->actingAs($owner)->post(route('sales.store'), array_filter([
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'item_ids' => [$item->uuid],
             'discount' => '0',
             'making_mode' => $mode,

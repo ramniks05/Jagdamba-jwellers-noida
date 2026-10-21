@@ -35,7 +35,7 @@ class MetalStockTest extends TestCase
         $lighter = Purity::query()->where('code', '18K')->firstOrFail();
         $silver = Purity::query()->where('code', '999')->firstOrFail();
         $branch = StockLocation::query()->where('code', 'MAIN')->firstOrFail()->branch;
-        $walkIn = Customer::query()->where('code', 'WALKIN')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
 
         $this->actingAs($owner)->get(route('reports.stock'))
             ->assertOk()
@@ -85,7 +85,7 @@ class MetalStockTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Loose bangle',
@@ -117,7 +117,7 @@ class MetalStockTest extends TestCase
             ->assertDontSee('Stock on hand')
             ->assertDontSee('All suppliers');
         $grams = $this->actingAs($owner)->get(route('reports.stock', ['grams' => 1, 'purity' => $lighter->uuid]));
-        $grams->assertOk()->assertSee('Gram stock report')->assertSee('All suppliers');
+        $grams->assertOk()->assertSee('Stock and purchase report')->assertSee('All suppliers');
         $this->assertSame(['18K'], collect($grams->viewData('metalStock'))->pluck('purity')->all());
 
         $sale = Sale::query()->latest('id')->firstOrFail();
@@ -132,7 +132,7 @@ class MetalStockTest extends TestCase
         $this->assertSame('0.000', $this->sold('22K'));
 
         $this->actingAs($owner)->post(route('sales.store'), [
-            'customer_uuid' => $walkIn->uuid,
+            'customer_uuid' => $buyer->uuid,
             'discount' => '0',
             'new_pieces' => [[
                 'name' => 'Own bangle',
@@ -319,7 +319,7 @@ class MetalStockTest extends TestCase
             ->assertDontSee('Correct purchase');
         $this->actingAs($owner)->get(route('reports.stock', ['grams' => 1]))
             ->assertOk()
-            ->assertSee('Gram stock report')
+            ->assertSee('Stock and purchase report')
             ->assertSee('2.000')
             ->assertDontSee('Add Purchase to stock')
             ->assertDontSee('Stock on hand');

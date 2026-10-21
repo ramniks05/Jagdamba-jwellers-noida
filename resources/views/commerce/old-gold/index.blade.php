@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Old gold')
+@section('title', 'Exchange')
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="page-title h3 mb-0">Old gold</h1>
+        <h1 class="page-title h3 mb-0">Exchange</h1>
         @can('create', App\Models\OldGoldExchange::class)
             <a class="btn btn-primary" href="{{ route('old-gold.create') }}"><i class="bi bi-plus-lg"></i> New exchange</a>
         @endcan

@@ -33,21 +33,20 @@
                     @can('create', App\Models\Sale::class)
                         <a class="nav-bill" href="{{ route('sales.create') }}"><i class="bi bi-plus-lg"></i><span>New bill</span></a>
                     @endcan
-                    @if (auth()->user()->can('sales.view') || auth()->user()->can('repairs.view') || auth()->user()->can('rates.view'))
+                    @if (auth()->user()->can('sales.view') || auth()->user()->can('repairs.view'))
                         <div class="menu-label">Counter</div>
                     @endif
                     @can('sales.view')
                         <a class="nav-link {{ request()->routeIs('sales.*') && ! request()->routeIs('sales.create') ? 'active' : '' }}" href="{{ route('sales.index') }}"><i class="bi bi-receipt"></i><span>Sales</span></a>
                         <a class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}" href="{{ route('orders.index') }}"><i class="bi bi-journal-bookmark"></i><span>Orders</span></a>
-                    @endcan
-                    @can('rates.view')
-                        <a class="nav-link {{ request()->routeIs('rates.*') ? 'active' : '' }}" href="{{ route('rates.index') }}"><i class="bi bi-graph-up-arrow"></i><span>Metal rates</span></a>
-                    @endcan
-                    @can('sales.view')
-                        <a class="nav-link {{ request()->routeIs('old-gold.*') ? 'active' : '' }}" href="{{ route('old-gold.index') }}"><i class="bi bi-arrow-repeat"></i><span>Old gold</span></a>
+                        <a class="nav-link {{ request()->routeIs('old-gold.*') ? 'active' : '' }}" href="{{ route('old-gold.index') }}"><i class="bi bi-arrow-repeat"></i><span>Exchange</span></a>
                     @endcan
                     @can('repairs.view')
                         <a class="nav-link {{ request()->routeIs('repairs.*') ? 'active' : '' }}" href="{{ route('repairs.index') }}"><i class="bi bi-tools"></i><span>Repairs</span></a>
+                    @endcan
+                    @can('rates.view')
+                        <div class="menu-label">Rates</div>
+                        <a class="nav-link {{ request()->routeIs('rates.*') ? 'active' : '' }}" href="{{ route('rates.index') }}"><i class="bi bi-graph-up-arrow"></i><span>Metal rates</span></a>
                     @endcan
                     @if (auth()->user()->can('items.view') || auth()->user()->can('purchase.view') || auth()->user()->can('inventory.view') || auth()->user()->can('reports.view'))
                         <div class="menu-label">Stock</div>
@@ -81,11 +80,11 @@
                     @endcan
                     @can('reports.view')
                         <div class="menu-label">Reports</div>
-                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('grams') ? 'active' : '' }}" href="{{ route('reports.stock', ['grams' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Gram stock report</span></a>
-                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock', ['report' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Stock report</span></a>
-                        <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-bar-chart"></i><span>Sales report</span></a>
-                        <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-cash-coin"></i><span>Outstanding</span></a>
-                        <a class="nav-link {{ request()->routeIs('reports.own-gold') ? 'active' : '' }}" href="{{ route('reports.own-gold') }}"><i class="bi bi-receipt"></i><span>Own gold bills</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('grams') ? 'active' : '' }}" href="{{ route('reports.stock', ['grams' => 1]) }}"><i class="bi bi-clipboard-data"></i><span>Stock and purchase report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.stock') && request()->boolean('report') ? 'active' : '' }}" href="{{ route('reports.stock', ['report' => 1]) }}"><i class="bi bi-box-seam"></i><span>Pieces report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-receipt"></i><span>Sales report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-people"></i><span>Customer dues report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.own-gold') ? 'active' : '' }}" href="{{ route('reports.own-gold') }}"><i class="bi bi-gem"></i><span>Own gold report</span></a>
                     @endcan
                     @can('masters.view')
                         <div class="menu-label">Masters</div>

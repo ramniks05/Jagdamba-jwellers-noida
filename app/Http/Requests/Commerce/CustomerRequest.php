@@ -26,8 +26,14 @@ class CustomerRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $mobile = preg_replace('/[\s-]+/', '', trim((string) $this->input('mobile')));
+
+        if (trim((string) $this->input('name')) === '' && $mobile !== '') {
+            $this->merge(['name' => $mobile]);
+        }
+
         $this->merge([
-            'mobile' => preg_replace('/[\s-]+/', '', trim((string) $this->input('mobile'))),
+            'mobile' => $mobile,
             'pan' => Str::upper(trim((string) $this->input('pan'))),
             'gstin' => Str::upper(trim((string) $this->input('gstin'))),
         ]);
@@ -73,6 +79,7 @@ class CustomerRequest extends FormRequest
     public function messages(): array
     {
         return IdentityRules::messages() + [
+            'name.required' => 'Enter the customer\'s name or mobile number.',
             'dob.before_or_equal' => 'Date of birth cannot be in the future.',
         ];
     }
