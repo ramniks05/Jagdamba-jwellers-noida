@@ -196,7 +196,7 @@
                 </div>
 
                 <div class="card mb-3">
-                    <div class="card-header bg-white">Making and wastage</div>
+                    <div class="card-header bg-white">Making and Hallmark</div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-sm-6">
@@ -215,7 +215,7 @@
                                 </div>
                             </div>
                             <div class="col-sm-6">
-                                <label class="form-label" for="wastage_method_uuid">Wastage</label>
+                                <label class="form-label" for="wastage_method_uuid">Hallmark</label>
                                 <div class="charge-pair">
                                     <select class="form-select" id="wastage_method_uuid" name="wastage_method_uuid">
                                         <option value="" data-code="">None</option>
@@ -224,7 +224,7 @@
                                         @endforeach
                                     </select>
                                     <div class="input-group">
-                                        <input class="form-control" id="wastage_value" name="wastage_value" value="{{ $field('wastage_value', $item->wastage_value, 4) }}" inputmode="decimal" placeholder="0" aria-label="Wastage amount">
+                                        <input class="form-control" id="wastage_value" name="wastage_value" value="{{ $field('wastage_value', $item->wastage_value, 4) }}" inputmode="decimal" placeholder="0" aria-label="Hallmark amount">
                                         <span class="input-group-text" id="wastage-unit"></span>
                                     </div>
                                 </div>
@@ -316,7 +316,7 @@
                             <div class="bill-block mt-0">
                                 <div class="bill-row bill-row-muted"><span>Net weight</span><span id="sum-net">0.000 g</span></div>
                                 <div class="bill-row"><span id="sum-rate-label">Metal</span><span id="sum-metal">₹0.00</span></div>
-                                <div class="bill-row d-none" id="sum-wastage-row"><span>Wastage</span><span id="sum-wastage">₹0.00</span></div>
+                                <div class="bill-row d-none" id="sum-wastage-row"><span>Hallmark</span><span id="sum-wastage">₹0.00</span></div>
                                 <div class="bill-row d-none" id="sum-making-row"><span>Making</span><span id="sum-making">₹0.00</span></div>
                                 <div class="bill-row d-none" id="sum-stone-row"><span>Stones</span><span id="sum-stone">₹0.00</span></div>
                             </div>

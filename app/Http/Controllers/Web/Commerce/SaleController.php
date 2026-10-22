@@ -250,6 +250,7 @@ class SaleController extends Controller
 
         return [
             'name' => $line->name,
+            'category' => (string) ($item->category?->name ?? ''),
             'metal' => trim($line->metal_name.' '.$line->purity_name),
             'line' => (float) $line->line_amount,
             'netWeight' => (float) $line->net_weight,
@@ -267,6 +268,7 @@ class SaleController extends Controller
             'stones' => $stones,
             'fields' => [
                 'name' => $line->name,
+                'category_uuid' => (string) ($item->category?->uuid ?? ''),
                 'huid' => (string) ($item->huid ?? ''),
                 'metal_uuid' => $item->metalType->uuid,
                 'purity_uuid' => $item->purity->uuid,
@@ -284,7 +286,7 @@ class SaleController extends Controller
             'form' => [
                 'name' => $line->name,
                 'huid' => (string) ($item->huid ?? ''),
-                'product' => '',
+                'product' => (string) ($item->category?->uuid ?? ''),
                 'metal' => $item->metalType->uuid,
                 'purity' => $item->purity->uuid,
                 'location' => $item->location->uuid,

@@ -87,7 +87,7 @@
                         <div class="invoice-split">
                             <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>
                             @if ((float) $line->wastage_amount > 0)
-                                <div><span>Wastage</span><strong>{{ $money((string) $line->wastage_amount) }}</strong></div>
+                                <div><span>Hallmark</span><strong>{{ $money((string) $line->wastage_amount) }}</strong></div>
                             @endif
                             @forelse ($line->stones as $stone)
                                 <div>

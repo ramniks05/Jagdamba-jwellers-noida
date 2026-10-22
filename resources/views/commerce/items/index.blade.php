@@ -22,17 +22,48 @@
             <a class="btn btn-primary" href="{{ route('items.create') }}"><i class="bi bi-plus-lg"></i> Add piece</a>
         @endcan
     </div>
+    @if ($categorySummary->isNotEmpty())
+        <section class="category-summary" aria-label="In stock by category">
+            <div class="category-summary-head">
+                <div class="weigh-section-title mb-0"><i class="bi bi-tags"></i> In stock by category · {{ $categorySummary->sum('in_stock') }} pcs</div>
+                <div class="d-flex gap-3 small">
+                    @if ($categoryUuid !== '')
+                        <a href="{{ route('items.index', ['status' => $status] + array_filter(['search' => $search])) }}">Show all categories</a>
+                    @endif
+                    @can('reports.view')
+                        <a href="{{ route('reports.categories') }}">Pieces by category report</a>
+                    @endcan
+                </div>
+            </div>
+            <div class="category-tiles">
+                @foreach ($categorySummary as $row)
+                    @php($key = $row['uuid'] ?? 'none')
+                    <a class="category-tile {{ $categoryUuid === $key ? 'is-active' : '' }}" href="{{ route('items.index', ['status' => 'available', 'category' => $key] + array_filter(['search' => $search])) }}">
+                        <div class="category-tile-name" title="{{ $row['name'] }}">{{ $row['name'] }}</div>
+                        <div class="category-tile-count">{{ $row['in_stock'] }} <small>pcs</small></div>
+                        <div class="category-tile-weight">Net {{ $weight($row['net']) }}</div>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
     <div class="d-flex flex-wrap gap-2 mb-2">
         @foreach ($filters as $key => $label)
             @php($count = $key === '' ? $counts->sum() : ($counts[$key] ?? 0))
-            <a class="btn btn-sm {{ $status === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $key] + array_filter(['search' => $search])) }}">{{ $label }} <span class="opacity-75">{{ $count }}</span></a>
+            <a class="btn btn-sm {{ $status === $key ? 'btn-primary' : 'btn-outline-secondary' }}" href="{{ route('items.index', ['status' => $key] + array_filter(['search' => $search, 'category' => $categoryUuid])) }}">{{ $label }} <span class="opacity-75">{{ $count }}</span></a>
         @endforeach
+        @if ($categoryName)
+            <span class="btn btn-sm btn-outline-primary disabled">Category: {{ $categoryName }}</span>
+        @endif
         @if (! array_key_exists($status, $filters))
             <span class="btn btn-sm btn-primary disabled">{{ App\Enums\ItemStatus::tryFrom($status)?->label() }}</span>
         @endif
     </div>
     <form class="filter-bar" method="GET" action="{{ route('items.index') }}">
         <input type="hidden" name="status" value="{{ $status }}">
+        @if ($categoryUuid !== '')
+            <input type="hidden" name="category" value="{{ $categoryUuid }}">
+        @endif
         <div class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label class="form-label" for="piece-search">Find</label>
@@ -41,7 +72,7 @@
             <div class="col-auto d-flex gap-2">
                 <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-search"></i> Find</button>
                 @if ($search !== '')
-                    <a class="btn btn-outline-secondary" href="{{ route('items.index', ['status' => $status]) }}">Clear</a>
+                    <a class="btn btn-outline-secondary" href="{{ route('items.index', ['status' => $status] + array_filter(['category' => $categoryUuid])) }}">Clear</a>
                 @endif
             </div>
         </div>

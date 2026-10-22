@@ -37,7 +37,7 @@ class PurchaseFlowTest extends TestCase
             ->assertSee('Add own jewellery')
             ->assertSee('value="PC0001"', false)
             ->assertSee('Gross g')
-            ->assertSee('Making and wastage')
+            ->assertSee('Making and Hallmark')
             ->assertSee('Add stone')
             ->assertDontSee('name="supplier_uuid"', false)
             ->assertDontSee('name="source"', false);
@@ -98,7 +98,7 @@ class PurchaseFlowTest extends TestCase
             ->assertSee('their bill MB/221')
             ->assertSee('Part paid')
             ->assertSee('Send ticked pieces back')
-            ->assertSee('wastage 2%');
+            ->assertSee('hallmark 2%');
 
         $chain = $purchase->lines[1];
         $this->actingAs($owner)->post(route('purchases.return', $purchase), ['lines' => [$chain->uuid]])->assertRedirect();

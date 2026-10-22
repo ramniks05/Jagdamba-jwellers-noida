@@ -100,7 +100,7 @@
                     </div>
                     <div class="bill-block">
                         <div class="bill-row"><span>Making</span><span>{{ $chargeText($item->makingMethod, $item->making_value) }}</span></div>
-                        <div class="bill-row"><span>Wastage</span><span>{{ $chargeText($item->wastageMethod, $item->wastage_value) }}</span></div>
+                        <div class="bill-row"><span>Hallmark</span><span>{{ $chargeText($item->wastageMethod, $item->wastage_value) }}</span></div>
                         <div class="bill-row"><span>Stones value</span><span>{{ (float) $item->stone_value > 0 ? $money((string) $item->stone_value) : '—' }}</span></div>
                         <div class="bill-row"><span>Cost price</span><span>{{ (float) $item->cost_price > 0 ? $money((string) $item->cost_price) : '—' }}</span></div>
                         @if ((float) $item->selling_price > 0)
@@ -121,7 +121,7 @@
                         <div class="bill-block mt-0">
                             <div class="bill-row"><span>Metal at {{ $money((string) $rate->rate_per_gram) }} / g</span><span>{{ $money($price['metal_amount']) }}</span></div>
                             @if ((float) $price['wastage_amount'] > 0)
-                                <div class="bill-row"><span>Wastage</span><span>{{ $money($price['wastage_amount']) }}</span></div>
+                                <div class="bill-row"><span>Hallmark</span><span>{{ $money($price['wastage_amount']) }}</span></div>
                             @endif
                             @if ((float) $price['making_amount'] > 0)
                                 <div class="bill-row"><span>Making</span><span>{{ $money($price['making_amount']) }}</span></div>

@@ -22,6 +22,7 @@ use App\Services\Commerce\InventoryService;
 use App\Services\Commerce\ItemService;
 use App\Services\Commerce\JewelleryPricer;
 use App\Services\Commerce\OldGoldStockService;
+use App\Services\Commerce\PieceCategorySummary;
 use App\Services\Commerce\RateBook;
 use App\Services\Foundation\NumberFormatService;
 use App\Support\CompanyContext;
@@ -36,11 +37,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ItemController extends Controller
 {
-    public function index(Request $request, NumberFormatService $format, CompanyContext $context): View
+    public function index(Request $request, NumberFormatService $format, CompanyContext $context, PieceCategorySummary $summary): View
     {
         $this->authorize('viewAny', Item::class);
         $search = trim((string) $request->query('search', ''));
         $status = (string) $request->query('status', '');
+        $categoryUuid = trim((string) $request->query('category', ''));
+        $category = $categoryUuid === '' || $categoryUuid === 'none' ? null : Category::withTrashed()->where('uuid', $categoryUuid)->first();
 
         $status = $request->has('status') ? $status : ItemStatus::Available->value;
 
@@ -49,6 +52,8 @@ class ItemController extends Controller
             ->with(['metalType', 'purity', 'location.branch', 'category'])
             ->matching($search)
             ->when(ItemStatus::tryFrom($status), fn ($query, $parsed) => $query->where('status', $parsed))
+            ->when($categoryUuid === 'none', fn ($query) => $query->whereNull('category_id'))
+            ->when($categoryUuid !== '' && $categoryUuid !== 'none', fn ($query) => $query->where('category_id', $category?->id ?? 0))
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
@@ -58,6 +63,9 @@ class ItemController extends Controller
             'search' => $search,
             'status' => $status,
             'statuses' => ItemStatus::cases(),
+            'categoryUuid' => $categoryUuid,
+            'categoryName' => $categoryUuid === 'none' ? 'No category' : $category?->name,
+            'categorySummary' => $summary->rows()->filter(fn (array $row) => $row['in_stock'] > 0)->values(),
             'counts' => Item::query()->where('own_gold', false)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
             'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
         ]);
@@ -82,6 +90,7 @@ class ItemController extends Controller
             $item->setRelation('metalType', $gold);
             $item->setRelation('purity', $gold ? Purity::query()->where('metal_type_id', $gold->id)->where('code', '22K')->first() : null);
             $item->setRelation('makingMethod', ChargeMethod::query()->where('applies_to', 'making')->where('code', 'per_gram')->where('is_active', true)->first());
+            $item->setRelation('wastageMethod', ChargeMethod::query()->where('applies_to', 'wastage')->where('code', 'fixed')->where('is_active', true)->first());
         }
 
         $fromOldGold = $request->filled('from_old_gold')

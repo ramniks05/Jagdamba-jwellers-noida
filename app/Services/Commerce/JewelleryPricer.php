@@ -201,7 +201,7 @@ class JewelleryPricer
             'per_gram' => $net->multipliedBy($amount),
             'fixed' => $amount,
             default => throw ValidationException::withMessages([
-                'wastage' => 'This wastage method cannot be used on a bill.',
+                'wastage' => 'This Hallmark method cannot be used on a bill.',
             ]),
         };
     }

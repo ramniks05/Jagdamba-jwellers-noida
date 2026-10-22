@@ -11,7 +11,7 @@
         $supplierValue = old('supplier_uuid', $chosenSupplier);
         $pricing = old('pricing', 'rate');
         $defaultMaking = old('default_making_method', $making->firstWhere('code', 'per_gram')?->uuid);
-        $defaultWastage = old('default_wastage_method', $wastage->firstWhere('code', 'percentage')?->uuid);
+        $defaultWastage = old('default_wastage_method', $wastage->firstWhere('code', 'fixed')?->uuid);
         $oldPayments = old('payments', []);
     @endphp
 
@@ -74,7 +74,7 @@
                                 </div>
                             </div>
                             <div class="col-sm-6">
-                                <label class="form-label" for="default-wastage">Wastage</label>
+                                <label class="form-label" for="default-wastage">Hallmark</label>
                                 <div class="charge-pair">
                                     <select class="form-select" id="default-wastage" name="default_wastage_method">
                                         <option value="" data-code="">None</option>
@@ -83,7 +83,7 @@
                                         @endforeach
                                     </select>
                                     <div class="input-group">
-                                        <input class="form-control" id="default-wastage-value" name="default_wastage_value" value="{{ old('default_wastage_value') }}" inputmode="decimal" placeholder="0" aria-label="Wastage">
+                                        <input class="form-control" id="default-wastage-value" name="default_wastage_value" value="{{ old('default_wastage_value') }}" inputmode="decimal" placeholder="0" aria-label="Hallmark">
                                         <span class="input-group-text" id="default-wastage-unit"></span>
                                     </div>
                                 </div>
@@ -185,7 +185,7 @@
             </div>
             <div class="metal-row purchase-cost">
                 <div class="by-rate"><label>Rate ₹/g</label><input class="form-control" data-key="rate_per_gram" inputmode="decimal" placeholder="0"></div>
-                <div class="by-rate"><label>Wastage %</label><input class="form-control" data-key="wastage_percent" inputmode="decimal" placeholder="0"></div>
+                <div class="by-rate"><label>Hallmark %</label><input class="form-control" data-key="wastage_percent" inputmode="decimal" placeholder="0"></div>
                 <div class="by-rate"><label>Labour ₹/g</label><input class="form-control" data-key="labour_per_gram" inputmode="decimal" placeholder="0"></div>
                 <div class="by-amount"><label>Amount ₹</label><input class="form-control metal-net" data-key="amount" inputmode="decimal" placeholder="Amount"></div>
                 <div><label>Stones ₹</label><input class="form-control" data-key="stone_value" inputmode="decimal" placeholder="0"></div>
@@ -210,7 +210,7 @@
                         </div>
                     </div>
                     <div>
-                        <label>Selling wastage</label>
+                        <label>Selling Hallmark</label>
                         <div class="charge-pair">
                             <select class="form-select" data-key="wastage_method_uuid">
                                 <option value="" data-code="">None</option>
@@ -219,7 +219,7 @@
                                 @endforeach
                             </select>
                             <div class="input-group">
-                                <input class="form-control" data-key="wastage_value" inputmode="decimal" placeholder="0" aria-label="Selling wastage value">
+                                <input class="form-control" data-key="wastage_value" inputmode="decimal" placeholder="0" aria-label="Selling Hallmark value">
                                 <span class="input-group-text wastage-unit"></span>
                             </div>
                         </div>

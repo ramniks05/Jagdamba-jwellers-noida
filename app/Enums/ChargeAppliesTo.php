@@ -11,7 +11,7 @@ enum ChargeAppliesTo: string
     {
         return match ($this) {
             self::Making => 'Making charges',
-            self::Wastage => 'Wastage',
+            self::Wastage => 'Hallmark',
         };
     }
 }

@@ -131,7 +131,7 @@
                                         @if ((float) $line->wastage_percent > 0 || (float) $line->labour_per_gram > 0 || (float) $line->stone_amount > 0)
                                             <div class="small text-secondary">
                                                 {{ collect([
-                                                    (float) $line->wastage_percent > 0 ? 'wastage '.$trim($line->wastage_percent).'%' : null,
+                                                    (float) $line->wastage_percent > 0 ? 'hallmark '.$trim($line->wastage_percent).'%' : null,
                                                     (float) $line->labour_per_gram > 0 ? 'labour '.$money((string) $line->labour_per_gram).'/g' : null,
                                                     (float) $line->stone_amount > 0 ? 'stones '.$money((string) $line->stone_amount) : null,
                                                 ])->filter()->implode(' · ') }}

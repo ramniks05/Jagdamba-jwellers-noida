@@ -19,6 +19,7 @@ use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
 use App\Models\Supplier;
 use App\Services\Commerce\MetalStockService;
+use App\Services\Commerce\PieceCategorySummary;
 use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
@@ -145,6 +146,33 @@ class ReportController extends Controller
             'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
             'editing' => $editing,
             'purchases' => $purchases,
+        ]);
+    }
+
+    public function categories(Request $request, PieceCategorySummary $summary, NumberFormatService $format, CompanyContext $context): View
+    {
+        $this->authorize('reports.view');
+        $company = $context->company();
+        $metal = trim((string) $request->query('metal', ''));
+        $location = trim((string) $request->query('location', ''));
+        $rows = $summary->rows($metal ?: null, $location ?: null);
+        $sum = fn (string $key) => number_format($rows->sum(fn (array $row) => (float) $row[$key]), 3, '.', '');
+
+        return view('commerce.reports.categories', [
+            'rows' => $rows,
+            'totals' => [
+                'in_stock' => $rows->sum('in_stock'),
+                'gross' => $sum('gross'),
+                'net' => $sum('net'),
+                'reserved' => $rows->sum('reserved'),
+                'repair' => $rows->sum('repair'),
+                'sold' => $rows->sum('sold'),
+            ],
+            'metals' => MetalType::query()->where('is_active', true)->orderBy('name')->get(),
+            'locations' => StockLocation::query()->with('branch')->orderBy('name')->get(),
+            'filters' => compact('metal', 'location'),
+            'company' => $company,
+            'weight' => fn (string $amount) => $format->weight($amount, $company),
         ]);
     }
 

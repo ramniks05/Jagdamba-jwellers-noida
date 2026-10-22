@@ -107,9 +107,9 @@ class PurchaseRequest extends FormRequest
             'name' => 'name', 'item_code' => 'item code', 'category_uuid' => 'category', 'metal_uuid' => 'metal',
             'purity_uuid' => 'purity', 'gross_weight' => 'gross weight', 'stone_weight' => 'stone weight',
             'other_weight' => 'other weight', 'stone_value' => 'stone charge', 'rate_per_gram' => 'rate per gram',
-            'wastage_percent' => 'wastage %', 'labour_per_gram' => 'labour per gram', 'amount' => 'amount',
-            'making_method_uuid' => 'selling making', 'making_value' => 'selling making', 'wastage_method_uuid' => 'selling wastage',
-            'wastage_value' => 'selling wastage', 'huid' => 'HUID',
+            'wastage_percent' => 'hallmark %', 'labour_per_gram' => 'labour per gram', 'amount' => 'amount',
+            'making_method_uuid' => 'selling making', 'making_value' => 'selling making', 'wastage_method_uuid' => 'selling hallmark',
+            'wastage_value' => 'selling hallmark', 'huid' => 'HUID',
         ];
         $attributes = [
             'supplier_uuid' => 'supplier',

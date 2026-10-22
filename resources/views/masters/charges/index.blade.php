@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Making and wastage')
+@section('title', 'Making and Hallmark')
 
 @section('content')
     @include('masters.partials.head', [
-        'title' => 'Making and wastage',
+        'title' => 'Making and Hallmark',
         'intro' => 'Rename a method or hide it from the piece and bill screens. The calculation behind each method stays fixed, and the rate is entered on each piece. How making is taxed is chosen in Settings.',
         'actions' => [
             ['url' => route('settings.edit'), 'label' => 'Settings', 'icon' => 'sliders'],

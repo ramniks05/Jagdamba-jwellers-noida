@@ -49,15 +49,15 @@
                 <div class="card mb-3">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
-                        <div class="weigh-section-title">Piece</div>
+                        <div class="weigh-section-title">Category</div>
                         <div class="bill-products" id="weigh-products">
                             @foreach ($categories as $category)
-                                <button type="button" data-name="{{ $category->name }}">{{ $category->name }}</button>
+                                <button type="button" data-uuid="{{ $category->uuid }}" data-name="{{ $category->name }}">{{ $category->name }}</button>
                             @endforeach
                         </div>
                         <div class="mt-2">
-                            <label class="form-label" for="weigh-name">Name</label>
-                            <input class="form-control" id="weigh-name" placeholder="Ring" value="{{ $order?->description }}">
+                            <label class="form-label" for="weigh-name">Piece name</label>
+                            <input class="form-control" id="weigh-name" placeholder="Choose a category, then type the name if it is different" value="{{ $order?->description }}">
                         </div>
                         <div class="mt-2">
                             <label class="form-label" for="weigh-huid">HUID</label>
@@ -138,15 +138,15 @@
                                     </div>
                                 </div>
                                 <div class="weight-field">
-                                    <label for="weigh-wastage">Wastage</label>
+                                    <label for="weigh-wastage">Hallmark</label>
                                     <div class="input-group">
                                         <select class="form-select charge-method" id="weigh-wastage">
                                             <option value="">None</option>
                                             @foreach ($wastage as $method)
-                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
+                                                <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'fixed')>{{ $method->name }}</option>
                                             @endforeach
                                         </select>
-                                        <input class="form-control charge-value" id="weigh-wastage-value" inputmode="decimal" value="0" aria-label="Wastage amount">
+                                        <input class="form-control charge-value" id="weigh-wastage-value" inputmode="decimal" value="0" aria-label="Hallmark amount">
                                     </div>
                                 </div>
                             </div>
@@ -197,7 +197,7 @@
                             <div class="bill-row bill-row-muted"><span>Net weight</span><span id="bill-net-weight">0.000 g</span></div>
                             <div class="bill-row"><span>Metal value</span><span id="bill-metal">0.00</span></div>
                             <div class="bill-row d-none" id="bill-stone-row"><span>Stones</span><span id="bill-stone">0.00</span></div>
-                            <div class="bill-row d-none" id="bill-wastage-row"><span>Wastage</span><span id="bill-wastage">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-wastage-row"><span>Hallmark</span><span id="bill-wastage">0.00</span></div>
                             <div class="bill-row d-none" id="bill-making-row"><span id="bill-making-label">Making</span><span id="bill-making">0.00</span></div>
                             <div class="bill-row bill-row-sub"><span>Pieces total</span><span id="bill-subtotal">0.00</span></div>
                         </div>
@@ -497,7 +497,7 @@
             const parts = [
                 { kind: 'metal', name: metal.text + ' ' + purity.text, weight: net.toFixed(3) + ' g', rate: money.format(rateValue) + '/g', amount: metalAmount },
                 ...stoneRows.map((row) => ({ ...row, kind: 'stone' })),
-                ...(wastageAmount > 0 ? [chargeRow('Wastage', wastageCode, wastageValue, round2(wastageAmount), 'wastage')] : []),
+                ...(wastageAmount > 0 ? [chargeRow('Hallmark', wastageCode, wastageValue, round2(wastageAmount), 'wastage')] : []),
                 ...(makingAmount > 0 ? [chargeRow(makingLabel, makingCode, makingValue, round2(makingAmount), 'making')] : []),
             ];
             showBreakdown(parts, line, { gross, net, stone: stoneWeight, other });
@@ -510,7 +510,7 @@
             return {
                 name: field('weigh-name'),
                 huid: field('weigh-huid'),
-                product: product ? product.dataset.name : '',
+                product: product ? product.dataset.uuid : '',
                 metal: field('weigh-metal'),
                 purity: field('weigh-purity'),
                 location: field('weigh-location'),
@@ -532,7 +532,7 @@
             const set = (id, value) => { document.getElementById(id).value = value; };
             set('weigh-name', state.name);
             set('weigh-huid', state.huid || '');
-            document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.toggle('active', state.product !== '' && row.dataset.name === state.product));
+            document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.toggle('active', !!state.product && row.dataset.uuid === state.product));
             set('weigh-metal', state.metal);
             set('weigh-purity', state.purity);
             set('weigh-location', state.location);
@@ -610,7 +610,7 @@
             } else if (row.stoneAmount) {
                 parts.push({ kind: 'stone', name: 'Stones', amount: row.stoneAmount });
             }
-            if (row.wastageAmount) parts.push({ kind: 'wastage', name: 'Wastage', amount: row.wastageAmount });
+            if (row.wastageAmount) parts.push({ kind: 'wastage', name: 'Hallmark', amount: row.wastageAmount });
             if (row.makingAmount) parts.push({ kind: 'making', name: 'Making', amount: row.makingAmount });
             return parts;
         }
@@ -645,7 +645,7 @@
                 const huid = line.kind === 'stock' ? line.row.huid : line.row.fields.huid;
                 meta.textContent = line.kind === 'stock'
                     ? [line.row.code, huid ? 'HUID ' + huid : '', line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
-                    : [line.row.metal, huid ? 'HUID ' + huid : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
+                    : [line.row.category, line.row.metal, huid ? 'HUID ' + huid : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
                 nameCell.append(head, meta);
                 const split = document.createElement('div');
                 split.className = 'piece-split bill-line-split';
@@ -851,7 +851,7 @@
             }[mode];
             const taxParts = ['metal'];
             if (stoneTotal > 0) taxParts.push('stones');
-            if (wastageTotal > 0) taxParts.push('wastage');
+            if (wastageTotal > 0) taxParts.push('hallmark');
             if (mode === 'inside' && making > 0) taxParts.push('making');
             const taxOn = taxParts.join(' + ') + (discount > 0 ? ' after discount' : '');
             const taxNote = subtotal <= 0 ? '' : ' on ' + taxOn + (bill.exclusive ? ' ' + money.format(taxBase) : ' (included)');
@@ -1102,9 +1102,11 @@
         document.getElementById('weigh-products').addEventListener('click', (event) => {
             const button = event.target.closest('button');
             if (!button) return;
+            const nameField = document.getElementById('weigh-name');
+            const categoryNames = Array.from(document.querySelectorAll('#weigh-products button')).map((row) => row.dataset.name);
             document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.remove('active'));
             button.classList.add('active');
-            document.getElementById('weigh-name').value = button.dataset.name;
+            if (nameField.value.trim() === '' || categoryNames.includes(nameField.value.trim())) nameField.value = button.dataset.name;
             document.getElementById('weigh-gross').focus();
             previewWeigh();
         });
@@ -1121,8 +1123,10 @@
             const name = document.getElementById('weigh-name').value.trim();
             const stones = collectStones();
             const keptStones = stones.length ? stones : (editingIndex !== null ? (freshLines[editingIndex].stones || []) : []);
-            if (name === '' || quote === null) {
-                error.textContent = name === '' ? 'Choose a product.' : document.getElementById('weigh-price').textContent;
+            const category = document.querySelector('#weigh-products button.active');
+            const needsCategory = document.querySelectorAll('#weigh-products button').length > 0 && !category;
+            if (needsCategory || name === '' || quote === null) {
+                error.textContent = needsCategory ? 'Choose a category.' : (name === '' ? 'Type the piece name.' : document.getElementById('weigh-price').textContent);
                 error.classList.remove('d-none');
                 return;
             }
@@ -1134,6 +1138,7 @@
             const stoneValueTotal = keptStones.reduce((sum, stone) => sum + Number(stone.value || 0), 0);
             const entry = {
                 name,
+                category: category ? category.dataset.name : '',
                 form: weighState(),
                 metal: metal.text + ' ' + purity.text,
                 line: quote.line,
@@ -1146,6 +1151,7 @@
                 stones: keptStones,
                 fields: {
                     name,
+                    category_uuid: category ? category.dataset.uuid : '',
                     huid: document.getElementById('weigh-huid').value.trim().toUpperCase(),
                     metal_uuid: metal.value,
                     purity_uuid: purity.value,

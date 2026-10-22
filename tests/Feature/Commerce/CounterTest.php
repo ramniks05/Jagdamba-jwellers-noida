@@ -226,7 +226,12 @@ class CounterTest extends TestCase
             ->assertOk()
             ->assertSee('RING01')
             ->assertSee('69,000.00')
-            ->assertSee('Find customer');
+            ->assertSee('Find customer')
+            ->assertSee('<label for="weigh-wastage">Hallmark</label>', false)
+            ->assertSee('data-code="fixed" selected', false)
+            ->assertDontSee('Wastage')
+            ->assertDontSee('HM (');
+        $bangle = Category::query()->where('code', 'BANGLE')->firstOrFail();
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $buyer->uuid,
@@ -234,6 +239,7 @@ class CounterTest extends TestCase
             'making_mode' => 'inside',
             'new_piece' => [
                 'name' => 'Counter bangle',
+                'category_uuid' => $bangle->uuid,
                 'metal_uuid' => $gold->uuid,
                 'purity_uuid' => $purity->uuid,
                 'location_uuid' => $location->uuid,
@@ -255,6 +261,10 @@ class CounterTest extends TestCase
         $piece = Item::query()->where('name', 'Counter bangle')->firstOrFail();
         $this->assertSame('PC0001', $piece->item_code);
         $this->assertSame(ItemStatus::Sold, $piece->status);
+        $this->assertSame($bangle->id, $piece->category_id);
+        $this->actingAs($owner)->get(route('sales.show', SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale))
+            ->assertOk()
+            ->assertSee('Hallmark');
         $this->assertSame('71070.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
     }
 

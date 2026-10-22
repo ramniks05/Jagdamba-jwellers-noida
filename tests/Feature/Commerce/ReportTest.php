@@ -177,6 +177,47 @@ class ReportTest extends TestCase
         }
     }
 
+    public function test_pieces_are_counted_by_category_on_the_pieces_page_and_its_report(): void
+    {
+        $owner = $this->shopUser();
+        $this->rate($owner);
+        foreach (['RING01', 'RING02', 'RING03'] as $code) {
+            $this->addPiece($owner, $code);
+        }
+        foreach (['CHAIN01', 'CHAIN02'] as $code) {
+            $this->addPiece($owner, $code, 'CHAIN');
+        }
+        $this->sell($owner, $this->customer($owner, 'Meera Shah', '9876500011'), 'RING01', '71000');
+        $this->seeShop($owner);
+        $chain = Category::query()->where('code', 'CHAIN')->firstOrFail();
+
+        $page = $this->actingAs($owner)->get(route('items.index'))
+            ->assertOk()
+            ->assertSee('In stock by category · 4 pcs')
+            ->assertSee('Pieces by category report');
+        $summary = $page->viewData('categorySummary')->keyBy('name');
+        $this->assertSame(2, $summary['Ring']['in_stock']);
+        $this->assertSame(2, $summary['Chain']['in_stock']);
+        $this->assertSame('20.000', $summary['Chain']['net']);
+
+        $chains = $this->actingAs($owner)->get(route('items.index', ['status' => 'available', 'category' => $chain->uuid]))
+            ->assertOk()
+            ->assertSee('Category: Chain');
+        $this->assertSame(['CHAIN01', 'CHAIN02'], $chains->viewData('items')->pluck('item_code')->sort()->values()->all());
+
+        $report = $this->actingAs($owner)->get(route('reports.categories'))
+            ->assertOk()
+            ->assertSee('Pieces by category report')
+            ->assertSee('4 pcs in stock');
+        $rows = $report->viewData('rows')->keyBy('name');
+        $this->assertSame(1, $rows['Ring']['sold']);
+        $this->assertSame(2, $rows['Ring']['in_stock']);
+        $this->assertSame(4, $report->viewData('totals')['in_stock']);
+
+        $silver = MetalType::query()->where('code', 'SILVER')->firstOrFail();
+        $this->assertCount(0, $this->actingAs($owner)->get(route('reports.categories', ['metal' => $silver->uuid]))->assertOk()->viewData('rows'));
+    }
+
     private function rate(User $owner): void
     {
         $this->seeShop($owner);
@@ -188,7 +229,7 @@ class ReportTest extends TestCase
         ])->assertRedirect(route('rates.index'));
     }
 
-    private function addPiece(User $owner, string $code): void
+    private function addPiece(User $owner, string $code, string $category = 'RING'): void
     {
         $this->seeShop($owner);
 
@@ -196,7 +237,7 @@ class ReportTest extends TestCase
             'name' => 'Gold ring',
             'item_code' => $code,
             'sku' => $code,
-            'category_uuid' => Category::query()->where('code', 'RING')->firstOrFail()->uuid,
+            'category_uuid' => Category::query()->where('code', $category)->firstOrFail()->uuid,
             'metal_uuid' => MetalType::query()->where('code', 'GOLD')->firstOrFail()->uuid,
             'purity_uuid' => Purity::query()->where('code', '22K')->firstOrFail()->uuid,
             'location_uuid' => StockLocation::query()->where('code', 'MAIN')->firstOrFail()->uuid,

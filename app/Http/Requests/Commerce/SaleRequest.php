@@ -85,6 +85,7 @@ class SaleRequest extends FormRequest
             'item_ids.*' => ['uuid', 'distinct'],
             'new_piece' => ['nullable', 'array'],
             'new_piece.name' => ['nullable', 'string', 'max:160'],
+            'new_piece.category_uuid' => ['nullable', 'uuid', Rule::exists('categories', 'uuid')->where($shop)],
             'new_piece.metal_uuid' => ['required_with:new_piece.name', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'new_piece.purity_uuid' => ['required_with:new_piece.name', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'new_piece.location_uuid' => ['required_with:new_piece.name', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],
@@ -106,6 +107,7 @@ class SaleRequest extends FormRequest
             'new_piece.stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
             'new_pieces' => ['array'],
             'new_pieces.*.name' => ['required', 'string', 'max:160'],
+            'new_pieces.*.category_uuid' => ['nullable', 'uuid', Rule::exists('categories', 'uuid')->where($shop)],
             'new_pieces.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'new_pieces.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'new_pieces.*.location_uuid' => ['required', 'uuid', Rule::exists('stock_locations', 'uuid')->where($shop)],
@@ -174,7 +176,7 @@ class SaleRequest extends FormRequest
             }
         }
 
-        foreach (['making_method_uuid', 'wastage_method_uuid'] as $field) {
+        foreach (['making_method_uuid', 'wastage_method_uuid', 'category_uuid'] as $field) {
             if (($row[$field] ?? '') === '') {
                 $row[$field] = null;
             }
