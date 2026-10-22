@@ -260,6 +260,7 @@
                         <p class="small d-none mb-0" id="pay-extra-note"></p>
                     </div>
                 </div>
+                <button class="btn btn-outline-primary w-100 mb-2" type="button" id="bill-preview"><i class="bi bi-eye"></i> Preview bill</button>
                 <button class="btn btn-primary w-100" type="submit">{{ $sale ? 'Update '.$sale->number : 'Save invoice' }}</button>
             </div>
         </div>
@@ -267,8 +268,26 @@
 
     @include('commerce.partials.customer-modals', ['document' => 'bill'])
 
+    <div class="modal fade" id="bill-preview-modal" tabindex="-1" aria-labelledby="bill-preview-title" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="bill-preview-title">Bill preview</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bill-preview-body" id="bill-preview-body"></div>
+                <div class="modal-footer">
+                    <span class="small text-secondary me-auto">Nothing is saved until you press {{ $sale ? 'Update' : 'Save invoice' }}.</span>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back to bill</button>
+                    <button type="button" class="btn btn-primary" id="bill-preview-save">{{ $sale ? 'Update '.$sale->number : 'Save invoice' }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="application/json" id="bill-config">{!! json_encode([
         'csrf' => csrf_token(),
+        'previewUrl' => $sale ? route('sales.preview.edit', $sale) : route('sales.preview'),
         'customerUrl' => route('customers.store'),
         'customerShowUrl' => auth()->user()?->can('viewAny', App\Models\Customer::class) ? route('customers.show', '__customer__') : null,
         'gst' => (float) $gstPercent,
@@ -1188,6 +1207,56 @@
                 event.preventDefault();
                 scanInput.focus();
             }
+        });
+        document.getElementById('bill-preview').addEventListener('click', async () => {
+            if (!picker.ensure()) return;
+            if (stockLines.length === 0 && freshLines.length === 0) {
+                scanInput.focus();
+                return;
+            }
+            const button = document.getElementById('bill-preview');
+            const body = document.getElementById('bill-preview-body');
+            const saveButton = document.getElementById('bill-preview-save');
+            body.innerHTML = '<div class="text-secondary small">Making the preview…</div>';
+            saveButton.disabled = true;
+            button.disabled = true;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('bill-preview-modal')).show();
+            try {
+                const response = await fetch(bill.previewUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': bill.csrf },
+                    body: new FormData(document.getElementById('bill-form')),
+                });
+                if (response.status === 422) {
+                    const payload = await response.json();
+                    const box = document.createElement('div');
+                    box.className = 'alert alert-danger mb-0';
+                    const title = document.createElement('div');
+                    title.className = 'fw-semibold mb-1';
+                    title.textContent = 'Fix these before saving:';
+                    const list = document.createElement('ul');
+                    list.className = 'mb-0';
+                    [...new Set(Object.values(payload.errors || {}).flat())].forEach((message) => {
+                        const item = document.createElement('li');
+                        item.textContent = message;
+                        list.appendChild(item);
+                    });
+                    box.append(title, list);
+                    body.replaceChildren(box);
+                    return;
+                }
+                if (!response.ok) throw new Error();
+                body.innerHTML = await response.text();
+                saveButton.disabled = false;
+            } catch (error) {
+                body.innerHTML = '<div class="alert alert-danger mb-0">The preview could not be made. Check the connection and try again.</div>';
+            } finally {
+                button.disabled = false;
+            }
+        });
+        document.getElementById('bill-preview-save').addEventListener('click', () => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('bill-preview-modal')).hide();
+            document.getElementById('bill-form').requestSubmit();
         });
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) resetWeigh();

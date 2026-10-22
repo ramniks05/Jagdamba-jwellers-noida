@@ -36,6 +36,8 @@ use App\Support\CustomerShare;
 use Brick\Math\BigDecimal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class SaleController extends Controller
@@ -309,6 +311,39 @@ class SaleController extends Controller
         $sale = $sales->post($context->company(), $request->validated(), $request->user()?->id);
 
         return redirect()->route('sales.show', $sale)->with('status', 'Invoice '.$sale->number.' saved.');
+    }
+
+    public function preview(SaleRequest $request, SaleService $sales, InvoiceSheet $invoice, CompanyContext $context): Response
+    {
+        return $this->previewSheet($request, $sales, $invoice, $context, null);
+    }
+
+    public function previewEdit(SaleRequest $request, Sale $sale, SaleService $sales, InvoiceSheet $invoice, CompanyContext $context): Response
+    {
+        $this->authorize('update', $sale);
+
+        return $this->previewSheet($request, $sales, $invoice, $context, $sale);
+    }
+
+    /**
+     * Saves the bill inside a transaction that is always rolled back, so the preview is the real invoice and nothing is kept.
+     */
+    private function previewSheet(SaleRequest $request, SaleService $sales, InvoiceSheet $invoice, CompanyContext $context, ?Sale $sale): Response
+    {
+        $company = $context->company();
+        DB::beginTransaction();
+
+        try {
+            $draft = $sale
+                ? $sales->revise($sale, $request->validated(), $request->user()?->id)
+                : $sales->post($company, $request->validated(), $request->user()?->id);
+            $draft->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
+            $html = view('commerce.sales.partials.invoice', $invoice->data($draft, $company) + ['preview' => true])->render();
+        } finally {
+            DB::rollBack();
+        }
+
+        return response($html);
     }
 
     public function show(Sale $sale, InvoiceSheet $invoice, WhatsappService $whatsapp, CompanyContext $context): View

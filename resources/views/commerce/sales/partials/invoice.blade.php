@@ -19,7 +19,7 @@
                 @endif
             </div>
             <div class="invoice-head-title">
-                <div class="invoice-kicker">Tax invoice</div>
+                <div class="invoice-kicker">{{ ($preview ?? false) ? 'Preview · not saved yet' : 'Tax invoice' }}</div>
                 <h1>{{ $company->displayName() }}</h1>
                 <div class="invoice-head-address">
                     <p>{{ $company->formattedAddress() }}</p>
@@ -32,8 +32,10 @@
                 </div>
             </div>
             <div class="invoice-head-side invoice-qr invoice-qr-top">
-                <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
-                <span>Scan to view bill</span>
+                @unless ($preview ?? false)
+                    <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
+                    <span>Scan to view bill</span>
+                @endunless
             </div>
         </div>
     </header>

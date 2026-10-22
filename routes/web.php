@@ -138,6 +138,8 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::resource('suppliers', SupplierController::class);
     Route::post('suppliers/{supplier}/payments', [SupplierController::class, 'payment'])->name('suppliers.payments.store');
     Route::get('sales/scan', BillScanController::class)->middleware('throttle:300,1')->name('sales.scan');
+    Route::match(['post', 'put'], 'sales/preview', [SaleController::class, 'preview'])->middleware('throttle:60,1')->name('sales.preview');
+    Route::match(['post', 'put'], 'sales/{sale}/preview', [SaleController::class, 'previewEdit'])->middleware('throttle:60,1')->name('sales.preview.edit');
     Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
     Route::get('sales/{sale}/edit', [SaleController::class, 'edit'])->name('sales.edit');
     Route::put('sales/{sale}', [SaleController::class, 'update'])->name('sales.update');

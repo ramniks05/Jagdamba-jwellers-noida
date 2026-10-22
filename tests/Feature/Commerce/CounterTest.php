@@ -268,6 +268,64 @@ class CounterTest extends TestCase
         $this->assertSame('71070.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
     }
 
+    public function test_the_bill_preview_shows_the_invoice_and_saves_nothing(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $buyer = $this->counterCustomer($owner, 'Preview Buyer');
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+        $this->seeShop($owner);
+        $bill = [
+            'customer_uuid' => $buyer->uuid,
+            'discount' => '0',
+            'new_pieces' => [[
+                'name' => 'Preview chain',
+                'category_uuid' => Category::query()->where('code', 'CHAIN')->firstOrFail()->uuid,
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '10',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => '61800']],
+        ];
+        $items = Item::query()->count();
+        $ledger = \App\Models\LedgerEntry::query()->count();
+
+        $this->actingAs($owner)->get(route('sales.create'))->assertOk()->assertSee('Preview bill');
+        $this->actingAs($owner)->postJson(route('sales.preview'), $bill)
+            ->assertOk()
+            ->assertSee('Preview · not saved yet')
+            ->assertSee('Preview Buyer')
+            ->assertSee('Preview chain')
+            ->assertSee('61,800.00')
+            ->assertSee('JJ/26-27/0001')
+            ->assertDontSee('Scan to view bill');
+
+        $this->seeShop($owner);
+        $this->assertSame(0, Sale::query()->count());
+        $this->assertSame($items, Item::query()->count());
+        $this->assertSame($ledger, \App\Models\LedgerEntry::query()->count());
+
+        $this->actingAs($owner)->postJson(route('sales.preview'), ['customer_uuid' => $buyer->uuid, 'discount' => '0'] + ['payments' => []])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['item_ids']);
+
+        $this->actingAs($owner)->post(route('sales.store'), $bill)->assertRedirect();
+        $this->seeShop($owner);
+        $this->assertSame('JJ/26-27/0001', Sale::query()->sole()->number);
+    }
+
     public function test_a_piece_typed_on_the_bill_keeps_the_huid_typed_with_it(): void
     {
         $owner = $this->shopUser();
