@@ -7,7 +7,7 @@
         $makingTitle = $makingMode === 'processing' ? 'Processing charge' : 'Making';
         $modeLabel = [
             'inside' => 'Making inside jewellery GST',
-            'separate' => 'Making with own GST '.$makingGstPercent.'%',
+            'separate' => 'Processing charge with GST '.(float) $makingGstPercent.'%',
             'processing' => 'Processing charge, no GST',
         ][$makingMode] ?? 'Making inside jewellery GST';
     @endphp
@@ -120,7 +120,7 @@
                             </div>
                             <div class="bill-block">
                                 <div class="bill-row"><span id="sum-tax-label">GST {{ $gstPercent }}%</span><span id="sum-tax">0.00</span></div>
-                                <div class="bill-row d-none" id="sum-making-tax-row"><span id="sum-making-tax-label">GST {{ $makingGstPercent }}% on making</span><span id="sum-making-tax">0.00</span></div>
+                                <div class="bill-row d-none" id="sum-making-tax-row"><span id="sum-making-tax-label">GST {{ $makingGstPercent }}% on processing charge</span><span id="sum-making-tax">0.00</span></div>
                                 <div class="bill-row d-none" id="sum-round-row"><span>Round off</span><span id="sum-round">0.00</span></div>
                             </div>
                             <div class="bill-grand"><span>Estimated bill</span><strong id="sum-total">0.00</strong></div>
@@ -295,7 +295,7 @@
             showRow('sum-making', making, making > 0);
             $('sum-making-label').textContent = {
                 inside: 'Making (in jewellery GST)',
-                separate: 'Making (own GST)',
+                separate: 'Processing charge (GST ' + order.makingGst + '%)',
                 processing: 'Processing charge (no GST)',
             }[mode] + (code === 'percentage' && chargeValue ? ' · ' + chargeValue + '% on metal' : '');
             $('sum-subtotal').textContent = money.format(subtotal);
@@ -303,7 +303,7 @@
             $('sum-tax-label').textContent = 'GST ' + order.gstPercent + '% on ' + taxOn + (order.taxExclusive ? ' ' + money.format(taxBase) : ' (included)');
             $('sum-tax').textContent = money.format(tax);
             $('sum-making-tax-row').classList.toggle('d-none', mode !== 'separate' || making <= 0);
-            $('sum-making-tax-label').textContent = 'GST ' + order.makingGst + '% on making' + (order.taxExclusive ? ' ' + money.format(making) : ' (included)');
+            $('sum-making-tax-label').textContent = 'GST ' + order.makingGst + '% on processing charge' + (order.taxExclusive ? ' ' + money.format(making) : ' (included)');
             $('sum-making-tax').textContent = money.format(makingTax);
             showRow('sum-round', roundOff, roundOff !== 0);
             $('sum-total').textContent = money.format(total);

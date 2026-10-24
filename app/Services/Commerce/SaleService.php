@@ -209,6 +209,7 @@ class SaleService
             $lines = [];
             $linesTotal = BigDecimal::zero();
             $makingTotal = BigDecimal::zero();
+            $hallmarkTotal = BigDecimal::zero();
 
             foreach ($items as $item) {
                 $piece = $locked[$item->id];
@@ -237,7 +238,10 @@ class SaleService
                 $lines[] = ['item' => $piece, 'display' => $item, 'rate' => $rate, 'priced' => $priced];
                 $linesTotal = $linesTotal->plus($priced['line_amount']);
                 $makingTotal = $makingTotal->plus($priced['making_amount']);
+                $hallmarkTotal = $hallmarkTotal->plus($priced['wastage_amount']);
             }
+
+            $hallmarkOutside = ! $existing || $existing->hallmark_amount !== null;
 
             $exclusive = $existing
                 ? ! $existing->prices_include_tax
@@ -254,6 +258,7 @@ class SaleService
                 $existing ? (string) $existing->making_tax_percent : (string) ($this->settings->get('pricing.making_gst_percent', $company) ?? '0'),
                 $exclusive,
                 (bool) $this->settings->get('pricing.round_rupee', $company),
+                $hallmarkOutside ? (string) $hallmarkTotal->toScale(2, RoundingMode::HalfUp) : '0',
             );
 
             $paid = BigDecimal::zero();
@@ -349,6 +354,7 @@ class SaleService
                 'making_amount' => $bill->makingAmount,
                 'making_tax_percent' => $bill->makingTaxPercent,
                 'making_tax_amount' => $bill->makingTaxAmount,
+                'hallmark_amount' => $hallmarkOutside ? $bill->hallmarkAmount : null,
                 'prices_include_tax' => ! $exclusive,
                 'round_off' => $bill->roundOff,
                 'total' => $bill->total,

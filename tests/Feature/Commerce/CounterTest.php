@@ -67,7 +67,7 @@ class CounterTest extends TestCase
             'making_mode' => 'inside',
             'payments' => [
                 ['method' => 'cash', 'amount' => '20000'],
-                ['method' => 'upi', 'amount' => '50555', 'reference' => 'UPI123'],
+                ['method' => 'upi', 'amount' => '50465', 'reference' => 'UPI123'],
             ],
         ])->assertRedirect();
 
@@ -76,7 +76,8 @@ class CounterTest extends TestCase
         $this->assertSame(ItemStatus::Sold, $item->status);
         $line = SaleLine::query()->where('item_id', $item->id)->firstOrFail();
         $this->assertSame('6000.00', (string) $line->rate_per_gram);
-        $this->assertSame('70555.00', (string) $line->sale->total);
+        $this->assertSame('70465.00', (string) $line->sale->total);
+        $this->assertSame('3000.00', (string) $line->sale->hallmark_amount);
 
         $this->actingAs($owner)->post(route('rates.store'), [
             'metal_uuid' => $gold->uuid,
@@ -92,7 +93,8 @@ class CounterTest extends TestCase
         $this->actingAs($owner)
             ->get(route('sales.show', $line->sale))
             ->assertOk()
-            ->assertSee('70,555.00')
+            ->assertSee('70,465.00')
+            ->assertSee('Hallmark (no GST)')
             ->assertSee('Pieces total')
             ->assertSee('Discount')
             ->assertSee('UPI123');
@@ -124,7 +126,7 @@ class CounterTest extends TestCase
         ])->assertRedirect();
 
         $this->seeShop($owner);
-        $this->assertSame('61637.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->assertSame('61545.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
 
         $this->actingAs($owner)
             ->get(route('reports.outstanding'))
@@ -133,7 +135,7 @@ class CounterTest extends TestCase
 
         $this->actingAs($owner)->post(route('customers.payments.store', $customer), [
             'method' => 'upi',
-            'amount' => '61637',
+            'amount' => '61545',
             'reference' => 'SETTLE',
         ])->assertRedirect(route('customers.show', $customer));
 
@@ -253,7 +255,7 @@ class CounterTest extends TestCase
                 'stone_value' => '1000',
             ],
             'payments' => [
-                ['method' => 'cash', 'amount' => '71070'],
+                ['method' => 'cash', 'amount' => '70980'],
             ],
         ])->assertRedirect();
 
@@ -265,7 +267,94 @@ class CounterTest extends TestCase
         $this->actingAs($owner)->get(route('sales.show', SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale))
             ->assertOk()
             ->assertSee('Hallmark');
-        $this->assertSame('71070.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
+        $this->assertSame('70980.00', (string) SaleLine::query()->where('item_id', $piece->id)->firstOrFail()->sale->total);
+    }
+
+    public function test_gst_is_on_metal_and_processing_and_hallmark_is_added_after_it(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '15000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+        $this->seeShop($owner);
+        $fixedMaking = ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('code', 'fixed')->firstOrFail();
+        $fixedHallmark = ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('code', 'fixed')->firstOrFail();
+
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertSee('value="separate" selected', false)
+            ->assertSee('Processing charge with GST 3%');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $buyer->uuid,
+            'discount' => '500',
+            'new_pieces' => [[
+                'name' => 'Ring',
+                'category_uuid' => Category::query()->where('code', 'RING')->firstOrFail()->uuid,
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '2',
+                'other_weight' => '0',
+                'stone_value' => '500',
+                'making_method_uuid' => $fixedMaking->uuid,
+                'making_value' => '1000',
+                'wastage_method_uuid' => $fixedHallmark->uuid,
+                'wastage_value' => '45',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => '31975']],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $sale = Sale::query()->sole();
+        $this->assertSame('separate', $sale->making_mode);
+        $this->assertSame('31545.00', (string) $sale->lines_amount);
+        $this->assertSame('31000.00', (string) $sale->taxable_amount);
+        $this->assertSame('930.00', (string) $sale->tax_amount);
+        $this->assertSame('45.00', (string) $sale->hallmark_amount);
+        $this->assertSame('0.00', (string) $sale->round_off);
+        $this->assertSame('31975.00', (string) $sale->total);
+        $this->assertSame('0.00', $sale->balanceDue());
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSeeInOrder(['Jewellery value', '30,500.00', 'Processing charge', '1,000.00', 'Discount', '500.00', 'Taxable value', '31,000.00', 'CGST 1.5%', '465.00', 'SGST 1.5%', '465.00', 'Hallmark (no GST)', '45.00', 'Total', '31,975.00'])
+            ->assertDontSee('on processing charge');
+
+        $sale->forceFill(['hallmark_amount' => null])->save();
+        $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertDontSee('Hallmark (no GST)');
+        $this->actingAs($owner)->get(route('sales.edit', $sale))->assertOk()->assertSee('"hallmarkOutside":false', false);
+        $this->actingAs($owner)->put(route('sales.update', $sale), [
+            'customer_uuid' => $buyer->uuid,
+            'discount' => '500',
+            'making_mode' => 'separate',
+            'new_pieces' => [[
+                'name' => 'Ring',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '2',
+                'other_weight' => '0',
+                'stone_value' => '500',
+                'making_method_uuid' => $fixedMaking->uuid,
+                'making_value' => '1000',
+                'wastage_method_uuid' => $fixedHallmark->uuid,
+                'wastage_value' => '45',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => '31975']],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+        $sale->refresh();
+        $this->assertNull($sale->hallmark_amount);
+        $this->assertSame('31976.00', (string) $sale->total);
     }
 
     public function test_the_bill_preview_shows_the_invoice_and_saves_nothing(): void

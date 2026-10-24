@@ -11,6 +11,7 @@ use App\Models\Purity;
 use App\Models\Sale;
 use App\Models\StockLocation;
 use App\Models\User;
+use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,29 +20,32 @@ class MakingChargeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_shop_default_is_a_processing_charge_without_gst(): void
+    public function test_the_shop_default_is_a_processing_charge_with_three_percent_gst(): void
     {
         [$owner, $item] = $this->counter('RING01');
 
-        $this->sell($owner, $item, null, '56500');
+        $this->sell($owner, $item, null, '56650');
 
         $sale = Sale::query()->latest('id')->firstOrFail();
-        $this->assertSame('processing', $sale->making_mode);
-        $this->assertSame('1500.00', (string) $sale->tax_amount);
+        $this->assertSame('separate', $sale->making_mode);
+        $this->assertSame('1650.00', (string) $sale->tax_amount);
+        $this->assertSame('150.00', (string) $sale->making_tax_amount);
         $this->assertSame('5000.00', (string) $sale->making_amount);
-        $this->assertSame('56500.00', (string) $sale->total);
+        $this->assertSame('56650.00', (string) $sale->total);
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
-            ->assertSee('Processing charge (no GST)')
-            ->assertSee('CGST 1.5% on jewellery')
+            ->assertSee('Processing charge')
+            ->assertSee('CGST 1.5%')
+            ->assertDontSee('on jewellery')
             ->assertSeeInOrder(['Net weight', '10.000', 'Net metal value', '50,000.00']);
     }
 
-    public function test_one_bill_can_charge_making_with_its_own_gst(): void
+    public function test_the_admin_can_set_another_gst_percent_on_the_processing_charge(): void
     {
         [$owner, $item] = $this->counter('RING02');
+        app(SettingService::class)->setMany($owner->company, ['pricing.making_gst_percent' => '5']);
 
-        $this->sell($owner, $item, 'separate', '56750');
+        $this->sell($owner, $item, null, '56750');
 
         $sale = Sale::query()->latest('id')->firstOrFail();
         $this->assertSame('separate', $sale->making_mode);
@@ -50,7 +54,24 @@ class MakingChargeTest extends TestCase
         $this->assertSame('56750.00', (string) $sale->total);
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
-            ->assertSee('CGST 2.5% on making');
+            ->assertSee('CGST 1.5% on jewellery')
+            ->assertSee('CGST 2.5% on processing charge');
+    }
+
+    public function test_a_bill_can_still_leave_the_processing_charge_out_of_gst(): void
+    {
+        [$owner, $item] = $this->counter('RING04');
+
+        $this->sell($owner, $item, 'processing', '56500');
+
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $this->assertSame('processing', $sale->making_mode);
+        $this->assertSame('1500.00', (string) $sale->tax_amount);
+        $this->assertSame('56500.00', (string) $sale->total);
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Processing charge (no GST)')
+            ->assertSee('CGST 1.5% on jewellery');
     }
 
     public function test_making_inside_jewellery_gst_is_the_old_way(): void

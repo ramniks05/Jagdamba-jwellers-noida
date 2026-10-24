@@ -60,17 +60,22 @@ class InvoiceSheet
     private function taxRows(Sale $sale, Company $company): array
     {
         $makingTax = BigDecimal::of((string) $sale->making_tax_amount);
-        $split = $sale->making_mode !== 'inside';
+        $samePercent = $makingTax->isPositive() && (float) $sale->making_tax_percent === (float) $sale->tax_percent;
+
+        if ($sale->making_mode === 'inside' || $samePercent) {
+            return $this->taxPair($sale, $company, BigDecimal::of((string) $sale->tax_amount), (float) $sale->tax_percent, '');
+        }
+
         $rows = $this->taxPair(
             $sale,
             $company,
             BigDecimal::of((string) $sale->tax_amount)->minus($makingTax),
             (float) $sale->tax_percent,
-            $split ? ' on jewellery' : '',
+            ' on jewellery',
         );
 
         if ($makingTax->isPositive()) {
-            $rows = array_merge($rows, $this->taxPair($sale, $company, $makingTax, (float) $sale->making_tax_percent, ' on making'));
+            $rows = array_merge($rows, $this->taxPair($sale, $company, $makingTax, (float) $sale->making_tax_percent, ' on processing charge'));
         }
 
         return $rows;

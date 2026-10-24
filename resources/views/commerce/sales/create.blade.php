@@ -118,15 +118,15 @@
                         <div class="weigh-section">
                             <div class="charges-head">
                                 <div class="weigh-section-title">Charges</div>
-                                <select class="form-select form-select-sm" id="making-mode" name="making_mode" aria-label="GST on making charge">
-                                    <option value="inside" @selected($makingMode === 'inside')>Making inside jewellery GST</option>
-                                    <option value="separate" @selected($makingMode === 'separate')>Making with own GST {{ $makingGstPercent }}%</option>
+                                <select class="form-select form-select-sm" id="making-mode" name="making_mode" aria-label="GST on processing charge">
+                                    <option value="separate" @selected($makingMode === 'separate')>Processing charge with GST {{ (float) $makingGstPercent }}%</option>
                                     <option value="processing" @selected($makingMode === 'processing')>Processing charge, no GST</option>
+                                    <option value="inside" @selected($makingMode === 'inside')>Making inside jewellery GST</option>
                                 </select>
                             </div>
                             <div class="weigh-metrics">
                                 <div class="weight-field">
-                                    <label for="weigh-making" id="weigh-making-label">Making</label>
+                                    <label for="weigh-making" id="weigh-making-label">{{ $makingMode === 'inside' ? 'Making' : 'Processing charge' }}</label>
                                     <div class="input-group">
                                         <select class="form-select charge-method" id="weigh-making">
                                             <option value="">None</option>
@@ -198,14 +198,15 @@
                             <div class="bill-row"><span>Metal value</span><span id="bill-metal">0.00</span></div>
                             <div class="bill-row d-none" id="bill-stone-row"><span>Stones</span><span id="bill-stone">0.00</span></div>
                             <div class="bill-row d-none" id="bill-wastage-row"><span>Hallmark</span><span id="bill-wastage">0.00</span></div>
-                            <div class="bill-row d-none" id="bill-making-row"><span id="bill-making-label">Making</span><span id="bill-making">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-making-row"><span id="bill-making-label">{{ $makingMode === 'inside' ? 'Making' : 'Processing charge' }}</span><span id="bill-making">0.00</span></div>
                             <div class="bill-row bill-row-sub"><span>Pieces total</span><span id="bill-subtotal">0.00</span></div>
                         </div>
                         <div class="bill-block">
                             <div class="bill-row d-none" id="bill-discount-row"><span>Discount</span><span id="bill-discount">0.00</span></div>
                             <div class="bill-row d-none" id="bill-after-discount-row"><span>After discount</span><span id="bill-after-discount">0.00</span></div>
                             <div class="bill-row"><span id="bill-tax-label">GST {{ $gstPercent }}%</span><span id="bill-tax">0.00</span></div>
-                            <div class="bill-row d-none" id="bill-making-tax-row"><span id="bill-making-tax-label">GST {{ $makingGstPercent }}% on making</span><span id="bill-making-tax">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-making-tax-row"><span id="bill-making-tax-label">GST {{ $makingGstPercent }}% on processing charge</span><span id="bill-making-tax">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-hallmark-row"><span>Hallmark (no GST)</span><span id="bill-hallmark">0.00</span></div>
                             <div class="bill-row d-none" id="bill-round-row"><span>Round off</span><span id="bill-round">0.00</span></div>
                         </div>
                         <div class="bill-grand"><span>Total</span><strong id="bill-total">0.00</strong></div>
@@ -292,6 +293,7 @@
         'customerShowUrl' => auth()->user()?->can('viewAny', App\Models\Customer::class) ? route('customers.show', '__customer__') : null,
         'gst' => (float) $gstPercent,
         'makingGst' => (float) $makingGstPercent,
+        'hallmarkOutside' => ! $sale || $sale->hallmark_amount !== null,
         'exclusive' => $taxExclusive,
         'round' => $roundRupee,
         'order' => $order ? [
@@ -495,7 +497,7 @@
             const wastageAmount = wastageCode === 'percentage' ? net * wastageValue / 100 * rateValue : (wastageCode === 'per_gram' ? net * wastageValue : wastageValue);
             const makingAmount = makingCode === 'per_gram' ? net * makingValue : (makingCode === 'percentage' ? metalAmount * makingValue / 100 : makingValue);
             const line = round2(metalAmount + wastageAmount + makingAmount + stone);
-            const makingLabel = document.getElementById('making-mode').value === 'processing' ? 'Processing charge' : 'Making';
+            const makingLabel = makingName();
             const chargeRow = (name, code, value, amount, kind) => ({
                 kind,
                 name,
@@ -598,7 +600,7 @@
 
         function makingName() {
             const mode = document.getElementById('making-mode').value;
-            return mode === 'processing' ? 'Processing charge' : 'Making';
+            return mode === 'inside' ? 'Making' : 'Processing charge';
         }
 
         function partLabel(part) {
@@ -753,29 +755,33 @@
         function pricedBill(discountValue) {
             const base = pieceBase();
             const mode = document.getElementById('making-mode').value;
-            const discount = Math.min(base.subtotal, Math.max(0, round2(Number(discountValue) || 0)));
+            const hallmark = bill.hallmarkOutside ? Math.min(base.subtotal, base.wastageTotal) : 0;
+            const taxedSubtotal = round2(base.subtotal - hallmark);
+            const making = Math.min(taxedSubtotal, base.making);
+            const discount = Math.min(taxedSubtotal, Math.max(0, round2(Number(discountValue) || 0)));
             const taxOf = (amount, percent) => percent > 0
                 ? round2(bill.exclusive ? amount * percent / 100 : amount * percent / (percent + 100))
                 : 0;
             let tax = 0;
             let makingTax = 0;
-            let taxBase = round2(base.subtotal - discount);
+            let taxBase = round2(taxedSubtotal - discount);
             let makingBase = 0;
             let exact = taxBase;
             if (mode === 'inside') {
                 tax = taxOf(exact, bill.gst);
                 if (bill.exclusive) exact = round2(exact + tax);
             } else {
-                const jewellery = round2(base.subtotal - base.making);
+                const jewellery = round2(taxedSubtotal - making);
                 const jewelleryDiscount = Math.min(discount, jewellery);
                 const jewelleryNet = round2(jewellery - jewelleryDiscount);
-                const makingNet = round2(base.making - (discount - jewelleryDiscount));
+                const makingNet = round2(making - (discount - jewelleryDiscount));
                 taxBase = jewelleryNet;
                 makingBase = makingNet;
                 tax = taxOf(jewelleryNet, bill.gst);
                 makingTax = mode === 'separate' ? taxOf(makingNet, bill.makingGst) : 0;
                 exact = round2(jewelleryNet + makingNet + (bill.exclusive ? tax + makingTax : 0));
             }
+            exact = round2(exact + hallmark);
             let total = exact;
             let roundOff = 0;
             if (bill.round) {
@@ -783,7 +789,7 @@
                 roundOff = round2(total - exact);
             }
 
-            return { ...base, mode, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff };
+            return { ...base, making, mode, hallmark, taxedSubtotal, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff };
         }
 
         function discountForPayable(target) {
@@ -841,7 +847,8 @@
             }
             const priced = pricedBill(document.getElementById('discount').value);
             const rows = priced.rows;
-            const subtotal = priced.subtotal;
+            const subtotal = priced.taxedSubtotal;
+            const hallmark = priced.hallmark;
             const mode = priced.mode;
             const making = priced.making;
             const discount = priced.discount;
@@ -858,27 +865,29 @@
                 document.getElementById(id).textContent = money.format(amount);
             };
             showRow('bill-stone', stoneTotal, stoneTotal > 0);
-            showRow('bill-wastage', wastageTotal, wastageTotal > 0);
+            showRow('bill-wastage', wastageTotal, wastageTotal > 0 && !bill.hallmarkOutside);
+            showRow('bill-hallmark', hallmark, hallmark > 0);
             showRow('bill-making', making, making > 0);
             showRow('bill-discount', discount, discount > 0);
             document.getElementById('bill-discount').textContent = '− ' + money.format(discount);
             showRow('bill-after-discount', round2(subtotal - discount), discount > 0);
             document.getElementById('bill-making-label').textContent = {
                 inside: 'Making (in jewellery GST)',
-                separate: 'Making (own GST)',
+                separate: 'Processing charge (GST ' + bill.makingGst + '%)',
                 processing: 'Processing charge (no GST)',
             }[mode];
             const taxParts = ['metal'];
             if (stoneTotal > 0) taxParts.push('stones');
-            if (wastageTotal > 0) taxParts.push('hallmark');
+            if (wastageTotal > 0 && !bill.hallmarkOutside) taxParts.push('hallmark');
             if (mode === 'inside' && making > 0) taxParts.push('making');
             const taxOn = taxParts.join(' + ') + (discount > 0 ? ' after discount' : '');
             const taxNote = subtotal <= 0 ? '' : ' on ' + taxOn + (bill.exclusive ? ' ' + money.format(taxBase) : ' (included)');
             document.getElementById('bill-tax-label').textContent = 'GST ' + bill.gst + '%' + taxNote;
             document.getElementById('bill-making-tax-row').classList.toggle('d-none', mode !== 'separate' || making <= 0);
-            document.getElementById('bill-making-tax-label').textContent = 'GST ' + bill.makingGst + '% on making' + (subtotal > 0 ? (bill.exclusive ? ' ' + money.format(makingBase) : ' (included)') : '');
+            document.getElementById('bill-making-tax-label').textContent = 'GST ' + bill.makingGst + '% on processing charge' + (subtotal > 0 ? (bill.exclusive ? ' ' + money.format(makingBase) : ' (included)') : '');
             document.getElementById('bill-making-tax').textContent = money.format(makingTax);
-            document.getElementById('weigh-making-label').textContent = mode === 'processing' ? 'Processing charge' : 'Making';
+            document.getElementById('weigh-making-label').textContent = makingName();
+            document.getElementById('weigh-making-value').setAttribute('aria-label', makingName() + ' amount');
             const netWeight = rows.reduce((sum, row) => sum + Number(row.netWeight || 0), 0);
             const metalValue = round2(rows.reduce((sum, row) => sum + Number(row.metalAmount || 0), 0));
             document.getElementById('bill-net-weight').textContent = netWeight.toFixed(3) + ' g';

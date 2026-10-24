@@ -97,6 +97,7 @@ class JewelleryPricer
     /**
      * Mode "inside" taxes making with the jewellery. Mode "separate" taxes making at its own
      * percent. Mode "processing" leaves it out of GST. A discount comes off the jewellery first.
+     * Hallmark passed here is kept out of GST and the discount, and added before rounding.
      */
     public function billWithMaking(
         string $linesAmount,
@@ -107,23 +108,29 @@ class JewelleryPricer
         string $makingTaxPercent,
         bool $taxExclusive,
         bool $roundRupee,
+        string $hallmarkAmount = '0',
     ): PricingBreakdown {
-        $base = $this->decimal($linesAmount);
+        $whole = $this->decimal($linesAmount);
+        $hallmark = $this->decimal($hallmarkAmount);
+        $hallmark = $hallmark->isGreaterThan($whole) ? $whole : $hallmark;
+        $base = $whole->minus($hallmark);
         $making = $this->decimal($makingAmount);
         $making = $making->isGreaterThan($base) ? $base : $making;
 
         if (! in_array($makingMode, ['separate', 'processing'], true)) {
-            $bill = $this->bill($linesAmount, $discount, $taxPercent, $taxExclusive, $roundRupee);
+            $bill = $this->bill($this->money($base), $discount, $taxPercent, $taxExclusive, false);
+            [$exactMoney, $roundOff, $total] = $this->finish(BigDecimal::of($bill->exactTotal)->plus($hallmark), $roundRupee);
 
             return new PricingBreakdown(
-                linesAmount: $bill->linesAmount,
+                linesAmount: $this->money($whole),
                 discountAmount: $bill->discountAmount,
                 taxableAmount: $bill->taxableAmount,
                 taxAmount: $bill->taxAmount,
-                exactTotal: $bill->exactTotal,
-                roundOff: $bill->roundOff,
-                total: $bill->total,
+                exactTotal: $exactMoney,
+                roundOff: $roundOff,
+                total: $total,
                 makingAmount: $this->money($making),
+                hallmarkAmount: $this->money($hallmark),
             );
         }
 
@@ -156,18 +163,10 @@ class JewelleryPricer
             $exact = $exact->plus($jewelleryTax)->plus($makingTax);
         }
 
-        $exactMoney = $this->money($exact);
-        $roundOff = '0.00';
-        $total = $exactMoney;
-
-        if ($this->enabled('round_off') && $roundRupee) {
-            $rounded = BigDecimal::of($exactMoney)->toScale(0, RoundingMode::HalfUp);
-            $roundOff = $this->money($rounded->minus($exactMoney));
-            $total = $this->money($rounded);
-        }
+        [$exactMoney, $roundOff, $total] = $this->finish($exact->plus($hallmark), $roundRupee);
 
         return new PricingBreakdown(
-            linesAmount: $this->money($base),
+            linesAmount: $this->money($whole),
             discountAmount: $this->money($discountAmount),
             taxableAmount: $this->money($taxable),
             taxAmount: $this->money($jewelleryTax->plus($makingTax)),
@@ -178,7 +177,24 @@ class JewelleryPricer
             makingAmount: $this->money($makingNet),
             makingTaxPercent: (string) $makingPercent,
             makingTaxAmount: $this->money($makingTax),
+            hallmarkAmount: $this->money($hallmark),
         );
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function finish(BigDecimal $exact, bool $roundRupee): array
+    {
+        $exactMoney = $this->money($exact);
+
+        if (! $this->enabled('round_off') || ! $roundRupee) {
+            return [$exactMoney, '0.00', $exactMoney];
+        }
+
+        $rounded = BigDecimal::of($exactMoney)->toScale(0, RoundingMode::HalfUp);
+
+        return [$exactMoney, $this->money($rounded->minus($exactMoney)), $this->money($rounded)];
     }
 
     private function taxOn(BigDecimal $amount, BigDecimal $percent, bool $exclusive): BigDecimal

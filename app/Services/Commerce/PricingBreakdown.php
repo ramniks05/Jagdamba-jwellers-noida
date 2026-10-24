@@ -16,5 +16,6 @@ final class PricingBreakdown
         public readonly string $makingAmount = '0.00',
         public readonly string $makingTaxPercent = '0',
         public readonly string $makingTaxAmount = '0.00',
+        public readonly string $hallmarkAmount = '0.00',
     ) {}
 }

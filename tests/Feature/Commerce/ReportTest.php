@@ -97,15 +97,15 @@ class ReportTest extends TestCase
         $ravi = $this->customer($owner, 'Ravi Verma', '9876500001');
 
         $this->sell($owner, $meera, 'RING01', '10000');
-        $this->sell($owner, $ravi, 'RING02', '70555');
+        $this->sell($owner, $ravi, 'RING02', '70465');
 
         $this->actingAs($owner)->get(route('reports.sales'))
             ->assertOk()
             ->assertSee('Meera Shah')
             ->assertSee('Ravi Verma')
             ->assertSee('Total · 2 bills')
-            ->assertSee('1,41,110.00')
-            ->assertSee('60,555.00');
+            ->assertSee('1,40,930.00')
+            ->assertSee('60,465.00');
 
         $this->actingAs($owner)->get(route('reports.sales', ['payment' => 'due']))
             ->assertOk()
@@ -153,7 +153,7 @@ class ReportTest extends TestCase
             ->assertOk()
             ->assertSee('Meera Shah')
             ->assertDontSee('Ravi Verma')
-            ->assertSee('60,555.00')
+            ->assertSee('60,465.00')
             ->assertSee('Pay '.$bill->number)
             ->assertSee(route('sales.show', $bill), false)
             ->assertSee('Total · 1 customer');

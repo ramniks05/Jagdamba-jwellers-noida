@@ -142,33 +142,38 @@
                 <td>Net metal value</td>
                 <td>{{ $money((string) $sale->lines->reduce(fn ($sum, $line) => $sum->plus((string) $line->metal_amount), Brick\Math\BigDecimal::zero())->toScale(2)) }}</td>
             </tr>
+            @php
+                $untaxedHallmark = $sale->untaxedHallmark();
+                $piecesValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($untaxedHallmark)->toScale(2);
+                $hasDiscount = (float) $sale->discount_amount !== 0.0;
+            @endphp
             @if ($sale->making_mode === 'inside')
                 <tr>
-                    <td>{{ (float) $sale->discount_amount !== 0.0 ? 'Pieces total' : 'Taxable value' }}</td>
-                    <td>{{ $money((string) $sale->lines_amount) }}</td>
+                    <td>{{ $hasDiscount ? 'Pieces total' : 'Taxable value' }}</td>
+                    <td>{{ $money($piecesValue) }}</td>
                 </tr>
             @else
-                @php($jewelleryValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($makingLines)->toScale(2))
+                @php($jewelleryValue = (string) Brick\Math\BigDecimal::of($piecesValue)->minus($makingLines)->toScale(2))
                 <tr>
                     <td>Jewellery value</td>
                     <td>{{ $money($jewelleryValue) }}</td>
                 </tr>
                 <tr>
-                    <td>{{ $sale->making_mode === 'processing' ? 'Processing charge (no GST)' : 'Making charge' }}</td>
+                    <td>{{ $sale->making_mode === 'processing' ? 'Processing charge (no GST)' : 'Processing charge' }}</td>
                     <td>{{ $money($makingLines) }}</td>
                 </tr>
             @endif
-            @if ((float) $sale->discount_amount !== 0.0)
+            @if ($hasDiscount)
                 <tr>
                     <td>Discount</td>
                     <td>− {{ $money((string) $sale->discount_amount) }}</td>
                 </tr>
-                @if ($sale->making_mode === 'inside')
-                    <tr>
-                        <td>Taxable value</td>
-                        <td>{{ $money((string) $sale->taxable_amount) }}</td>
-                    </tr>
-                @endif
+            @endif
+            @if (($hasDiscount && $sale->making_mode === 'inside') || ($sale->making_mode === 'separate' && (float) $sale->making_tax_amount > 0))
+                <tr>
+                    <td>Taxable value</td>
+                    <td>{{ $money((string) $sale->taxable_amount) }}</td>
+                </tr>
             @endif
             @foreach ($taxes as $tax)
                 <tr>
@@ -176,6 +181,12 @@
                     <td>{{ $money($tax['amount']) }}</td>
                 </tr>
             @endforeach
+            @if ((float) $untaxedHallmark > 0)
+                <tr>
+                    <td>Hallmark (no GST)</td>
+                    <td>{{ $money($untaxedHallmark) }}</td>
+                </tr>
+            @endif
             @if ((float) $sale->round_off !== 0.0)
                 <tr>
                     <td>Round off</td>

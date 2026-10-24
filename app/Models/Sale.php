@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable([
     'company_id', 'branch_id', 'customer_id', 'number', 'status', 'sold_at',
     'lines_amount', 'discount_amount', 'taxable_amount', 'tax_percent', 'tax_amount',
-    'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'previous_due', 'previous_bills', 'notes', 'user_id',
+    'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'hallmark_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'previous_due', 'previous_bills', 'notes', 'user_id',
 ])]
 class Sale extends Model
 {
@@ -33,6 +33,7 @@ class Sale extends Model
             'making_amount' => 'decimal:2',
             'making_tax_percent' => 'decimal:4',
             'making_tax_amount' => 'decimal:2',
+            'hallmark_amount' => 'decimal:2',
             'prices_include_tax' => 'boolean',
             'round_off' => 'decimal:2',
             'total' => 'decimal:2',
@@ -71,7 +72,15 @@ class Sale extends Model
 
     public function makingLabel(): string
     {
-        return $this->making_mode === 'processing' ? 'Processing charge' : 'Making';
+        return in_array($this->making_mode, ['processing', 'separate'], true) ? 'Processing charge' : 'Making';
+    }
+
+    /**
+     * Hallmark kept out of GST on this bill. Bills saved before that rule return zero, as their Hallmark was taxed.
+     */
+    public function untaxedHallmark(): string
+    {
+        return (string) BigDecimal::of((string) ($this->hallmark_amount ?? '0'))->toScale(2, RoundingMode::HalfUp);
     }
 
     public function extraPaid(): string

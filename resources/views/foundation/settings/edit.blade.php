@@ -31,8 +31,8 @@
                         <div class="row g-3">
                             @include('foundation.settings.field', $field('pricing.gst_percent', ['col' => 'col-sm-4', 'suffix' => '%', 'inputmode' => 'decimal', 'label' => 'Jewellery GST', 'help' => 'Usually 3 for gold jewellery. Each bill keeps the percent it used.']))
                             @include('foundation.settings.field', $field('invoice.tax_display', ['col' => 'col-sm-8', 'label' => 'Prices you enter', 'help' => 'Exclusive adds GST on top. Inclusive means the worked amount already has GST inside.']))
-                            @include('foundation.settings.field', $field('pricing.making_mode', ['col' => 'col-sm-8', 'help' => 'The default for new bills. It can be changed on each bill.']))
-                            @include('foundation.settings.field', $field('pricing.making_gst_percent', ['col' => 'col-sm-4', 'suffix' => '%', 'inputmode' => 'decimal', 'label' => 'Making GST', 'help' => 'Only when making has its own GST.']))
+                            @include('foundation.settings.field', $field('pricing.making_mode', ['col' => 'col-sm-8', 'help' => 'The default for new bills. It can be changed on each bill. Hallmark is always added after GST, without GST.']))
+                            @include('foundation.settings.field', $field('pricing.making_gst_percent', ['col' => 'col-sm-4', 'suffix' => '%', 'inputmode' => 'decimal', 'label' => 'Processing charge GST', 'help' => 'Usually 3. Used when the processing charge has its own GST.']))
                             @include('foundation.settings.field', $field('pricing.round_rupee', ['col' => 'col-12']))
                         </div>
                         <div class="settings-example mt-3" id="gst-example" aria-live="polite"></div>
@@ -174,15 +174,15 @@
                 const making = value('pricing.making_mode');
                 const makingNote = {
                     inside: 'Making is added into the jewellery amount and gets the same GST.',
-                    separate: `Making is shown on its own line with ${parseFloat(value('pricing.making_gst_percent')) || 0}% GST.`,
-                    processing: 'Making is shown as a processing charge with no GST.',
+                    separate: `The processing charge is shown on its own line with ${parseFloat(value('pricing.making_gst_percent')) || 0}% GST.`,
+                    processing: 'The processing charge is shown with no GST.',
                 }[making] || '';
                 document.getElementById('gst-example').innerHTML =
                     `<div class="stat-label mb-1">Example: a piece worked out at ${money(worked)}</div>`
                     + `<div class="bill-row"><span>Taxable value</span><span class="num">${money(taxable)}</span></div>`
                     + `<div class="bill-row"><span>GST ${gst}%</span><span class="num">${money(tax)}</span></div>`
                     + `<div class="bill-row bill-grand"><span>Customer pays</span><strong class="num">${money(total)}</strong></div>`
-                    + `<div class="small text-secondary mt-1">${makingNote}</div>`;
+                    + `<div class="small text-secondary mt-1">${makingNote} Hallmark is added after GST, without GST.</div>`;
             };
 
             const refresh = () => {

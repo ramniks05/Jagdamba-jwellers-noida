@@ -227,7 +227,7 @@
             <table class="invoice-totals">
                 <tr><td>Metal value</td><td>{{ $money($estimate['gold']) }}</td></tr>
                 @if ((float) $estimate['making'] > 0)
-                    <tr><td>{{ ['inside' => 'Making (in jewellery GST)', 'separate' => 'Making (own GST)', 'processing' => 'Processing charge (no GST)'][$estimate['mode']] ?? 'Making' }}</td><td>{{ $money($estimate['making']) }}</td></tr>
+                    <tr><td>{{ ['inside' => 'Making (in jewellery GST)', 'separate' => 'Processing charge (own GST)', 'processing' => 'Processing charge (no GST)'][$estimate['mode']] ?? 'Making' }}</td><td>{{ $money($estimate['making']) }}</td></tr>
                 @endif
                 @if ((float) $estimate['tax'] > 0)
                     <tr><td>GST {{ (float) $gstPercent }}% on metal{{ $estimate['mode'] === 'inside' && (float) $estimate['making'] > 0 ? ' + making' : '' }}</td><td>{{ $money($estimate['tax']) }}</td></tr>
