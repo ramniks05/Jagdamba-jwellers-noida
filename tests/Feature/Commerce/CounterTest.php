@@ -606,6 +606,50 @@ class CounterTest extends TestCase
         $this->assertSame($line->id, $line->stones()->sole()->sale_line_id);
     }
 
+    public function test_silver_bill_keeps_chosen_purity_when_only_999_has_a_shop_rate(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $silver = MetalType::query()->where('code', 'SILVER')->firstOrFail();
+        $fine = Purity::query()->where('code', '999')->where('metal_type_id', $silver->id)->firstOrFail();
+        $sterling = Purity::query()->where('code', '925')->where('metal_type_id', $silver->id)->firstOrFail();
+        $buyer = $this->counterCustomer($owner);
+        $location = StockLocation::query()->where('code', 'MAIN')->firstOrFail();
+
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $silver->uuid,
+            'purity_uuid' => $fine->uuid,
+            'rate_per_gram' => '90',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+
+        $this->seeShop($owner);
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $buyer->uuid,
+            'new_pieces' => [[
+                'name' => 'Silver chain',
+                'metal_uuid' => $silver->uuid,
+                'purity_uuid' => $sterling->uuid,
+                'location_uuid' => $location->uuid,
+                'gross_weight' => '10',
+                'other_weight' => '0',
+                'rate_per_gram' => '75',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => '750']],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $line = SaleLine::query()->sole();
+        $this->assertSame('925', $line->purity_name);
+        $this->assertSame('75.00', (string) $line->rate_per_gram);
+        $this->assertSame((int) $sterling->id, (int) $line->item->purity_id);
+
+        $this->actingAs($owner)->get(route('sales.show', $line->sale))
+            ->assertOk()
+            ->assertSee('Silver 925')
+            ->assertDontSee('Silver 999');
+    }
+
     public function test_another_shop_cannot_open_this_piece(): void
     {
         $owner = $this->shopUser();

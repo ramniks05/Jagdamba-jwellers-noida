@@ -380,14 +380,22 @@
                 const show = row.dataset.metal === metal.dataset.id;
                 row.hidden = !show;
                 row.disabled = !show;
+                if (!show && row.selected) {
+                    row.selected = false;
+                }
             });
-            const location = document.getElementById('weigh-location');
-            const branch = location && location.selectedIndex >= 0 ? location.options[location.selectedIndex].dataset.branch : '';
             const visible = Array.from(purity.options).filter((row) => !row.disabled);
             const selected = visible.find((row) => row.selected);
+            if (selected) {
+                return;
+            }
+            const location = document.getElementById('weigh-location');
+            const branch = location && location.selectedIndex >= 0 ? location.options[location.selectedIndex].dataset.branch : '';
             const priced = visible.find((row) => currentRate(metal.dataset.id, row.dataset.id, branch));
-            const next = (selected && currentRate(metal.dataset.id, selected.dataset.id, branch)) ? selected : (priced || visible[0]);
-            if (next) next.selected = true;
+            const next = priced || visible[0];
+            if (next) {
+                next.selected = true;
+            }
         }
 
         function emptyQuote(message) {
