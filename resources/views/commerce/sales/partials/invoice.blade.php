@@ -12,16 +12,14 @@
 @endphp
 <article class="invoice-sheet invoice-sheet-compact">
     <header class="invoice-head">
+        @if ($company->gstin)
+            <div class="invoice-head-gstin">GSTIN {{ $company->gstin }}</div>
+        @endif
         <div class="invoice-head-brand">
             <div class="invoice-kicker">{{ ($preview ?? false) ? 'Preview · not saved yet' : 'Tax invoice' }}</div>
             <h1 class="invoice-shop-name">{{ $company->displayName() }}</h1>
         </div>
         <div class="invoice-head-row">
-            <div class="invoice-head-side invoice-head-left">
-                @if ($company->gstin)
-                    <div class="invoice-head-gstin">GSTIN {{ $company->gstin }}</div>
-                @endif
-            </div>
             <div class="invoice-head-title">
                 <div class="invoice-head-address">
                     <p>{{ $company->formattedAddress() }}</p>

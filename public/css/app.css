@@ -1133,7 +1133,17 @@ a {
 .invoice-head {
     border-bottom: 2px solid #7c2430;
     padding-bottom: 10px;
+    position: relative;
     text-align: center;
+}
+
+.invoice-head > .invoice-head-gstin {
+    left: 0;
+    line-height: 1.2;
+    position: absolute;
+    text-align: left;
+    top: 0;
+    z-index: 1;
 }
 
 .invoice-brand {
@@ -1173,10 +1183,10 @@ a {
 }
 
 .invoice-head-row {
-    align-items: center;
+    align-items: start;
     display: grid;
     gap: 12px;
-    grid-template-columns: 150px minmax(0, 1fr) 150px;
+    grid-template-columns: minmax(0, 1fr) 150px;
 }
 
 .invoice-head-side {
