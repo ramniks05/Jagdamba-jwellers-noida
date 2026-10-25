@@ -19,23 +19,15 @@
             <div class="invoice-kicker">{{ ($preview ?? false) ? 'Preview · not saved yet' : 'Tax invoice' }}</div>
             <h1 class="invoice-shop-name">{{ $company->displayName() }}</h1>
         </div>
-        <div class="invoice-head-row">
-            <div class="invoice-head-title">
-                <div class="invoice-head-address">
-                    <p>{{ $company->formattedAddress() }}</p>
-                    @if ($phones !== '')
-                        <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
-                    @endif
-                    @if (filled($company->website))
-                        <p><a href="{{ $company->website }}">{{ preg_replace('#^https?://#i', '', rtrim($company->website, '/')) }}</a></p>
-                    @endif
-                </div>
-            </div>
-            <div class="invoice-head-side invoice-qr invoice-qr-top">
-                @unless ($preview ?? false)
-                    <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
-                    <span>Scan to view bill</span>
-                @endunless
+        <div class="invoice-head-title">
+            <div class="invoice-head-address">
+                <p>{{ $company->formattedAddress() }}</p>
+                @if ($phones !== '')
+                    <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
+                @endif
+                @if (filled($company->website))
+                    <p><a href="{{ $company->website }}">{{ preg_replace('#^https?://#i', '', rtrim($company->website, '/')) }}</a></p>
+                @endif
             </div>
         </div>
     </header>
@@ -236,7 +228,7 @@
         </table>
     </div>
 
-    <footer class="invoice-foot">
+    <footer @class(['invoice-foot', 'has-qr' => ! ($preview ?? false)])>
         <div class="invoice-terms">
             @if ($termsHtml !== '')
                 <div class="invoice-kicker invoice-terms-heading">Terms &amp; conditions</div>
@@ -246,6 +238,12 @@
                 <p class="thanks">{{ $footer }}</p>
             @endif
         </div>
+        @unless ($preview ?? false)
+            <div class="invoice-qr invoice-qr-foot">
+                <img src="{{ $billQr }}" alt="QR code for bill {{ $sale->number }}">
+                <span>Scan to view bill</span>
+            </div>
+        @endunless
         <div class="invoice-sign">
             <div>For {{ $company->displayName() }}</div>
             <img src="{{ $company->brandSignatureUrl() }}" alt="Authorised signature">

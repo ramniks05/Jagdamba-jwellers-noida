@@ -1186,7 +1186,8 @@ a {
     align-items: start;
     display: grid;
     gap: 12px;
-    grid-template-columns: minmax(0, 1fr) 150px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
 }
 
 .invoice-head-side {
@@ -1502,7 +1503,27 @@ a {
 }
 
 .invoice-foot.has-qr {
+    align-items: end;
     grid-template-columns: 1.4fr auto 0.8fr;
+}
+
+.invoice-qr-foot img {
+    height: 76px;
+    width: 76px;
+}
+
+.invoice-qr-foot span {
+    font-size: 9px;
+    max-width: 88px;
+}
+
+.invoice-sheet-compact .invoice-foot.has-qr {
+    gap: 10px;
+}
+
+.invoice-sheet-compact .invoice-qr-foot img {
+    height: 68px;
+    width: 68px;
 }
 
 .invoice-qr {
@@ -3105,9 +3126,9 @@ a {
         padding: 8px 10px !important;
     }
 
-    .invoice-sheet-compact .invoice-qr-top img {
-        height: 62px;
-        width: 62px;
+    .invoice-sheet-compact .invoice-qr-foot img {
+        height: 64px;
+        width: 64px;
     }
 
     .invoice-sheet-compact .invoice-shop-name {
