@@ -29,8 +29,8 @@ fi
 source "$CONFIG"
 
 : "${BACKUP_APP_DIR:?Set BACKUP_APP_DIR in $CONFIG}"
-: "${RCLONE_REMOTE:?Set RCLONE_REMOTE in $CONFIG}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
+RCLONE_REMOTE="${RCLONE_REMOTE:-}"
 
 BACKUP_ROOT="${BACKUP_ROOT:-$HOME/backups/jagdamba}"
 WORK="$BACKUP_ROOT/runs/$STAMP"
@@ -106,17 +106,21 @@ BUNDLE="$ARCHIVE_DIR/jagdamba-$STAMP.tar.gz"
 tar -czf "$BUNDLE" -C "$WORK" database.sql.gz storage-app.tar.gz env.backup 2>/dev/null \
     || tar -czf "$BUNDLE" -C "$WORK" database.sql.gz env.backup
 
-log "Uploading to $RCLONE_REMOTE"
-if ! command -v rclone >/dev/null 2>&1; then
-    fail "rclone not installed. See scripts/backup/SETUP-LIVE.md"
-fi
+if [[ -n "$RCLONE_REMOTE" && "$RCLONE_REMOTE" != "skip" && "$RCLONE_REMOTE" != "none" ]]; then
+    log "Uploading to $RCLONE_REMOTE"
+    if ! command -v rclone >/dev/null 2>&1; then
+        fail "rclone not installed. See scripts/backup/SETUP-EASY-WINDOWS.md or set RCLONE_REMOTE=skip for server-only backups."
+    fi
 
-rclone copy "$BUNDLE" "$RCLONE_REMOTE/daily/" --stats-one-line --stats 5s
+    rclone copy "$BUNDLE" "$RCLONE_REMOTE/daily/" --stats-one-line --stats 5s
 
-MONTH="$(date +%Y-%m)"
-if [[ "$(date +%d)" == "01" ]]; then
-    log "Monthly snapshot → $RCLONE_REMOTE/monthly/$MONTH/"
-    rclone copy "$BUNDLE" "$RCLONE_REMOTE/monthly/$MONTH/" --stats-one-line --stats 5s
+    MONTH="$(date +%Y-%m)"
+    if [[ "$(date +%d)" == "01" ]]; then
+        log "Monthly snapshot → $RCLONE_REMOTE/monthly/$MONTH/"
+        rclone copy "$BUNDLE" "$RCLONE_REMOTE/monthly/$MONTH/" --stats-one-line --stats 5s
+    fi
+else
+    log "Google Drive upload skipped (set RCLONE_REMOTE in backup.env when ready)."
 fi
 
 log "Pruning local daily bundles older than $RETENTION_DAYS days"
@@ -124,4 +128,8 @@ find "$ARCHIVE_DIR" -name 'jagdamba-*.tar.gz' -type f -mtime +"$RETENTION_DAYS" 
 find "$BACKUP_ROOT/runs" -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} + 2>/dev/null || true
 
 rm -rf "$WORK"
-log "Done: $BUNDLE ($(wc -c <"$BUNDLE" | tr -d ' ') bytes) → Google Drive"
+if [[ -n "$RCLONE_REMOTE" && "$RCLONE_REMOTE" != "skip" && "$RCLONE_REMOTE" != "none" ]]; then
+    log "Done: $BUNDLE ($(wc -c <"$BUNDLE" | tr -d ' ') bytes) → Google Drive"
+else
+    log "Done: $BUNDLE ($(wc -c <"$BUNDLE" | tr -d ' ') bytes) saved on server only"
+fi
