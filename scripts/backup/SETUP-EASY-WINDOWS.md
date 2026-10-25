@@ -38,7 +38,24 @@ Backups live in: **`/home/u922228303/backups/jagdamba/daily/`**
 
 Download a copy anytime: Hostinger **hPanel → Files → File Manager** → go to that folder → download the latest `jagdamba-*.tar.gz` to your PC (good habit once a week).
 
-Enable **12 AM IST** cron (same as before) — it works with `RCLONE_REMOTE=skip` too.
+Enable **12 AM IST** cron — it works with `RCLONE_REMOTE=skip` too.
+
+### Hostinger hPanel cron (command must be under 255 characters)
+
+After `git pull`:
+
+```bash
+chmod +x ~/domains/digitalcreatorss.com/jagdamba/scripts/backup/run-backup-cron.sh
+chmod +x ~/domains/digitalcreatorss.com/jagdamba/scripts/backup/live-backup.sh
+```
+
+In **hPanel → Cron Jobs**, schedule **00:00** daily, command **only**:
+
+```bash
+/bin/bash /home/u922228303/domains/digitalcreatorss.com/jagdamba/scripts/backup/run-backup-cron.sh
+```
+
+(Replace `u922228303` if your home path differs.)
 
 ---
 
