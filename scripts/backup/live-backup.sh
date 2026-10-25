@@ -31,6 +31,9 @@ source "$CONFIG"
 : "${BACKUP_APP_DIR:?Set BACKUP_APP_DIR in $CONFIG}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 RCLONE_REMOTE="${RCLONE_REMOTE:-}"
+case "$RCLONE_REMOTE" in
+    '' | skip | none | gdrive:skip | 'gdrive: none') RCLONE_REMOTE=skip ;;
+esac
 
 BACKUP_ROOT="${BACKUP_ROOT:-$HOME/backups/jagdamba}"
 WORK="$BACKUP_ROOT/runs/$STAMP"
