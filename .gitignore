@@ -1,5 +1,11 @@
 *.log
 .DS_Store
+
+# Local dev / agent artifacts (never commit)
+/storage/app/tag-shots/
+/storage/framework/results.txt
+/storage/framework/shots/
+/storage/app/qz/
 .env
 .env.backup
 .env.production
