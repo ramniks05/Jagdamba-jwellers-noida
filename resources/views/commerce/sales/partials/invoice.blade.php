@@ -76,7 +76,7 @@
                 <tr>
                     <td class="num">{{ $loop->iteration }}</td>
                     <td>
-                        <strong>{{ $line->name }}</strong>
+                        <strong>{{ $itemName($line->name) }}</strong>
                         <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}</div>
                         <div class="invoice-split">
                             <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>

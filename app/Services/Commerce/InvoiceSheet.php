@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Sale;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
+use App\Support\DisplayText;
 use App\Support\InvoiceTermsHtml;
 use App\Support\RupeesInWords;
 use Brick\Math\BigDecimal;
@@ -44,6 +45,7 @@ class InvoiceSheet
             'makingLines' => (string) $sale->lines->reduce(fn (BigDecimal $sum, $line) => $sum->plus((string) $line->making_amount), BigDecimal::zero()),
             'money' => fn (string $amount) => $this->format->money($amount, $company),
             'weight' => fn (string $amount) => $this->format->weight($amount, $company),
+            'itemName' => fn (string $name) => DisplayText::titleCase($name),
             'billLink' => $link,
             'billQr' => (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 3, 'addQuietzone' => false])))->render($link),
         ];
