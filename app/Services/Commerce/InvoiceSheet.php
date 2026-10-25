@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Sale;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
+use App\Support\InvoiceTermsHtml;
 use App\Support\RupeesInWords;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -29,11 +30,13 @@ class InvoiceSheet
     {
         $sale->loadMissing(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
         $link = $this->link($sale);
+        $terms = (string) ($this->settings->get('invoice.terms', $company) ?? '');
 
         return [
             'sale' => $sale,
             'company' => $company,
-            'terms' => (string) ($this->settings->get('invoice.terms', $company) ?? ''),
+            'terms' => $terms,
+            'termsHtml' => InvoiceTermsHtml::format($terms),
             'footer' => (string) ($this->settings->get('invoice.footer_note', $company) ?? ''),
             'showLogo' => (bool) $this->settings->get('invoice.show_logo', $company),
             'amountWords' => RupeesInWords::format((string) $sale->total),

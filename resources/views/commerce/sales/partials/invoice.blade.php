@@ -47,7 +47,7 @@
         </tr>
         <tr>
             <td>
-                <strong>{{ $sale->customer?->name }}</strong>
+                <strong class="invoice-customer-name">{{ mb_strtoupper(trim((string) ($sale->customer?->name ?? ''))) }}</strong>
                 <div>{{ $sale->customer?->mobile ?: 'Mobile not recorded' }}</div>
                 @if ($customerAddress !== '')
                     <div>{{ $customerAddress }}</div>
@@ -238,8 +238,9 @@
 
     <footer class="invoice-foot">
         <div class="invoice-terms">
-            @if ($terms !== '')
-                <p>{{ $terms }}</p>
+            @if ($termsHtml !== '')
+                <div class="invoice-kicker invoice-terms-heading">Terms &amp; conditions</div>
+                <div class="invoice-terms-body">{!! $termsHtml !!}</div>
             @endif
             @if ($footer !== '')
                 <p class="thanks">{{ $footer }}</p>
