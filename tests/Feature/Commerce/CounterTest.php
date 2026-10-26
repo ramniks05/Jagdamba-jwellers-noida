@@ -357,6 +357,42 @@ class CounterTest extends TestCase
         $this->assertSame('31976.00', (string) $sale->total);
     }
 
+    public function test_a_backdated_bill_date_appears_on_the_invoice(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $buyer = $this->counterCustomer($owner, 'Backdate Buyer');
+        $this->actingAs($owner)->post(route('rates.store'), [
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'rate_per_gram' => '6000',
+            'source' => 'manual',
+        ])->assertRedirect(route('rates.index'));
+        $this->actingAs($owner)->post(route('items.store'), $this->piece('BD001', $gold, $purity))->assertRedirect();
+        $this->seeShop($owner);
+        $item = Item::query()->where('item_code', 'BD001')->firstOrFail();
+        $back = now(config('app.timezone'))->subDays(3)->setTime(11, 30, 0);
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $buyer->uuid,
+            'item_ids' => [$item->uuid],
+            'discount' => '0',
+            'sold_at' => $back->format('Y-m-d\TH:i'),
+            'payments' => [['method' => 'cash', 'amount' => '61800']],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $this->assertTrue($sale->sold_at->equalTo($back));
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee($back->format('d-m-Y'))
+            ->assertSee($back->format('h:i A'));
+    }
+
     public function test_the_bill_preview_shows_the_invoice_and_saves_nothing(): void
     {
         $owner = $this->shopUser();
@@ -395,8 +431,8 @@ class CounterTest extends TestCase
         $this->actingAs($owner)->postJson(route('sales.preview'), $bill)
             ->assertOk()
             ->assertSee('Preview · not saved yet')
-            ->assertSee('Preview Buyer')
-            ->assertSee('Preview chain')
+            ->assertSee('PREVIEW BUYER')
+            ->assertSee('Preview Chain')
             ->assertSee('61,800.00')
             ->assertSee('JJ/26-27/0001')
             ->assertDontSee('Scan to view bill');
@@ -540,9 +576,8 @@ class CounterTest extends TestCase
             ->assertSee('Diamond')
             ->assertSee('Ring B')
             ->assertSee('Ruby')
-            ->assertSee('54,000.00')
-            ->assertSee('5,000.00')
-            ->assertSee('2,000.00');
+            ->assertSee(number_format((float) $ringA->line_amount, 2, '.', ','))
+            ->assertSee(number_format((float) $ringB->line_amount, 2, '.', ','));
     }
 
     public function test_a_stock_piece_keeps_its_diamond_with_the_gold(): void

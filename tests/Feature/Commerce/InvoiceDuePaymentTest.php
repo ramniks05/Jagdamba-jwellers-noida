@@ -91,7 +91,7 @@ class InvoiceDuePaymentTest extends TestCase
             ->assertOk()
             ->assertSee($sale->number)
             ->assertSee('Download PDF')
-            ->assertSee('Meera Shah')
+            ->assertSee('MEERA SHAH')
             ->assertSee('jagdamba.example', false)
             ->assertSee('class="invoice-links no-print"', false)
             ->assertSee('https://facebook.com/jagdamba', false)

@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Support\Limits;
 use App\Support\StoneRate;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -16,6 +17,12 @@ class SaleRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        $sale = $this->route('sale');
+
+        if ($sale instanceof Sale) {
+            return (bool) $this->user()?->can('update', $sale);
+        }
+
         return (bool) $this->user()?->can('create', Sale::class);
     }
 
@@ -58,6 +65,12 @@ class SaleRequest extends FormRequest
             $pieces[] = $this->pieceRow($row);
         }
 
+        $soldAt = trim((string) $this->input('sold_at', ''));
+
+        if ($soldAt === '') {
+            $soldAt = now(config('app.timezone'))->format('Y-m-d\TH:i');
+        }
+
         $this->merge([
             'payments' => $payments,
             'item_ids' => array_values(array_filter((array) $this->input('item_ids', []))),
@@ -65,6 +78,7 @@ class SaleRequest extends FormRequest
             'new_pieces' => $pieces,
             'discount' => trim((string) $this->input('discount')) === '' ? '0' : $this->input('discount'),
             'notes' => trim((string) $this->input('notes')) === '' ? null : $this->input('notes'),
+            'sold_at' => $soldAt,
         ]);
     }
 
@@ -137,6 +151,7 @@ class SaleRequest extends FormRequest
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'include_previous' => ['sometimes', 'boolean'],
+            'sold_at' => ['required', 'date'],
         ];
     }
 
@@ -160,6 +175,12 @@ class SaleRequest extends FormRequest
 
             if ($ids === [] && $name === '' && $pieces === []) {
                 $validator->errors()->add('item_ids', 'Choose a piece in stock, or add a new piece on this bill.');
+            }
+
+            $when = Carbon::parse((string) $this->input('sold_at'), config('app.timezone'));
+
+            if ($when->isFuture()) {
+                $validator->errors()->add('sold_at', 'Bill date and time cannot be in the future.');
             }
         });
     }

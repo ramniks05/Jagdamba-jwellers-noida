@@ -26,6 +26,7 @@ use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -131,6 +132,8 @@ class SaleService
                 $keptBills = (int) $existing->previous_bills;
                 $this->release($existing);
             }
+
+            $soldAt = $this->soldAt($attributes, $existing);
             $customer = Customer::query()->where('uuid', $attributes['customer_uuid'])->where('is_active', true)->first();
 
             if (! $customer) {
@@ -367,6 +370,7 @@ class SaleService
                 'previous_due' => (string) $previous,
                 'previous_bills' => $existing ? $keptBills : $openSales->count(),
                 'notes' => trim((string) ($attributes['notes'] ?? '')) ?: null,
+                'sold_at' => $soldAt,
             ];
 
             if ($existing) {
@@ -377,7 +381,6 @@ class SaleService
                 $invoice = $this->numbers->issue($this->numbers->for(DocumentType::Invoice, $branch));
                 $sale = Sale::query()->create($payload + [
                     'number' => $invoice->number,
-                    'sold_at' => now(),
                     'user_id' => $userId,
                 ]);
             }
@@ -469,7 +472,7 @@ class SaleService
                     'narration' => ($previous->isPositive()
                         ? 'Received against '.$sale->number.' including old due'
                         : 'Received against '.$sale->number).($extra->isPositive() ? ' · '.$extra.' kept as advance' : ''),
-                    'received_at' => now(),
+                    'received_at' => $soldAt,
                     'user_id' => $userId,
                 ]);
                 $this->ledger->post(
@@ -787,5 +790,17 @@ class SaleService
     private function nextPieceCode(): string
     {
         return $this->items->nextCode(true);
+    }
+
+    private function soldAt(array $attributes, ?Sale $existing): Carbon
+    {
+        $timezone = config('app.timezone');
+        $raw = trim((string) ($attributes['sold_at'] ?? ''));
+
+        if ($raw === '') {
+            return $existing?->sold_at?->timezone($timezone) ?? now($timezone);
+        }
+
+        return Carbon::parse($raw, $timezone);
     }
 }

@@ -195,11 +195,19 @@
                     </div>
                     <div class="card-body bill-sums">
                         <div class="bill-settings">
+                            <div class="bill-sold-at-wrap">
+                                <label class="form-label mb-0" for="sold-at">Bill date &amp; time</label>
+                                <input class="form-control form-control-sm @error('sold_at') is-invalid @enderror" id="sold-at" name="sold_at" type="datetime-local" value="{{ old('sold_at', ($sale?->sold_at ?? now())->timezone(config('app.timezone'))->format('Y-m-d\TH:i')) }}" step="60">
+                                @error('sold_at')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                             <label class="form-label mb-0" for="customer-pays">Customer will pay ₹</label>
                             <input class="form-control form-control-sm" id="customer-pays" inputmode="decimal" placeholder="Final amount" autocomplete="off">
                             <label class="form-label mb-0" for="discount">Discount ₹</label>
                             <input class="form-control form-control-sm" id="discount" name="discount" inputmode="decimal" value="{{ old('discount', $sale?->discount_amount ?? '0') }}">
                         </div>
+                        <p class="text-secondary small mb-2">Change bill date only when you need a backdated invoice; default is now.</p>
                         <p class="text-secondary small d-none mb-2" id="customer-pays-note"></p>
                         <div class="bill-block">
                             <div class="bill-row bill-row-muted"><span>Net weight</span><span id="bill-net-weight">0.000 g</span></div>

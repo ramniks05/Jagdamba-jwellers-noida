@@ -2308,6 +2308,18 @@ a {
     margin-bottom: 0.6rem;
 }
 
+.bill-settings .bill-sold-at-wrap {
+    align-items: center;
+    display: grid;
+    gap: 0.75rem;
+    grid-column: 1 / -1;
+    grid-template-columns: auto 1fr;
+}
+
+.bill-settings .bill-sold-at-wrap input {
+    text-align: left;
+}
+
 .bill-settings input {
     text-align: right;
 }
