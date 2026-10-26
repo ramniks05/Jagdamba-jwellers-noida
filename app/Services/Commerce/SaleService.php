@@ -27,6 +27,7 @@ use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class SaleService
@@ -483,6 +484,12 @@ class SaleService
                 );
             }
 
+            if ($openSales->isNotEmpty() && ! Schema::hasTable('sale_settlements')) {
+                throw ValidationException::withMessages([
+                    'include_previous' => 'This server needs the latest database update (php artisan migrate). Uncheck old due for now, or run migrate on live.',
+                ]);
+            }
+
             foreach ($openSales as $open) {
                 SaleSettlement::query()->create([
                     'company_id' => $company->id,
@@ -557,6 +564,12 @@ class SaleService
         return DB::transaction(function () use ($sale, $reason, $userId) {
             $sale = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
             $this->context->ensureId((int) $sale->company_id);
+
+            if (! Schema::hasColumn('sales', 'cancelled_at')) {
+                throw ValidationException::withMessages([
+                    'reason' => 'This server needs the latest database update (php artisan migrate on live).',
+                ]);
+            }
 
             if ($sale->isCancelled()) {
                 throw ValidationException::withMessages([

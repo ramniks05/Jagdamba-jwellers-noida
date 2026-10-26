@@ -365,7 +365,7 @@
                 list.replaceChildren();
                 return;
             }
-            const orders = bill.openOrders[row.uuid] || [];
+            const orders = (bill.openOrders || {})[row.uuid] || [];
             if (orders.length === 0) {
                 panel.classList.add('d-none');
                 list.replaceChildren();

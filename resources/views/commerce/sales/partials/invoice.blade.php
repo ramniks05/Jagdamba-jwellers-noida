@@ -64,8 +64,8 @@
                 <th>Particulars</th>
                 <th>HUID</th>
                 <th>HSN</th>
-                <th class="num">Gross</th>
-                <th class="num">Net</th>
+                <th class="num">Gross wt</th>
+                <th class="num">Net wt</th>
                 <th class="num">Rate / g</th>
                 <th class="num">{{ $sale->makingLabel() }}</th>
                 <th class="num">Amount</th>
@@ -78,29 +78,20 @@
                     <td>
                         <strong>{{ $itemName($line->name) }}</strong>
                         <div class="muted">{{ $line->item_code }} · {{ $line->metal_name }} {{ $line->purity_name }}</div>
-                        <div class="invoice-split">
-                            <div><span>{{ $line->metal_name }}</span><strong>{{ $money((string) $line->metal_amount) }}</strong></div>
-                            @if ((float) $line->wastage_amount > 0)
-                                <div><span>Hallmark</span><strong>{{ $money((string) $line->wastage_amount) }}</strong></div>
-                            @endif
-                            @forelse ($line->stones as $stone)
-                                <div>
-                                    <span>
-                                        {{ $stone->name }} · {{ $weight((string) $stone->weight) }}
-                                        @if ($stone->rate !== null && $stone->rate_unit === 'carat')
-                                            ({{ App\Support\StoneRate::carats((string) $stone->weight) }} ct × {{ $money((string) $stone->rate) }}/ct)
-                                        @elseif ($stone->rate !== null && $stone->rate_unit === 'gram')
-                                            × {{ $money((string) $stone->rate) }}/g
-                                        @endif
-                                    </span>
-                                    <strong>{{ $money((string) $stone->value) }}</strong>
-                                </div>
-                            @empty
-                                @if ((float) $line->stone_amount > 0)
-                                    <div><span>Stone</span><strong>{{ $money((string) $line->stone_amount) }}</strong></div>
+                        @forelse ($line->stones as $stone)
+                            <div class="muted invoice-line-detail">
+                                {{ $stone->name }} · {{ $weight((string) $stone->weight) }}
+                                @if ($stone->rate !== null && $stone->rate_unit === 'carat')
+                                    · {{ App\Support\StoneRate::carats((string) $stone->weight) }} ct × {{ $money((string) $stone->rate) }}/ct
+                                @elseif ($stone->rate !== null && $stone->rate_unit === 'gram')
+                                    · {{ $money((string) $stone->rate) }}/g
                                 @endif
-                            @endforelse
-                        </div>
+                            </div>
+                        @empty
+                            @if ((float) $line->stone_amount > 0)
+                                <div class="muted invoice-line-detail">Stone</div>
+                            @endif
+                        @endforelse
                     </td>
                     <td>{{ $line->item?->huid }}</td>
                     <td>{{ $line->hsn_code }}</td>
@@ -114,6 +105,12 @@
         </tbody>
     </table>
 
+    @php
+        $untaxedHallmark = $sale->untaxedHallmark();
+        $piecesValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($untaxedHallmark)->toScale(2);
+        $hasDiscount = (float) $sale->discount_amount !== 0.0;
+    @endphp
+
     <div class="invoice-bottom">
         <div class="invoice-words">
             <div class="invoice-kicker">Amount in words</div>
@@ -126,19 +123,6 @@
             @endif
         </div>
         <table class="invoice-totals">
-            <tr>
-                <td>Net weight</td>
-                <td>{{ $weight((string) $sale->lines->reduce(fn ($sum, $line) => $sum->plus((string) $line->net_weight), Brick\Math\BigDecimal::zero())) }}</td>
-            </tr>
-            <tr>
-                <td>Net metal value</td>
-                <td>{{ $money((string) $sale->lines->reduce(fn ($sum, $line) => $sum->plus((string) $line->metal_amount), Brick\Math\BigDecimal::zero())->toScale(2)) }}</td>
-            </tr>
-            @php
-                $untaxedHallmark = $sale->untaxedHallmark();
-                $piecesValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($untaxedHallmark)->toScale(2);
-                $hasDiscount = (float) $sale->discount_amount !== 0.0;
-            @endphp
             @if ($sale->making_mode === 'inside')
                 <tr>
                     <td>{{ $hasDiscount ? 'Pieces total' : 'Taxable value' }}</td>

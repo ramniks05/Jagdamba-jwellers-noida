@@ -33,6 +33,12 @@ class InvoiceSheet
         $link = $this->link($sale);
         $terms = (string) ($this->settings->get('invoice.terms', $company) ?? '');
 
+        try {
+            $billQr = (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 3, 'addQuietzone' => false])))->render($link);
+        } catch (\Throwable) {
+            $billQr = '';
+        }
+
         return [
             'sale' => $sale,
             'company' => $company,
@@ -47,7 +53,7 @@ class InvoiceSheet
             'weight' => fn (string $amount) => $this->format->weight($amount, $company),
             'itemName' => fn (string $name) => DisplayText::titleCase($name),
             'billLink' => $link,
-            'billQr' => (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 3, 'addQuietzone' => false])))->render($link),
+            'billQr' => $billQr,
         ];
     }
 

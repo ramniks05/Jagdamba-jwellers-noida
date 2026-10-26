@@ -381,7 +381,9 @@ class SaleController extends Controller
     public function show(Sale $sale, InvoiceSheet $invoice, WhatsappService $whatsapp, CompanyContext $context): View
     {
         $this->authorize('view', $sale);
-        $sale->loadMissing('cancelledBy');
+        if ($sale->isCancelled()) {
+            $sale->loadMissing('cancelledBy');
+        }
         $data = $invoice->data($sale, $context->company());
 
         return view('commerce.sales.show', $data + [

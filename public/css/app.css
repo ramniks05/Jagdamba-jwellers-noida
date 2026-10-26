@@ -1339,6 +1339,12 @@ a {
     line-height: 1.2;
 }
 
+.invoice-line-detail {
+    font-size: 10px;
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
 .invoice-sheet-compact .invoice-bottom {
     margin-top: 5px;
 }

@@ -148,6 +148,42 @@ Optional: set `BACKUP_ALERT_EMAIL` in `backup.env` if the server can send mail.
 
 ---
 
-## 9. Hostinger automatic backups
+## 9. After `git pull` (app deploy)
+
+From the app directory (where `artisan` lives):
+
+```bash
+git pull origin main
+php artisan migrate --force
+php artisan route:clear
+php artisan config:clear
+php artisan view:clear
+php artisan config:cache
+php artisan view:cache
+```
+
+If **Sales → Invoice** returns **500**, check the error on the server:
+
+```bash
+tail -80 storage/logs/laravel.log
+```
+
+Common fixes: run `migrate --force` (needs `2026_10_26_120000_add_sale_cancellation_and_settlements`), and always `route:clear` after pull if you ever use `route:cache`.
+
+**Live `.env` (HTTPS subdomain)** — if sign-in works but **Sales → Invoice** sends you back to login, set:
+
+```env
+APP_URL=https://jagdambajwellers.digitalcreatorss.com
+SESSION_SECURE_COOKIE=true
+SESSION_DOMAIN=null
+```
+
+Then `php artisan config:clear && php artisan config:cache`.
+
+Staff invoice links look like `/sales/{uuid}` — they **require sign-in**. Customer QR links use `/bill/{uuid}?signature=...` (no login).
+
+---
+
+## 10. Hostinger automatic backups
 
 If your plan includes hPanel backups, **leave them on** as an extra layer. This script is your **daily, bill-focused** copy you control on Google Drive.

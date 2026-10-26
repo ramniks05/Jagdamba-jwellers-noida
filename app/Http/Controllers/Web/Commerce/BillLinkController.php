@@ -17,7 +17,9 @@ class BillLinkController extends Controller
     public function show(string $sale, InvoiceSheet $invoice, CompanyContext $context): View
     {
         $bill = $context->bypassing(fn () => Sale::query()->where('uuid', $sale)->first());
-        $company = $bill ? Company::query()->find($bill->company_id) : null;
+        abort_if($bill === null, 404);
+
+        $company = Company::query()->find($bill->company_id);
 
         abort_if($company === null || ! $company->isOperational(), 404);
 

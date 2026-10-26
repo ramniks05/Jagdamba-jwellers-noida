@@ -128,7 +128,7 @@
     @endcan
 
     @can('delete', $sale)
-        @if ($sale->isPosted() && $returned->isEmpty())
+        @if ($sale->isPosted() && $returned->isEmpty() && \Illuminate\Support\Facades\Route::has('sales.destroy'))
             <div class="modal fade" id="cancel-invoice-modal" tabindex="-1" aria-labelledby="cancel-invoice-title" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
@@ -150,9 +150,10 @@
                                 <textarea class="form-control @error('reason') is-invalid @enderror" id="cancel-reason" name="reason" rows="3" required minlength="10" maxlength="500" placeholder="For example: wrong customer, duplicate bill, weight entered twice">{{ old('reason') }}</textarea>
                                 @error('reason')
                                     <div class="invalid-feedback">{{ $message }}</div>
-                                @else
-                                    <div class="form-text">At least 10 characters — this reason is saved on the invoice.</div>
                                 @enderror
+                                @if (! $errors->has('reason'))
+                                    <div class="form-text">At least 10 characters — this reason is saved on the invoice.</div>
+                                @endif
                             </div>
                             <div class="modal-footer">
                                 <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Keep invoice</button>

@@ -37,7 +37,9 @@ class MakingChargeTest extends TestCase
             ->assertSee('Processing charge')
             ->assertSee('CGST 1.5%')
             ->assertDontSee('on jewellery')
-            ->assertSeeInOrder(['Net weight', '10.000', 'Net metal value', '50,000.00']);
+            ->assertSee('10.000 g')
+            ->assertDontSee('Net metal value')
+            ->assertDontSee('Net weight');
     }
 
     public function test_the_admin_can_set_another_gst_percent_on_the_processing_charge(): void

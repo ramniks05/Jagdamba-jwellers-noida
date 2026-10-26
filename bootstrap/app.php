@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Hostinger / Cloudflare terminate HTTPS in front of PHP; trust forwarded proto so sessions and cookies work.
+        $middleware->trustProxies(at: '*');
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('overview'));
         $middleware->alias([
