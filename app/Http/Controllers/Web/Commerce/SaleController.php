@@ -7,6 +7,7 @@ use App\Enums\ItemStatus;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\ReceiptRequest;
+use App\Http\Requests\Commerce\SaleCancelRequest;
 use App\Http\Requests\Commerce\SaleRequest;
 use App\Http\Requests\Commerce\SaleReturnRequest;
 use App\Models\AdvanceOrder;
@@ -75,7 +76,7 @@ class SaleController extends Controller
             $query->whereRaw('paid_amount < total + previous_due');
         }
 
-        $matched = (clone $query)->get(['total', 'paid_amount', 'previous_due']);
+        $matched = (clone $query)->where('status', 'posted')->get(['total', 'paid_amount', 'previous_due']);
         $billed = $matched->reduce(fn (BigDecimal $carry, Sale $sale) => $carry->plus((string) $sale->total), BigDecimal::zero());
         $received = $matched->reduce(fn (BigDecimal $carry, Sale $sale) => $carry->plus((string) $sale->paid_amount), BigDecimal::zero());
         $carried = $matched->reduce(fn (BigDecimal $carry, Sale $sale) => $carry->plus((string) $sale->previous_due), BigDecimal::zero());
@@ -156,8 +157,32 @@ class SaleController extends Controller
             ->orderBy('name')
             ->get();
 
+        $openOrdersByCustomer = [];
+        if (! $sale) {
+            $customerUuidById = $customers->where('is_system', false)->pluck('uuid', 'id');
+            foreach (AdvanceOrder::query()
+                ->whereIn('customer_id', $customerUuidById->keys())
+                ->whereIn('status', AdvanceOrder::OPEN)
+                ->orderByDesc('booked_at')
+                ->get() as $advanceOrder) {
+                $customerUuid = $customerUuidById[$advanceOrder->customer_id] ?? null;
+                if (! $customerUuid) {
+                    continue;
+                }
+                $openOrdersByCustomer[$customerUuid][] = [
+                    'uuid' => $advanceOrder->uuid,
+                    'number' => $advanceOrder->number,
+                    'description' => $advanceOrder->description,
+                    'status' => $advanceOrder->statusLabel(),
+                    'advance' => $format->money($advanceOrder->advanceHeld(), $company),
+                    'billUrl' => route('sales.create', ['order' => $advanceOrder->uuid]),
+                ];
+            }
+        }
+
         return view('commerce.sales.create', [
             'order' => $order,
+            'openOrdersByCustomer' => $openOrdersByCustomer,
             'customers' => $customers,
             'credits' => $ledger->spendableCredits($customers->where('is_system', false)->modelKeys()),
             'openDues' => $sales->openDues($customers->where('is_system', false)->modelKeys(), $sale?->id),
@@ -346,9 +371,17 @@ class SaleController extends Controller
         return response($html);
     }
 
+    public function destroy(SaleCancelRequest $request, Sale $sale, SaleService $sales): RedirectResponse
+    {
+        $cancelled = $sales->cancel($sale, (string) $request->validated('reason'), $request->user()?->id);
+
+        return redirect()->route('sales.show', $cancelled)->with('status', 'Invoice '.$cancelled->number.' was cancelled. The record is kept for audit.');
+    }
+
     public function show(Sale $sale, InvoiceSheet $invoice, WhatsappService $whatsapp, CompanyContext $context): View
     {
         $this->authorize('view', $sale);
+        $sale->loadMissing('cancelledBy');
         $data = $invoice->data($sale, $context->company());
 
         return view('commerce.sales.show', $data + [

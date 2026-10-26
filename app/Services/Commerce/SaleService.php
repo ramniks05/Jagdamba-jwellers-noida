@@ -20,6 +20,7 @@ use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleLineStone;
 use App\Models\SaleReturnLine;
+use App\Models\SaleSettlement;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -95,6 +96,7 @@ class SaleService
             ->selectRaw('coalesce(sum(total + previous_due - paid_amount), 0) as due')
             ->whereIn('customer_id', $customerIds)
             ->when($exceptSaleId, fn ($query) => $query->where('id', '!=', $exceptSaleId))
+            ->where('status', 'posted')
             ->whereRaw('paid_amount < total + previous_due')
             ->groupBy('customer_id')
             ->get();
@@ -294,6 +296,7 @@ class SaleService
             $openSales = $settleOld
                 ? Sale::query()
                     ->where('customer_id', $customer->id)
+                    ->where('status', 'posted')
                     ->whereRaw('paid_amount < total + previous_due')
                     ->orderBy('sold_at')
                     ->orderBy('id')
@@ -481,6 +484,12 @@ class SaleService
             }
 
             foreach ($openSales as $open) {
+                SaleSettlement::query()->create([
+                    'company_id' => $company->id,
+                    'sale_id' => $sale->id,
+                    'settled_sale_id' => $open->id,
+                    'previous_paid_amount' => (string) $open->paid_amount,
+                ]);
                 $open->paid_amount = (string) BigDecimal::of((string) $open->total)
                     ->plus((string) $open->previous_due)
                     ->toScale(2, RoundingMode::HalfUp);
@@ -526,6 +535,10 @@ class SaleService
 
     public function editBlock(Sale $sale): ?string
     {
+        if ($sale->isCancelled()) {
+            return 'This invoice was cancelled and cannot be changed.';
+        }
+
         if ($sale->advanceOrder()->exists()) {
             return 'This invoice delivered an order, so it stays as it was saved.';
         }
@@ -537,6 +550,62 @@ class SaleService
         }
 
         return null;
+    }
+
+    public function cancel(Sale $sale, string $reason, ?int $userId = null): Sale
+    {
+        return DB::transaction(function () use ($sale, $reason, $userId) {
+            $sale = Sale::query()->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+            $this->context->ensureId((int) $sale->company_id);
+
+            if ($sale->isCancelled()) {
+                throw ValidationException::withMessages([
+                    'reason' => 'This invoice is already cancelled.',
+                ]);
+            }
+
+            $lineIds = $sale->lines()->pluck('id');
+
+            if (SaleReturnLine::query()->whereIn('sale_line_id', $lineIds)->exists()) {
+                throw ValidationException::withMessages([
+                    'reason' => 'A piece on this invoice was returned. Cancel the whole bill only when nothing was returned.',
+                ]);
+            }
+
+            if ((int) $sale->previous_bills > 0 && ! SaleSettlement::query()->where('sale_id', $sale->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'reason' => 'This invoice settled older dues and cannot be cancelled here. Ask the owner to fix it manually.',
+                ]);
+            }
+
+            foreach (SaleSettlement::query()->where('sale_id', $sale->id)->get() as $settlement) {
+                $settled = Sale::query()->whereKey($settlement->settled_sale_id)->lockForUpdate()->first();
+
+                if ($settled && $settled->isPosted()) {
+                    $settled->paid_amount = (string) $settlement->previous_paid_amount;
+                    $settled->save();
+                }
+            }
+
+            $this->reverseSaleEffects($sale, 'Invoice cancelled', keepDocumentRows: true);
+
+            $order = AdvanceOrder::query()->where('sale_id', $sale->id)->lockForUpdate()->first();
+
+            if ($order) {
+                $order->sale_id = null;
+                $order->delivered_at = null;
+                $order->status = $order->ready_at !== null ? 'ready' : 'booked';
+                $order->save();
+            }
+
+            $sale->status = 'cancelled';
+            $sale->cancel_reason = trim($reason);
+            $sale->cancelled_at = now();
+            $sale->cancelled_by_user_id = $userId;
+            $sale->save();
+
+            return $sale->fresh(['customer', 'cancelledBy', 'lines', 'payments']);
+        });
     }
 
     /**
@@ -552,6 +621,14 @@ class SaleService
             ]);
         }
 
+        $this->reverseSaleEffects($sale, 'Invoice edited', keepDocumentRows: false);
+    }
+
+    /**
+     * Undo stock, inventory, and ledger effects of a posted invoice.
+     */
+    private function reverseSaleEffects(Sale $sale, string $inventoryNote, bool $keepDocumentRows): void
+    {
         $sale->load(['lines.item.movements', 'lines.stones', 'payments']);
         $madeForBill = [];
 
@@ -563,30 +640,37 @@ class SaleService
 
             $item = $line->item;
 
-            if (! $item) {
+            if (! $item || $item->own_gold) {
                 continue;
             }
 
-            if ($this->madeForBill($item, $sale)) {
+            if (! $keepDocumentRows && $this->madeForBill($item, $sale)) {
                 $madeForBill[] = $item;
-            } else {
-                $this->inventory->apply($item, InventoryMovement::SaleReturn, $sale, null, null, 'Invoice edited', null);
-            }
-        }
 
-        $payments = $sale->payments;
+                continue;
+            }
+
+            $this->inventory->apply($item, InventoryMovement::SaleReturn, $sale, null, null, $inventoryNote, null);
+        }
 
         LedgerEntry::query()
             ->where('reference_type', $sale->getMorphClass())
             ->where('reference_id', $sale->id)
             ->delete();
 
-        foreach ($payments as $payment) {
+        foreach ($sale->payments as $payment) {
             LedgerEntry::query()
                 ->where('reference_type', $payment->getMorphClass())
                 ->where('reference_id', $payment->id)
                 ->delete();
-            $payment->delete();
+
+            if (! $keepDocumentRows) {
+                $payment->delete();
+            }
+        }
+
+        if ($keepDocumentRows) {
+            return;
         }
 
         foreach ($sale->lines as $line) {

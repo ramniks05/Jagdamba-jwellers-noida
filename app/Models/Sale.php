@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
-    'company_id', 'branch_id', 'customer_id', 'number', 'status', 'sold_at',
+    'company_id', 'branch_id', 'customer_id', 'number', 'status', 'sold_at', 'cancelled_at', 'cancelled_by_user_id', 'cancel_reason',
     'lines_amount', 'discount_amount', 'taxable_amount', 'tax_percent', 'tax_amount',
     'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'hallmark_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'previous_due', 'previous_bills', 'notes', 'user_id',
 ])]
@@ -25,6 +25,7 @@ class Sale extends Model
     {
         return [
             'sold_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'lines_amount' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'taxable_amount' => 'decimal:2',
@@ -45,9 +46,29 @@ class Sale extends Model
         ];
     }
 
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
+    }
+
+    public function isPosted(): bool
+    {
+        return $this->status === 'posted';
+    }
+
     public function advanceOrder(): HasOne
     {
         return $this->hasOne(AdvanceOrder::class);
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by_user_id');
+    }
+
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(SaleSettlement::class);
     }
 
     public function branch(): BelongsTo

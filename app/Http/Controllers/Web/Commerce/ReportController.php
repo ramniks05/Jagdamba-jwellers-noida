@@ -208,6 +208,7 @@ class ReportController extends Controller
         $payment = in_array($request->query('payment'), ['due', 'paid'], true) ? (string) $request->query('payment') : 'all';
 
         $query = Sale::query()
+            ->where('status', 'posted')
             ->whereDate('sold_at', '>=', $from)
             ->whereDate('sold_at', '<=', $to)
             ->when($search !== '', function ($rows) use ($search): void {
@@ -289,6 +290,7 @@ class ReportController extends Controller
         $openBills = $show === 'due'
             ? Sale::query()
                 ->whereIn('customer_id', $rows->getCollection()->pluck('id'))
+                ->where('status', 'posted')
                 ->whereRaw('paid_amount + 0.004 < total + coalesce(previous_due, 0)')
                 ->orderBy('sold_at')
                 ->orderBy('id')

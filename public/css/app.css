@@ -2899,20 +2899,24 @@ a {
     border-radius: 0.7rem;
 }
 
-.bill-results > button {
+.bill-results > button,
+.bill-results > a {
     align-items: center;
     background: #fff;
     border: 0;
     border-bottom: 1px solid #f0ebe4;
+    color: inherit;
     display: flex;
     gap: 0.75rem;
     justify-content: space-between;
     padding: 0.5rem 0.75rem;
     text-align: left;
+    text-decoration: none;
     width: 100%;
 }
 
-.bill-results > button:last-child {
+.bill-results > button:last-child,
+.bill-results > a:last-child {
     border-bottom: 0;
 }
 
@@ -2943,7 +2947,8 @@ a {
     white-space: nowrap;
 }
 
-.bill-results > button:hover {
+.bill-results > button:hover,
+.bill-results > a:hover {
     background: #faf6f1;
 }
 

@@ -20,8 +20,4 @@ class SalePolicy extends ShopRecordPolicy
             || $this->allowsCompany($user, $companyId, 'sales.create');
     }
 
-    public function delete(User $user, Model $record): bool
-    {
-        return false;
-    }
 }

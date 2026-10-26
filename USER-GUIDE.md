@@ -112,6 +112,17 @@ Use this when the piece is not a tagged stock item. You choose the product, weig
 2. Click the piece. Its saved price is added to the bill.
 3. A piece that is already sold will not appear here.
 
+### Cancel a mistaken invoice (owner only)
+
+Use this when the whole bill was wrong and nothing was returned yet. The invoice number stays in the system as **cancelled** with your reason, but it is left out of sales totals.
+
+1. Open **Sales** and open the invoice.
+2. Click **Cancel invoice** (only the owner sees this).
+3. Read the confirmation, type **why** you are cancelling (at least 10 characters), then click **Yes, cancel this invoice**.
+4. Stock and the customer account are reversed. If the bill had delivered an order, that order opens again.
+
+You cannot cancel a bill that already has a **return / credit note**. Use **Edit invoice** for small fixes when it is still allowed.
+
 ### Return a piece later
 
 1. Open **Sales** and open the invoice.

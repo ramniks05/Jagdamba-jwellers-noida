@@ -143,6 +143,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
     Route::get('sales/{sale}/edit', [SaleController::class, 'edit'])->name('sales.edit');
     Route::put('sales/{sale}', [SaleController::class, 'update'])->name('sales.update');
+    Route::delete('sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
     Route::post('sales/{sale}/returns', [SaleController::class, 'returnSale'])->name('sales.returns.store');
     Route::post('sales/{sale}/payments', [SaleController::class, 'payment'])->name('sales.payments.store');
     Route::post('sales/{sale}/whatsapp', [SaleController::class, 'whatsapp'])->middleware('throttle:10,1')->name('sales.whatsapp.store');

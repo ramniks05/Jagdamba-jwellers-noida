@@ -36,6 +36,13 @@ class SaleReturnService
     {
         return DB::transaction(function () use ($sale, $lineUuids, $refund, $userId) {
             $this->context->ensureId((int) $sale->company_id);
+
+            if ($sale->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'lines' => 'This invoice was cancelled.',
+                ]);
+            }
+
             $sale->load(['lines.item', 'customer', 'branch']);
             $returned = SaleReturnLine::query()->whereIn('sale_line_id', $sale->lines->modelKeys())->pluck('sale_line_id');
             $lines = $sale->lines->filter(fn (SaleLine $line) => in_array($line->uuid, $lineUuids, true));

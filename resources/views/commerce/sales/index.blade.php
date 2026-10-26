@@ -76,7 +76,9 @@
                             <td class="num">{{ $money((string) $sale->paid_amount) }}</td>
                             <td class="num">{{ $money($sale->balanceDue()) }}</td>
                             <td>
-                                @if ((float) $sale->balanceDue() > 0)
+                                @if ($sale->isCancelled())
+                                    <span class="badge text-bg-secondary">Cancelled</span>
+                                @elseif ((float) $sale->balanceDue() > 0)
                                     <span class="badge text-bg-warning">Due</span>
                                 @else
                                     <span class="badge text-bg-success">Paid</span>

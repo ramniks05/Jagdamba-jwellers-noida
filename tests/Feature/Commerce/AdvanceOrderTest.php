@@ -41,6 +41,11 @@ class AdvanceOrderTest extends TestCase
 
         $this->actingAs($owner)->get(route('sales.create', ['order' => $order->uuid]))->assertOk()->assertSee('Delivering order '.$order->number);
 
+        $this->actingAs($owner)->get(route('sales.create'))
+            ->assertOk()
+            ->assertSee('Open orders for this customer', false)
+            ->assertSee($order->number);
+
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $customer->uuid,
             'order_uuid' => $order->uuid,
@@ -95,6 +100,22 @@ class AdvanceOrderTest extends TestCase
             'amount' => '100',
             'method' => 'cash',
         ])->assertSessionHasErrors('amount');
+    }
+
+    public function test_new_bill_lists_open_orders_for_the_customer(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $order = $this->book($owner, $customer, $gold, $purity, '5000');
+
+        $response = $this->actingAs($owner)->get(route('sales.create'));
+        $response->assertOk();
+        $response->assertSee('id="customer-open-orders"', false);
+        $response->assertSee('Make the bill', false);
+        $response->assertSee($order->number, false);
+        $response->assertSee($order->uuid, false);
+        $response->assertSee('openOrders', false);
+        $response->assertSee('Bridal ring', false);
     }
 
     public function test_an_order_needs_a_named_customer(): void

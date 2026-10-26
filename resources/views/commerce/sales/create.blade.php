@@ -32,6 +32,14 @@
         <div class="row g-3">
             <div class="col-lg-7">
                 @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill', 'errorText' => 'Choose the customer by name or mobile number, or add them as a new customer.'])
+                @if (! $sale && ! $order)
+                    <div class="card mb-3 d-none" id="customer-open-orders">
+                        <div class="card-header bg-white py-2"><span><i class="bi bi-bag-check"></i> Open orders for this customer</span></div>
+                        <div class="card-body pt-0 pb-0">
+                            <div class="bill-results border-0 rounded-0" id="customer-open-orders-list"></div>
+                        </div>
+                    </div>
+                @endif
                 <div class="card mb-3 scan-card">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-upc-scan"></i> Scan tag</span>
@@ -321,6 +329,7 @@
         })->values(),
         'scanUrl' => route('sales.scan'),
         'orderUuid' => $order?->uuid,
+        'openOrders' => $openOrdersByCustomer ?? [],
         'pieces' => $rows->map(fn ($row) => $billScan->present($row['item'], $row['quote'], $shopContext->company()))->values(),
         'rates' => $rates->map(fn ($rate) => [
             'metal_type_id' => $rate->metal_type_id,
@@ -346,6 +355,41 @@
         let rateEdited = false;
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
         let payState = { total: 0, advance: 0, oldDue: 0, creditUsed: 0 };
+
+        function renderCustomerOpenOrders(row) {
+            const panel = document.getElementById('customer-open-orders');
+            const list = document.getElementById('customer-open-orders-list');
+            if (!panel || !list) return;
+            if (!row || row.walkin) {
+                panel.classList.add('d-none');
+                list.replaceChildren();
+                return;
+            }
+            const orders = bill.openOrders[row.uuid] || [];
+            if (orders.length === 0) {
+                panel.classList.add('d-none');
+                list.replaceChildren();
+                return;
+            }
+            list.replaceChildren();
+            orders.forEach((order) => {
+                const link = document.createElement('a');
+                link.href = order.billUrl;
+                const info = document.createElement('span');
+                info.className = 'result-info';
+                const title = document.createElement('strong');
+                title.textContent = order.number;
+                const detail = document.createElement('small');
+                detail.textContent = [order.description, order.status, 'Advance ' + order.advance].filter(Boolean).join(' · ');
+                info.append(title, detail);
+                const action = document.createElement('span');
+                action.className = 'result-add';
+                action.innerHTML = '<i class="bi bi-receipt"></i> Make the bill';
+                link.append(info, action);
+                list.appendChild(link);
+            });
+            panel.classList.remove('d-none');
+        }
 
         function round2(value) {
             return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -1291,9 +1335,11 @@
                 if (!bill.fixedPrevious) {
                     document.getElementById('include-previous').checked = !!(row && Number(row.due_amount) > 0);
                 }
+                renderCustomerOpenOrders(row);
                 renderTotals();
             },
         });
+        renderCustomerOpenOrders(customer);
         if (bill.editing) {
             bill.editing.stock.forEach((uuid) => {
                 const row = bill.pieces.find((piece) => piece.uuid === uuid);

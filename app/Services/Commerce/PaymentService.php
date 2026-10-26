@@ -96,6 +96,13 @@ class PaymentService
         return DB::transaction(function () use ($sale, $attributes, $userId) {
             $this->context->ensureId((int) $sale->company_id);
             $locked = Sale::query()->whereKey($sale->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($locked->status === 'cancelled') {
+                throw ValidationException::withMessages([
+                    'amount' => 'This invoice was cancelled.',
+                ]);
+            }
+
             $amount = BigDecimal::of((string) $attributes['amount'])->toScale(2, RoundingMode::HalfUp);
             $due = BigDecimal::of($locked->balanceDue());
 
