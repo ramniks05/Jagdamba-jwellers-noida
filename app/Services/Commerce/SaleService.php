@@ -21,6 +21,7 @@ use App\Models\SaleLine;
 use App\Models\SaleLineStone;
 use App\Models\SaleReturnLine;
 use App\Models\SaleSettlement;
+use App\Models\StockTray;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -43,6 +44,7 @@ class SaleService
         private readonly DocumentNumberService $numbers,
         private readonly SettingService $settings,
         private readonly MetalStockService $metalStock,
+        private readonly TrayService $trays,
     ) {}
 
     /**
@@ -142,6 +144,21 @@ class SaleService
                 ]);
             }
 
+            $tray = null;
+
+            if (trim((string) ($attributes['tray_uuid'] ?? '')) !== '') {
+                $tray = StockTray::query()
+                    ->where('uuid', (string) $attributes['tray_uuid'])
+                    ->where('is_active', true)
+                    ->first();
+
+                if (! $tray) {
+                    throw ValidationException::withMessages([
+                        'tray_uuid' => 'Choose an active tray.',
+                    ]);
+                }
+            }
+
             $order = null;
 
             if (! empty($attributes['order_uuid'])) {
@@ -216,6 +233,7 @@ class SaleService
             $linesTotal = BigDecimal::zero();
             $makingTotal = BigDecimal::zero();
             $hallmarkTotal = BigDecimal::zero();
+            $trayNet = BigDecimal::zero();
 
             foreach ($items as $item) {
                 $piece = $locked[$item->id];
@@ -240,6 +258,8 @@ class SaleService
                 }
 
                 $priced = $this->pricePiece($piece, (string) $rate->rate_per_gram);
+
+                $trayNet = $trayNet->plus((string) $piece->net_weight);
 
                 $lines[] = ['item' => $piece, 'display' => $item, 'rate' => $rate, 'priced' => $priced];
                 $linesTotal = $linesTotal->plus($priced['line_amount']);
@@ -351,6 +371,7 @@ class SaleService
                 'company_id' => $company->id,
                 'branch_id' => $branch->id,
                 'customer_id' => $customer->id,
+                'stock_tray_id' => $tray?->id,
                 'status' => 'posted',
                 'lines_amount' => $bill->linesAmount,
                 'discount_amount' => $bill->discountAmount,
@@ -444,6 +465,10 @@ class SaleService
                     'Sold on '.$sale->number,
                     $userId,
                 );
+            }
+
+            if ($tray) {
+                $this->trays->recordSale($tray, $sale, (string) $trayNet->toScale(3, RoundingMode::HalfUp), $userId);
             }
 
             $this->ledger->post(
@@ -646,6 +671,7 @@ class SaleService
     private function reverseSaleEffects(Sale $sale, string $inventoryNote, bool $keepDocumentRows): void
     {
         $sale->load(['lines.item.movements', 'lines.stones', 'payments']);
+        $this->trays->reverseSale($sale);
         $madeForBill = [];
 
         foreach ($sale->lines as $line) {

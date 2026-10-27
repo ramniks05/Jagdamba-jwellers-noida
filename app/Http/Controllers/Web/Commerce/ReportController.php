@@ -17,6 +17,7 @@ use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
+use App\Models\StockTray;
 use App\Models\Supplier;
 use App\Services\Commerce\MetalStockService;
 use App\Services\Commerce\PieceCategorySummary;
@@ -307,6 +308,43 @@ class ReportController extends Controller
             'perPage' => $this->perPage($request),
             'company' => $company,
             'money' => $money,
+        ]);
+    }
+
+    public function trays(Request $request, NumberFormatService $format, CompanyContext $context): View
+    {
+        $this->authorize('reports.view');
+        $company = $context->company();
+        $trayUuid = trim((string) $request->query('tray', ''));
+        $from = $this->dateQuery($request->query('from'));
+        $to = $this->dateQuery($request->query('to'));
+        $tray = $trayUuid === '' ? null : StockTray::query()->where('uuid', $trayUuid)->first();
+        $sales = collect();
+
+        if ($tray) {
+            $sales = Sale::query()
+                ->with(['customer', 'lines'])
+                ->where('stock_tray_id', $tray->id)
+                ->where('status', 'posted')
+                ->when($from, fn ($query) => $query->whereDate('sold_at', '>=', $from))
+                ->when($to, fn ($query) => $query->whereDate('sold_at', '<=', $to))
+                ->orderByDesc('sold_at')
+                ->orderByDesc('id')
+                ->paginate(20)
+                ->withQueryString();
+        }
+
+        $weight = fn (string $amount) => $format->weight($amount, $company);
+
+        return view('commerce.reports.trays', [
+            'trays' => StockTray::query()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'code', 'name', 'grams', 'pieces', 'is_active']),
+            'tray' => $tray,
+            'trayUuid' => $trayUuid,
+            'from' => $from ?? '',
+            'to' => $to ?? '',
+            'sales' => $sales,
+            'weight' => $weight,
+            'company' => $company,
         ]);
     }
 

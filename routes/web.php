@@ -24,6 +24,7 @@ use App\Http\Controllers\Web\Commerce\RepairController;
 use App\Http\Controllers\Web\Commerce\ReportController;
 use App\Http\Controllers\Web\Commerce\SaleController;
 use App\Http\Controllers\Web\Commerce\SchemeController;
+use App\Http\Controllers\Web\Commerce\StockTrayController;
 use App\Http\Controllers\Web\Commerce\SupplierController;
 use App\Http\Controllers\Web\CompanyProfileController;
 use App\Http\Controllers\Web\DocumentSequenceController;
@@ -131,6 +132,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('rates/from-market', [RateController::class, 'storeMarket'])->name('rates.market.store');
 
     Route::resource('locations', LocationController::class)->except(['show', 'destroy']);
+    Route::resource('trays', StockTrayController::class)->except(['show']);
     Route::get('customers/qr', [CustomerIntakeController::class, 'qr'])->name('customers.qr');
     Route::get('customer-intakes', [CustomerIntakeController::class, 'index'])->name('customer-intakes.index');
     Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');
@@ -186,4 +188,5 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::put('reports/stock/{movement}', [MetalStockController::class, 'update'])->name('reports.stock.update');
     Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
     Route::get('reports/outstanding', [ReportController::class, 'outstanding'])->name('reports.outstanding');
+    Route::get('reports/trays', [ReportController::class, 'trays'])->name('reports.trays');
 });

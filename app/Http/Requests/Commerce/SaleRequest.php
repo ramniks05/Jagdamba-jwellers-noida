@@ -79,6 +79,7 @@ class SaleRequest extends FormRequest
             'discount' => trim((string) $this->input('discount')) === '' ? '0' : $this->input('discount'),
             'notes' => trim((string) $this->input('notes')) === '' ? null : $this->input('notes'),
             'sold_at' => $soldAt,
+            'tray_uuid' => trim((string) $this->input('tray_uuid', '')) === '' ? null : $this->input('tray_uuid'),
         ]);
     }
 
@@ -94,6 +95,11 @@ class SaleRequest extends FormRequest
 
         return [
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where($named)],
+            'tray_uuid' => [
+                'nullable',
+                'uuid',
+                Rule::exists('stock_trays', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id)->where('is_active', true)),
+            ],
             'order_uuid' => ['nullable', 'uuid', Rule::exists('advance_orders', 'uuid')->where('company_id', $this->user()->company_id)],
             'item_ids' => ['array'],
             'item_ids.*' => ['uuid', 'distinct'],

@@ -32,6 +32,24 @@
         <div class="row g-3">
             <div class="col-lg-7">
                 @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill', 'errorText' => 'Choose the customer by name or mobile number, or add them as a new customer.'])
+                @if ($trays->isNotEmpty())
+                    <div class="card mb-3">
+                        <div class="card-header bg-white">Tray (optional)</div>
+                        <div class="card-body">
+                            <label class="form-label" for="tray-uuid">Bill from tray</label>
+                            <select class="form-select @error('tray_uuid') is-invalid @enderror" id="tray-uuid" name="tray_uuid">
+                                <option value="">— Not from a tray —</option>
+                                @foreach ($trays as $trayOption)
+                                    <option value="{{ $trayOption->uuid }}" @selected(old('tray_uuid', $sale?->stockTray?->uuid) === $trayOption->uuid)>
+                                        {{ $trayOption->name }} · {{ rtrim(rtrim(number_format((float) $trayOption->grams, 3, '.', ''), '0'), '.') }} g · {{ $trayOption->pieces }} pcs
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('tray_uuid')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                            <div class="form-text">Net weight on the bill comes off this tray (1 piece per bill). Metal stock still uses each line’s metal and purity.</div>
+                        </div>
+                    </div>
+                @endif
                 @if (! $sale && ! $order)
                     <div class="card mb-3 d-none" id="customer-open-orders">
                         <div class="card-header bg-white py-2"><span><i class="bi bi-bag-check"></i> Open orders for this customer</span></div>

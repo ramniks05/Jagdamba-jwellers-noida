@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
-    'company_id', 'branch_id', 'customer_id', 'number', 'status', 'sold_at', 'cancelled_at', 'cancelled_by_user_id', 'cancel_reason',
+    'company_id', 'branch_id', 'customer_id', 'stock_tray_id', 'number', 'status', 'sold_at', 'cancelled_at', 'cancelled_by_user_id', 'cancel_reason',
     'lines_amount', 'discount_amount', 'taxable_amount', 'tax_percent', 'tax_amount',
     'making_mode', 'making_amount', 'making_tax_percent', 'making_tax_amount', 'hallmark_amount', 'prices_include_tax', 'round_off', 'total', 'paid_amount', 'advance_amount', 'credit_amount', 'previous_due', 'previous_bills', 'notes', 'user_id',
 ])]
@@ -79,6 +79,11 @@ class Sale extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function stockTray(): BelongsTo
+    {
+        return $this->belongsTo(StockTray::class);
     }
 
     public function lines(): HasMany

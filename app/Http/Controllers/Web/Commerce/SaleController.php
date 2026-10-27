@@ -22,6 +22,7 @@ use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
+use App\Models\StockTray;
 use App\Models\WhatsappMessage;
 use App\Services\Commerce\InvoiceSheet;
 use App\Services\Commerce\WeightSummary;
@@ -134,6 +135,7 @@ class SaleController extends Controller
     private function billScreen(Request $request, SaleService $sales, LedgerService $ledger, SettingService $settings, NumberFormatService $format, CompanyContext $context, ?Sale $sale): View
     {
         $company = $context->company();
+        $sale?->loadMissing('stockTray');
         $draft = $sale ? $this->invoiceDraft($sale, $sales) : null;
         $order = $request->filled('order')
             ? AdvanceOrder::query()->with(['customer', 'metalType', 'purity'])->where('uuid', (string) $request->query('order'))->whereIn('status', AdvanceOrder::OPEN)->first()
@@ -196,6 +198,7 @@ class SaleController extends Controller
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
+            'trays' => StockTray::query()->active()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'code', 'name', 'grams', 'pieces']),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
             'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),

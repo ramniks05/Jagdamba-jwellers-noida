@@ -23,6 +23,7 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\SchemeEnrollment;
 use App\Models\StockLocation;
+use App\Models\StockTray;
 use App\Models\Society;
 use App\Models\StoneGrade;
 use App\Models\StoneType;
@@ -42,6 +43,7 @@ use App\Policies\SalePolicy;
 use App\Policies\SaleReturnPolicy;
 use App\Policies\SchemePolicy;
 use App\Policies\StockLocationPolicy;
+use App\Policies\StockTrayPolicy;
 use App\Policies\SupplierPolicy;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\NumberFormatService;
@@ -97,6 +99,7 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Item::class, ItemPolicy::class);
         Gate::policy(StockLocation::class, StockLocationPolicy::class);
+        Gate::policy(StockTray::class, StockTrayPolicy::class);
         Gate::policy(MetalRate::class, MetalRatePolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(Supplier::class, SupplierPolicy::class);
