@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TrayMovementKind;
 use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -48,6 +49,10 @@ class StockTray extends Model
     {
         if ($this->sales()->exists()) {
             return 'This tray has bills and stays on the records.';
+        }
+
+        if ($this->movements()->where('kind', TrayMovementKind::Sale)->exists()) {
+            return 'This tray has sale history and stays on the records.';
         }
 
         return null;

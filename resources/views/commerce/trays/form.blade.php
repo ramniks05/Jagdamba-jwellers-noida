@@ -40,11 +40,15 @@
     </form>
     @if ($tray->exists)
         @can('delete', $tray)
-            <form class="mt-4" method="POST" action="{{ route('trays.destroy', $tray) }}" onsubmit="return confirm('Remove this tray?');">
-                @csrf
-                @method('DELETE')
-                <button class="btn btn-outline-danger" type="submit">Remove tray</button>
-            </form>
+            @if ($tray->deletionBlocker())
+                <p class="text-secondary small mt-4 mb-0">{{ $tray->deletionBlocker() }}</p>
+            @else
+                <form class="mt-4" method="POST" action="{{ route('trays.destroy', $tray) }}" onsubmit="return confirm('Remove this tray?');">
+                    @csrf
+                    @method('DELETE')
+                    <button class="btn btn-outline-danger" type="submit">Remove tray</button>
+                </form>
+            @endif
         @endcan
     @endif
 @endsection

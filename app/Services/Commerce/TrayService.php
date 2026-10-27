@@ -102,11 +102,17 @@ class TrayService
 
     public function delete(StockTray $tray): void
     {
-        if ($message = $tray->deletionBlocker()) {
-            throw ValidationException::withMessages(['record' => $message]);
-        }
+        DB::transaction(function () use ($tray) {
+            $this->context->ensureId((int) $tray->company_id);
+            $locked = StockTray::query()->whereKey($tray->id)->lockForUpdate()->firstOrFail();
 
-        $tray->delete();
+            if ($message = $locked->deletionBlocker()) {
+                throw ValidationException::withMessages(['record' => $message]);
+            }
+
+            $locked->movements()->delete();
+            $locked->delete();
+        });
     }
 
     public function recordSale(StockTray $tray, Sale $sale, string $netGrams, ?int $userId = null): void

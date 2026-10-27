@@ -109,7 +109,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::put('charge-methods/{chargeMethod}', [ChargeMethodController::class, 'update'])->name('charge-methods.update');
     Route::delete('charge-methods/{chargeMethod}', [ChargeMethodController::class, 'destroy'])->name('charge-methods.destroy');
 
-    Route::resource('items', ItemController::class)->except(['destroy']);
+    Route::resource('items', ItemController::class);
     Route::post('items/{item}/reserve', [ItemController::class, 'reserve'])->name('items.reserve');
     Route::post('items/{item}/release', [ItemController::class, 'release'])->name('items.release');
     Route::post('items/{item}/damage', [ItemController::class, 'damage'])->name('items.damage');

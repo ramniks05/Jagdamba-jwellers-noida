@@ -203,6 +203,15 @@ class ItemController extends Controller
         return view('commerce.items.form', $this->formData($item->load(['category', 'brand', 'collection', 'design', 'metalType', 'purity', 'location', 'makingMethod', 'wastageMethod', 'stones'])));
     }
 
+    public function destroy(Item $item, ItemService $items): RedirectResponse
+    {
+        $this->authorize('delete', $item);
+        $code = $item->item_code;
+        $items->delete($item);
+
+        return redirect()->route('items.index')->with('status', 'Piece '.$code.' removed.');
+    }
+
     public function update(ItemRequest $request, Item $item, ItemService $items, CompanyContext $context): RedirectResponse
     {
         $attributes = $request->validated();

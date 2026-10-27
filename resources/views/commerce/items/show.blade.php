@@ -35,6 +35,15 @@
             @can('update', $item)
                 <a class="btn btn-outline-secondary" href="{{ route('items.edit', $item) }}"><i class="bi bi-pencil"></i> Edit</a>
             @endcan
+            @can('delete', $item)
+                @if (! $item->deletionBlocker())
+                    <form class="d-inline" method="POST" action="{{ route('items.destroy', $item) }}" onsubmit="return confirm('Remove {{ $item->item_code }}? This cannot be undone.');">
+                        @csrf
+                        @method('DELETE')
+                        <button class="btn btn-outline-danger" type="submit"><i class="bi bi-trash"></i> Remove</button>
+                    </form>
+                @endif
+            @endcan
             @can('inventory.print')
                 <span class="btn-group">
                     <button class="btn btn-outline-secondary" type="button" id="tag-quick-print" data-zpl-url="{{ route('items.label.zpl', $item) }}"><i class="bi bi-printer"></i> Print tag</button>

@@ -122,6 +122,22 @@ class ItemService
         return $item->source !== ItemSource::OldGold && ! $item->purchaseLines()->exists();
     }
 
+    public function delete(Item $item): void
+    {
+        DB::transaction(function () use ($item) {
+            $this->context->ensureId((int) $item->company_id);
+            $locked = Item::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+            $message = $locked->deletionBlocker();
+
+            if (is_string($message) && $message !== '') {
+                throw ValidationException::withMessages(['record' => $message]);
+            }
+
+            $locked->movements()->delete();
+            $locked->delete();
+        });
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */

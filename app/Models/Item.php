@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'company_id', 'branch_id', 'stock_location_id', 'sku', 'item_code', 'barcode', 'rfid', 'name',
@@ -130,5 +132,40 @@ class Item extends Model
                 ->orWhere('barcode', 'like', $like)
                 ->orWhere('huid', 'like', $like);
         });
+    }
+
+    public function deletionBlocker(): ?string
+    {
+        if ($this->own_gold) {
+            return 'Own-gold pieces are removed from the Own gold screen, not here.';
+        }
+
+        if ($this->status !== ItemStatus::Available) {
+            return 'Only an available piece with no bills can be removed. Change the status back first if it was reserved by mistake.';
+        }
+
+        foreach ([
+            'sale_lines' => ['item_id', 'bill'],
+            'purchase_lines' => ['item_id', 'purchase'],
+            'repair_orders' => ['item_id', 'repair job'],
+            'sale_return_lines' => ['item_id', 'return'],
+            'purchase_return_lines' => ['item_id', 'purchase return'],
+        ] as $table => [$column, $label]) {
+            $count = DB::table($table)->where($column, $this->getKey())->count();
+
+            if ($count > 0) {
+                return 'This piece is on '.$count.' '.Str::plural($label, $count).' and cannot be removed.';
+            }
+        }
+
+        if (DB::table('old_gold_movements')->where('item_id', $this->getKey())->exists()) {
+            return 'This piece is linked to an old-gold exchange and cannot be removed.';
+        }
+
+        if ($this->movements()->count() !== 1) {
+            return 'This piece has stock history beyond the first entry. It cannot be removed.';
+        }
+
+        return null;
     }
 }
