@@ -20,6 +20,15 @@ function customerPicker(options) {
         return mark;
     }
 
+    function premiumStar(row) {
+        if (!row.is_premium) return document.createTextNode('');
+        const star = document.createElement('i');
+        star.className = 'bi bi-star-fill customer-premium-star';
+        star.title = 'Premium customer';
+        star.setAttribute('aria-label', 'Premium customer');
+        return star;
+    }
+
     function matches(query, values) {
         const needle = query.trim().toLowerCase();
         if (needle === '') return false;
@@ -37,7 +46,7 @@ function customerPicker(options) {
         const info = document.createElement('span');
         info.className = 'result-info';
         const name = document.createElement('strong');
-        name.append(row.name, dueMark(row));
+        name.append(premiumStar(row), document.createTextNode(row.name), dueMark(row));
         const detail = document.createElement('small');
         detail.textContent = [row.mobile, row.code].filter(Boolean).join(' · ');
         info.append(name, detail);
@@ -91,7 +100,7 @@ function customerPicker(options) {
         const label = document.createElement('small');
         label.textContent = settings.chipLabel;
         const name = document.createElement('strong');
-        name.append(row.name, dueMark(row));
+        name.append(premiumStar(row), document.createTextNode(row.name), dueMark(row));
         const meta = document.createElement('span');
         meta.textContent = [row.mobile, row.code].filter(Boolean).join(' · ');
         info.append(label, name, meta);

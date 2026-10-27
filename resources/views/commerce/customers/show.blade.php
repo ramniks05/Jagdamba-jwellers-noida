@@ -6,7 +6,12 @@
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
             <h1 class="page-title h3 mb-1">{{ $customer->name }}</h1>
-            <div class="text-secondary">{{ $customer->code }} · {{ $customer->mobile }}</div>
+            <div class="text-secondary">
+                {{ $customer->code }} · {{ $customer->mobile }}
+                @if ($customer->is_premium)
+                    · <span class="badge text-bg-warning">Premium</span>
+                @endif
+            </div>
         </div>
         @can('update', $customer)
             <a class="btn btn-outline-secondary" href="{{ route('customers.edit', $customer) }}">Edit</a>
@@ -21,6 +26,7 @@
         <div class="card-header bg-white">Customer details</div>
         <div class="card-body">
             <div class="row g-3">
+                <div class="col-md-4"><div class="stat-label">Society</div><div>{{ $customer->society?->name ?: '—' }}</div></div>
                 <div class="col-md-4"><div class="stat-label">Email</div><div>{{ $customer->email ?: '—' }}</div></div>
                 <div class="col-md-4"><div class="stat-label">Date of birth</div><div>{{ $customer->dob?->format('d M Y') ?: '—' }}</div></div>
                 <div class="col-md-4"><div class="stat-label">Anniversary</div><div>{{ $customer->anniversary?->format('d M Y') ?: '—' }}</div></div>

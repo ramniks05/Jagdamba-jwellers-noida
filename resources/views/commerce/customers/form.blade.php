@@ -46,6 +46,15 @@
                     @endforeach
                 </select>
             </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label" for="society_id">Society</label>
+                <select class="form-select" id="society_id" name="society_id">
+                    <option value="">— None —</option>
+                    @foreach ($societies as $society)
+                        <option value="{{ $society->uuid }}" @selected(old('society_id', $customer->society?->uuid) === $society->uuid)>{{ $society->name }}</option>
+                    @endforeach
+                </select>
+            </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label" for="address_line1">Address</label>
                 <input class="form-control" id="address_line1" name="address_line1" value="{{ old('address_line1', $customer->address_line1) }}">
@@ -84,7 +93,12 @@
             </div>
             <input type="hidden" name="country" value="{{ old('country', $customer->country ?: 'India') }}">
             <input type="hidden" name="is_active" value="0">
+            <input type="hidden" name="is_premium" value="0">
             <div class="col-12">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" id="is_premium" name="is_premium" type="checkbox" value="1" @checked(filter_var(old('is_premium', $customer->is_premium ?? false), FILTER_VALIDATE_BOOLEAN))>
+                    <label class="form-check-label" for="is_premium">Premium customer</label>
+                </div>
                 <div class="form-check">
                     <input class="form-check-input" id="is_active" name="is_active" type="checkbox" value="1" @checked(filter_var(old('is_active', $customer->is_active ?? true), FILTER_VALIDATE_BOOLEAN)) @disabled($customer->is_system)>
                     <label class="form-check-label" for="is_active">Active</label>

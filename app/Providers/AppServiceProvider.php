@@ -23,6 +23,7 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\SchemeEnrollment;
 use App\Models\StockLocation;
+use App\Models\Society;
 use App\Models\StoneGrade;
 use App\Models\StoneType;
 use App\Models\Supplier;
@@ -89,6 +90,7 @@ class AppServiceProvider extends ServiceProvider
             StoneType::class,
             StoneGrade::class,
             ChargeMethod::class,
+            Society::class,
         ] as $model) {
             Gate::policy($model, MasterDataPolicy::class);
         }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\CustomerRequest;
 use App\Http\Requests\Commerce\ReceiptRequest;
 use App\Models\Customer;
+use App\Models\Society;
 use App\Models\LedgerEntry;
 use App\Services\Commerce\CustomerService;
 use App\Services\Commerce\LedgerService;
@@ -28,18 +29,35 @@ class CustomerController extends Controller
     {
         $this->authorize('viewAny', Customer::class);
         $search = trim((string) $request->query('search', ''));
+        $societyUuid = trim((string) $request->query('society', ''));
+        $premium = (string) $request->query('premium', '');
 
         return view('commerce.customers.index', [
             'search' => $search,
+            'societyUuid' => $societyUuid,
+            'premium' => $premium,
+            'societies' => Society::query()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'name']),
             'customers' => Customer::query()
+                ->with('society')
                 ->when($search !== '', function ($query) use ($search) {
                     $like = '%'.addcslashes($search, '%_\\').'%';
                     $query->where(fn ($query) => $query->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('mobile', 'like', $like));
                 })
+                ->when($societyUuid !== '', fn ($query) => $query->whereHas('society', fn ($query) => $query->where('uuid', $societyUuid)))
+                ->when($premium === 'yes', fn ($query) => $query->where('is_premium', true))
+                ->when($premium === 'no', fn ($query) => $query->where('is_premium', false))
                 ->orderBy('name')
                 ->paginate(20)
                 ->withQueryString(),
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Society>
+     */
+    private function societyChoices(): \Illuminate\Database\Eloquent\Collection
+    {
+        return Society::query()->active()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'name']);
     }
 
     public function create(): View
@@ -47,9 +65,10 @@ class CustomerController extends Controller
         $this->authorize('create', Customer::class);
 
         return view('commerce.customers.form', [
-            'customer' => new Customer(['is_active' => true, 'kyc_status' => KycStatus::Pending, 'customer_type' => CustomerType::Retail, 'country' => 'India']),
+            'customer' => new Customer(['is_active' => true, 'is_premium' => false, 'kyc_status' => KycStatus::Pending, 'customer_type' => CustomerType::Retail, 'country' => 'India']),
             'kyc' => KycStatus::cases(),
             'types' => CustomerType::cases(),
+            'societies' => $this->societyChoices(),
         ]);
     }
 
@@ -98,6 +117,8 @@ class CustomerController extends Controller
                 ])->filter()->values(),
                 'notes' => $customer->notes,
                 'walkin' => (bool) $customer->is_system,
+                'society' => $customer->society?->name,
+                'is_premium' => (bool) $customer->is_premium,
                 'balance' => $format->money((string) BigDecimal::of($balance)->abs(), $company),
                 'balance_sign' => BigDecimal::of($balance)->getSign(),
                 'bills_count' => $totals->count(),
@@ -113,6 +134,8 @@ class CustomerController extends Controller
             ]);
         }
 
+        $customer->loadMissing('society');
+
         return view('commerce.customers.show', [
             'customer' => $customer,
             'balance' => $ledger->balance(PartyType::Customer, (int) $customer->id),
@@ -126,10 +149,13 @@ class CustomerController extends Controller
     {
         $this->authorize('update', $customer);
 
+        $customer->loadMissing('society');
+
         return view('commerce.customers.form', [
             'customer' => $customer,
             'kyc' => KycStatus::cases(),
             'types' => CustomerType::cases(),
+            'societies' => $this->societyChoices(),
         ]);
     }
 

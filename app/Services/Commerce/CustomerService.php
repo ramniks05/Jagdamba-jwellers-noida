@@ -6,6 +6,7 @@ use App\Enums\CustomerType;
 use App\Enums\KycStatus;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Society;
 use App\Support\CompanyContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -87,9 +88,26 @@ class CustomerService
             'id_proof_number' => $this->blank($attributes['id_proof_number'] ?? null),
             'kyc_status' => KycStatus::from($attributes['kyc_status'] ?? KycStatus::Pending->value),
             'customer_type' => CustomerType::from($attributes['customer_type'] ?? CustomerType::Retail->value),
+            'society_id' => $this->societyId($attributes['society_id'] ?? null),
+            'is_premium' => filter_var($attributes['is_premium'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'is_active' => filter_var($attributes['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN),
             'notes' => $this->blank($attributes['notes'] ?? null),
         ];
+    }
+
+    private function societyId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $query = Society::query()->where('company_id', $this->context->id());
+
+        if (is_numeric($value)) {
+            return $query->whereKey((int) $value)->value('id');
+        }
+
+        return $query->where('uuid', (string) $value)->value('id');
     }
 
     private function nextCode(): string

@@ -5,6 +5,7 @@ namespace App\Http\Requests\Commerce;
 use App\Enums\CustomerType;
 use App\Enums\KycStatus;
 use App\Models\Customer;
+use App\Models\Society;
 use App\Support\IdentityRules;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,7 +39,11 @@ class CustomerRequest extends FormRequest
             'gstin' => Str::upper(trim((string) $this->input('gstin'))),
         ]);
 
-        foreach (['mobile', 'email', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'dob', 'anniversary', 'pan', 'gstin', 'id_proof_type', 'id_proof_number', 'notes'] as $field) {
+        if (! $this->has('is_premium')) {
+            $this->merge(['is_premium' => false]);
+        }
+
+        foreach (['mobile', 'email', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'dob', 'anniversary', 'pan', 'gstin', 'id_proof_type', 'id_proof_number', 'notes', 'society_id'] as $field) {
             if ($this->input($field) === '') {
                 $this->merge([$field => null]);
             }
@@ -68,6 +73,11 @@ class CustomerRequest extends FormRequest
             'id_proof_number' => ['nullable', 'string', 'max:40'],
             'kyc_status' => ['required', Rule::enum(KycStatus::class)],
             'customer_type' => ['required', Rule::enum(CustomerType::class)],
+            'society_id' => [
+                'nullable',
+                Rule::exists('societies', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
+            ],
+            'is_premium' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

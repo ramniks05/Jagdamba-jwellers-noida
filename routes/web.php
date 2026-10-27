@@ -37,6 +37,7 @@ use App\Http\Controllers\Web\Masters\MetalController;
 use App\Http\Controllers\Web\Masters\PurityController;
 use App\Http\Controllers\Web\Masters\StoneDirectoryController;
 use App\Http\Controllers\Web\Masters\StoneGradeController;
+use App\Http\Controllers\Web\Masters\SocietyController;
 use App\Http\Controllers\Web\Masters\StoneTypeController;
 use App\Http\Controllers\Web\OverviewController;
 use App\Http\Controllers\Web\ProfileController;
@@ -90,6 +91,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
 
     Route::resource('categories', CategoryController::class)->except(['show']);
     Route::resource('brands', BrandController::class)->except(['show']);
+    Route::resource('societies', SocietyController::class)->except(['show']);
     Route::resource('collections', CollectionController::class)->except(['show']);
     Route::resource('designs', DesignController::class)->except(['show']);
     Route::resource('metals', MetalController::class)->except(['show']);

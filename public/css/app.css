@@ -2202,6 +2202,13 @@ a {
     color: #1d6b3a;
 }
 
+.customer-premium-star {
+    color: #c9a227;
+    font-size: 0.95em;
+    margin-right: 0.35rem;
+    vertical-align: -0.05em;
+}
+
 .customer-chip-info span {
     color: #6d6258;
     font-size: 0.84rem;

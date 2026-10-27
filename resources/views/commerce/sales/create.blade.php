@@ -328,6 +328,7 @@
                 'code' => $customer->code,
                 'mobile' => $customer->mobile,
                 'walkin' => (bool) $customer->is_system,
+                'is_premium' => (bool) $customer->is_premium,
                 'credit' => (float) ($credits[$customer->id] ?? 0),
                 'due' => $owed > 0 ? 'Old due '.$money(number_format($owed, 2, '.', '')) : '',
                 'advance' => $owed <= 0 && isset($credits[$customer->id]) ? 'Advance '.$money((string) $credits[$customer->id]) : '',

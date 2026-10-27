@@ -90,6 +90,7 @@
                     @can('masters.view')
                         <div class="menu-label">Masters</div>
                         <a class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}"><i class="bi bi-tags"></i><span>Categories</span></a>
+                        <a class="nav-link {{ request()->routeIs('societies.*') ? 'active' : '' }}" href="{{ route('societies.index') }}"><i class="bi bi-buildings"></i><span>Societies</span></a>
                         <a class="nav-link {{ request()->routeIs('metals.*') ? 'active' : '' }}" href="{{ route('metals.index') }}"><i class="bi bi-circle"></i><span>Metals</span></a>
                         <a class="nav-link {{ request()->routeIs('stones.*', 'stone-types.*', 'stone-grades.*') ? 'active' : '' }}" href="{{ route('stones.index') }}"><i class="bi bi-diamond"></i><span>Stones</span></a>
                     @endcan

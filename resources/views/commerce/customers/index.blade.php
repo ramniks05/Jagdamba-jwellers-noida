@@ -14,24 +14,45 @@
         </div>
     </div>
     <form class="row g-2 mb-3" method="GET" action="{{ route('customers.index') }}">
-        <div class="col-md-4"><input class="form-control" name="search" value="{{ $search }}" placeholder="Name, code, or mobile"></div>
-        <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Search</button></div>
+        <div class="col-md-3"><input class="form-control" name="search" value="{{ $search }}" placeholder="Name, code, or mobile"></div>
+        <div class="col-md-3">
+            <select class="form-select" name="society">
+                <option value="">All societies</option>
+                @foreach ($societies as $society)
+                    <option value="{{ $society->uuid }}" @selected($societyUuid === $society->uuid)>{{ $society->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="premium">
+                <option value="" @selected($premium === '')>All customers</option>
+                <option value="yes" @selected($premium === 'yes')>Premium only</option>
+                <option value="no" @selected($premium === 'no')>Not premium</option>
+            </select>
+        </div>
+        <div class="col-auto"><button class="btn btn-outline-secondary" type="submit">Filter</button></div>
     </form>
     <div class="card">
         <div class="table-responsive">
             <table class="table mb-0">
-                <thead><tr><th>Code</th><th>Name</th><th>Mobile</th><th>Type</th><th></th></tr></thead>
+                <thead><tr><th>Code</th><th>Name</th><th>Mobile</th><th>Society</th><th>Type</th><th></th></tr></thead>
                 <tbody>
                     @forelse ($customers as $customer)
                         <tr>
                             <td>{{ $customer->code }}</td>
-                            <td>{{ $customer->name }}</td>
+                            <td>
+                                {{ $customer->name }}
+                                @if ($customer->is_premium)
+                                    <span class="badge text-bg-warning ms-1">Premium</span>
+                                @endif
+                            </td>
                             <td>{{ $customer->mobile }}</td>
+                            <td>{{ $customer->society?->name ?: '—' }}</td>
                             <td>{{ $customer->customer_type->label() }}</td>
                             <td class="text-end"><a href="{{ route('customers.show', $customer) }}">Open</a></td>
                         </tr>
                     @empty
-                        <tr><td colspan="5">No customers yet.</td></tr>
+                        <tr><td colspan="6">No customers yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
