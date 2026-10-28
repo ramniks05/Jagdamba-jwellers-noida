@@ -36,6 +36,9 @@
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
             <button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print slip</button>
             @if ($order->isOpen())
+                @can('update', $order)
+                    <a class="btn btn-outline-secondary" href="{{ route('orders.edit', $order) }}"><i class="bi bi-pencil"></i> Edit order</a>
+                @endcan
                 @can('create', App\Models\Sale::class)
                     <a class="btn btn-primary" href="{{ route('sales.create', ['order' => $order->uuid]) }}"><i class="bi bi-receipt"></i> Make the bill</a>
                 @endcan

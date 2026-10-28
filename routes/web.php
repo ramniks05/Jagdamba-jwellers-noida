@@ -174,6 +174,8 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::get('orders', [AdvanceOrderController::class, 'index'])->name('orders.index');
     Route::get('orders/create', [AdvanceOrderController::class, 'create'])->name('orders.create');
     Route::post('orders', [AdvanceOrderController::class, 'store'])->name('orders.store');
+    Route::get('orders/{order}/edit', [AdvanceOrderController::class, 'edit'])->name('orders.edit');
+    Route::put('orders/{order}', [AdvanceOrderController::class, 'update'])->name('orders.update');
     Route::get('orders/{order}', [AdvanceOrderController::class, 'show'])->name('orders.show');
     Route::post('orders/{order}/advance', [AdvanceOrderController::class, 'advance'])->name('orders.advance');
     Route::post('orders/{order}/ready', [AdvanceOrderController::class, 'ready'])->name('orders.ready');

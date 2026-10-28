@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\AdvanceOrderActionRequest;
 use App\Http\Requests\Commerce\AdvanceOrderRequest;
+use App\Http\Requests\Commerce\AdvanceOrderUpdateRequest;
 use App\Models\AdvanceOrder;
 use App\Models\Branch;
 use App\Models\Category;
@@ -50,22 +51,32 @@ class AdvanceOrderController extends Controller
     public function create(SettingService $settings, CompanyContext $context): View
     {
         $this->authorize('create', AdvanceOrder::class);
+
+        return view('commerce.orders.create', $this->orderFormData($settings, $context) + [
+            'methods' => PaymentMethod::cases(),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function orderFormData(SettingService $settings, CompanyContext $context): array
+    {
         $company = $context->company();
 
-        return view('commerce.orders.create', [
+        return [
             'customers' => Customer::query()->where('is_active', true)->where('is_system', false)->orderBy('name')->get(),
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'categories' => Category::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
             'branchId' => Branch::query()->where('is_head_office', true)->value('id'),
-            'methods' => PaymentMethod::cases(),
             'gstPercent' => (string) ($settings->get('pricing.gst_percent', $company) ?? '0'),
             'makingMode' => (string) ($settings->get('pricing.making_mode', $company) ?? 'inside'),
             'makingGstPercent' => (string) ($settings->get('pricing.making_gst_percent', $company) ?? '0'),
             'taxExclusive' => $settings->get('invoice.tax_display', $company) !== 'inclusive',
             'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
-        ]);
+        ];
     }
 
     public function store(AdvanceOrderRequest $request, AdvanceOrderService $orders, CompanyContext $context): RedirectResponse
@@ -73,6 +84,30 @@ class AdvanceOrderController extends Controller
         $order = $orders->book($context->company(), $request->validated(), $request->user()?->id);
 
         return redirect()->route('orders.show', $order)->with('status', 'Order '.$order->number.' booked.');
+    }
+
+    public function edit(AdvanceOrder $order, SettingService $settings, CompanyContext $context, NumberFormatService $format): View|RedirectResponse
+    {
+        $this->authorize('update', $order);
+
+        if (! $order->isOpen()) {
+            return redirect()->route('orders.show', $order)->with('status', 'This order cannot be edited.');
+        }
+
+        $order->load(['customer', 'metalType', 'purity']);
+
+        return view('commerce.orders.edit', $this->orderFormData($settings, $context) + [
+            'order' => $order,
+            'money' => fn (string $amount) => $format->money($amount, $context->company()),
+            'weight' => fn (string $amount) => $format->weight($amount, $context->company()),
+        ]);
+    }
+
+    public function update(AdvanceOrderUpdateRequest $request, AdvanceOrder $order, AdvanceOrderService $orders): RedirectResponse
+    {
+        $order = $orders->revise($order, $request->validated());
+
+        return redirect()->route('orders.show', $order)->with('status', 'Order '.$order->number.' updated.');
     }
 
     public function show(AdvanceOrder $order, AdvanceOrderService $orders, NumberFormatService $format, CompanyContext $context, SettingService $settings): View

@@ -129,6 +129,50 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame(0, AdvanceOrder::query()->count());
     }
 
+    public function test_an_open_order_can_be_edited(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $order = $this->book($owner, $customer, $gold, $purity, '10000');
+
+        $this->actingAs($owner)->get(route('orders.edit', $order))->assertOk()->assertSee('Edit order');
+
+        $this->actingAs($owner)->put(route('orders.update', $order), [
+            'description' => 'Updated necklace',
+            'expected_weight' => '12.500',
+            'rate_per_gram' => '5100',
+            'estimated_making' => '1500',
+            'design_notes' => 'Size 16',
+            'due_on' => now()->addDays(20)->toDateString(),
+            'notes' => 'Rush',
+        ])->assertRedirect(route('orders.show', $order));
+
+        $order->refresh();
+        $this->assertSame('Updated necklace', $order->description);
+        $this->assertSame('12.500', (string) $order->expected_weight);
+        $this->assertSame('5100.00', (string) $order->rate_per_gram);
+        $this->assertSame('1500.00', (string) $order->estimated_making);
+        $this->assertSame('Size 16', $order->design_notes);
+        $this->assertSame('Rush', $order->notes);
+        $this->assertSame('10000.00', (string) $order->advance_paid);
+
+        $this->actingAs($owner)->get(route('orders.show', $order))->assertOk()->assertSee('Updated necklace');
+
+        $this->actingAs($owner)->post(route('orders.cancel', $order), [
+            'refund' => '0',
+            'method' => 'cash',
+        ])->assertRedirect();
+        $this->seeShop($owner);
+
+        $this->actingAs($owner)->get(route('orders.edit', $order))->assertRedirect(route('orders.show', $order));
+        $this->actingAs($owner)->put(route('orders.update', $order), [
+            'description' => 'Too late',
+            'expected_weight' => '10',
+            'rate_per_gram' => '5000',
+            'estimated_making' => '0',
+        ])->assertSessionHasErrors('description');
+    }
+
     public function test_an_order_can_keep_a_rate_other_than_today(): void
     {
         [$owner, $gold, $purity] = $this->counter();

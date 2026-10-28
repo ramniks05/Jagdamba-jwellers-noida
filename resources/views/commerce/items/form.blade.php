@@ -11,7 +11,7 @@
             return rtrim(rtrim(number_format((float) $value, $scale, '.', ''), '0'), '.');
         };
         $field = fn (string $name, $value, int $scale = 2) => old($name, $num($value, $scale));
-        $moreFields = ['sku', 'barcode', 'rfid', 'collection_uuid', 'design_uuid', 'certificate_number', 'hallmark', 'selling_price', 'mrp', 'image', 'location_uuid'];
+        $moreFields = ['sku', 'barcode', 'rfid', 'collection_uuid', 'design_uuid', 'certificate_number', 'hallmark', 'selling_price', 'mrp', 'image'];
         $moreOpen = $errors->hasAny($moreFields)
             || filled($item->barcode) || filled($item->rfid) || filled($item->certificate_number) || filled($item->hallmark)
             || $item->collection_id || $item->design_id
@@ -46,8 +46,8 @@
         @endif
         @if ($item->exists)
             @method('PUT')
-            <input type="hidden" name="item_code" value="{{ $item->item_code }}">
-            <input type="hidden" name="sku" value="{{ $item->sku }}">
+            <input type="hidden" name="item_code" value="{{ old('item_code', $item->item_code) }}">
+            <input type="hidden" name="sku" value="{{ old('sku', $item->sku) }}">
         @endif
         @if ($fromOldGold ?? null)
             <input type="hidden" name="old_gold_uuid" value="{{ $fromOldGold->uuid }}">
@@ -67,7 +67,11 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label" for="item_code">Item code</label>
-                                <input class="form-control text-uppercase @error('item_code') is-invalid @enderror" id="item_code" name="item_code" value="{{ old('item_code', $item->item_code) }}" maxlength="40" required @disabled($item->exists)>
+                                @if ($item->exists)
+                                    <input class="form-control text-uppercase" id="item_code" value="{{ $item->item_code }}" readonly tabindex="-1">
+                                @else
+                                    <input class="form-control text-uppercase @error('item_code') is-invalid @enderror" id="item_code" name="item_code" value="{{ old('item_code', $item->item_code) }}" maxlength="40" required>
+                                @endif
                             </div>
                         </div>
                         @if ($fromOldGold ?? null)
@@ -138,6 +142,19 @@
                                 </div>
                             </div>
                             <div class="form-text">Net = gross less stones and other weight (thread, lac, wax). Making and the metal price are on the net weight.</div>
+                        </div>
+                        <div class="row g-3 mt-0">
+                            <div class="col-md-6">
+                                <label class="form-label" for="location_uuid">Kept at</label>
+                                <select class="form-select @error('location_uuid') is-invalid @enderror" id="location_uuid" name="location_uuid" required>
+                                    @foreach ($locations as $location)
+                                        <option value="{{ $location->uuid }}" data-branch="{{ $location->branch_id }}" @selected(old('location_uuid', $item->location?->uuid) === $location->uuid)>{{ $location->branch?->name }} / {{ $location->label() }}</option>
+                                    @endforeach
+                                </select>
+                                @error('location_uuid')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
 
                         @php
@@ -238,14 +255,6 @@
                     <summary class="card-body fw-semibold">More details <span class="text-secondary fw-normal small">· barcode, certificate, tag price, photo</span></summary>
                     <div class="card-body pt-0">
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label" for="location_uuid">Kept at</label>
-                                <select class="form-select" id="location_uuid" name="location_uuid" required>
-                                    @foreach ($locations as $location)
-                                        <option value="{{ $location->uuid }}" data-branch="{{ $location->branch_id }}" @selected(old('location_uuid', $item->location?->uuid) === $location->uuid)>{{ $location->branch?->name }} / {{ $location->label() }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
                             @unless ($item->exists)
                                 <div class="col-md-4">
                                     <label class="form-label" for="sku">SKU</label>

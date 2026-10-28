@@ -131,6 +131,37 @@ class AdvanceOrderService
         });
     }
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function revise(AdvanceOrder $order, array $attributes): AdvanceOrder
+    {
+        return DB::transaction(function () use ($order, $attributes) {
+            $this->context->ensureId((int) $order->company_id);
+            $order = AdvanceOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $this->mustBeOpen($order, 'description');
+
+            $perGram = BigDecimal::of((string) $attributes['rate_per_gram'])->toScale(2, RoundingMode::HalfUp);
+
+            if ($perGram->isNegativeOrZero()) {
+                throw ValidationException::withMessages([
+                    'rate_per_gram' => 'Enter the locked rate per gram.',
+                ]);
+            }
+
+            $order->description = trim((string) $attributes['description']);
+            $order->design_notes = trim((string) ($attributes['design_notes'] ?? '')) ?: null;
+            $order->expected_weight = $attributes['expected_weight'];
+            $order->rate_per_gram = (string) $perGram;
+            $order->estimated_making = $attributes['estimated_making'] ?? '0';
+            $order->due_on = $attributes['due_on'] ?? null;
+            $order->notes = trim((string) ($attributes['notes'] ?? '')) ?: null;
+            $order->save();
+
+            return $order->refresh();
+        });
+    }
+
     public function markReady(AdvanceOrder $order): AdvanceOrder
     {
         $this->context->ensureId((int) $order->company_id);

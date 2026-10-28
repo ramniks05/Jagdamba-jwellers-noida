@@ -42,7 +42,14 @@
                             <td class="num">{{ $money($order->advanceHeld()) }}</td>
                             <td class="{{ $late ? 'is-late' : '' }}">{{ $order->due_on?->format('d M Y') ?? '—' }}</td>
                             <td>{{ $order->statusLabel() }}</td>
-                            <td class="text-end"><a href="{{ route('orders.show', $order) }}">Open</a></td>
+                            <td class="text-end">
+                                <a href="{{ route('orders.show', $order) }}">Open</a>
+                                @if ($order->isOpen())
+                                    @can('update', $order)
+                                        · <a href="{{ route('orders.edit', $order) }}">Edit</a>
+                                    @endcan
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="9">No orders here.</td></tr>

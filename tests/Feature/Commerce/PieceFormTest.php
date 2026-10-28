@@ -96,6 +96,13 @@ class PieceFormTest extends TestCase
             ->assertSee('Less Diamond')
             ->assertSee('29,500.00');
 
+        $this->actingAs($owner)->get(route('items.edit', $item))
+            ->assertOk()
+            ->assertSee('Save changes')
+            ->assertSee('id="location_uuid"', false)
+            ->assertSee('value="'.$location->uuid.'"', false)
+            ->assertSee('readonly', false);
+
         $this->actingAs($owner)->put(route('items.update', $item), [
             'name' => 'Plain ring',
             'item_code' => 'PC0001',
