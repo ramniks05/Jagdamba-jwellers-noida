@@ -15,9 +15,12 @@ use App\Models\Item;
 use App\Models\LedgerEntry;
 use App\Models\MetalRate;
 use App\Models\MetalStockMovement;
+use App\Models\Branch;
 use App\Models\Payment;
+use App\Models\RetailProduct;
 use App\Models\Sale;
 use App\Models\SaleLine;
+use App\Models\SaleRetailLine;
 use App\Models\SaleLineStone;
 use App\Models\SaleReturnLine;
 use App\Models\SaleSettlement;
@@ -45,6 +48,7 @@ class SaleService
         private readonly SettingService $settings,
         private readonly MetalStockService $metalStock,
         private readonly TrayService $trays,
+        private readonly RetailLinePricer $retailPricer,
     ) {}
 
     /**
@@ -206,66 +210,81 @@ class SaleService
                 }
             }
 
-            if ($uuids === []) {
+            $retailBundle = $this->buildRetailLines($company, $attributes['retail_items'] ?? []);
+            $retailRows = $retailBundle['lines'];
+
+            if ($uuids === [] && $retailRows === []) {
                 throw ValidationException::withMessages([
-                    'item_ids' => 'Choose a piece in stock, or add a new piece on this bill.',
+                    'item_ids' => 'Add jewellery, or an other item (name and price).',
                 ]);
             }
 
-            $items = Item::query()->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'branch', 'stones'])->whereIn('uuid', $uuids)->get();
-
-            if ($items->count() !== count($uuids)) {
-                throw ValidationException::withMessages([
-                    'item_ids' => 'Choose pieces from this shop.',
-                ]);
-            }
-
-            $locked = Item::query()->whereIn('id', $items->modelKeys())->orderBy('id')->lockForUpdate()->get()->keyBy('id');
-            $branchIds = $locked->pluck('branch_id')->unique();
-
-            if ($branchIds->count() !== 1) {
-                throw ValidationException::withMessages([
-                    'item_ids' => 'Sell pieces from one branch on a bill.',
-                ]);
-            }
-
+            $items = collect();
             $lines = [];
             $linesTotal = BigDecimal::zero();
             $makingTotal = BigDecimal::zero();
             $hallmarkTotal = BigDecimal::zero();
             $trayNet = BigDecimal::zero();
+            $branch = null;
 
-            foreach ($items as $item) {
-                $piece = $locked[$item->id];
+            if ($uuids !== []) {
+                $items = Item::query()->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'branch', 'stones'])->whereIn('uuid', $uuids)->get();
 
-                if ($piece->status !== ItemStatus::Available) {
+                if ($items->count() !== count($uuids)) {
                     throw ValidationException::withMessages([
-                        'item_ids' => $piece->item_code.' is not available.',
+                        'item_ids' => 'Choose pieces from this shop.',
                     ]);
                 }
 
-                $rate = $this->rateForPiece($piece, $order, $attributes);
-                $typedRate = $pieceRates[$piece->id] ?? null;
+                $locked = Item::query()->whereIn('id', $items->modelKeys())->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+                $branchIds = $locked->pluck('branch_id')->unique();
 
-                if ($typedRate !== null) {
-                    $rate = $this->pricedRate($rate, $typedRate);
-                }
-
-                if (! $rate) {
+                if ($branchIds->count() !== 1) {
                     throw ValidationException::withMessages([
-                        'item_ids' => 'Enter a '.$item->metalType->name.' '.$item->purity->name.' rate before billing '.$piece->item_code.'.',
+                        'item_ids' => 'Sell pieces from one branch on a bill.',
                     ]);
                 }
 
-                $priced = $this->pricePiece($piece, (string) $rate->rate_per_gram);
+                foreach ($items as $item) {
+                    $piece = $locked[$item->id];
 
-                $trayNet = $trayNet->plus((string) $piece->net_weight);
+                    if ($piece->status !== ItemStatus::Available) {
+                        throw ValidationException::withMessages([
+                            'item_ids' => $piece->item_code.' is not available.',
+                        ]);
+                    }
 
-                $lines[] = ['item' => $piece, 'display' => $item, 'rate' => $rate, 'priced' => $priced];
-                $linesTotal = $linesTotal->plus($priced['line_amount']);
-                $makingTotal = $makingTotal->plus($priced['making_amount']);
-                $hallmarkTotal = $hallmarkTotal->plus($priced['wastage_amount']);
+                    $rate = $this->rateForPiece($piece, $order, $attributes);
+                    $typedRate = $pieceRates[$piece->id] ?? null;
+
+                    if ($typedRate !== null) {
+                        $rate = $this->pricedRate($rate, $typedRate);
+                    }
+
+                    if (! $rate) {
+                        throw ValidationException::withMessages([
+                            'item_ids' => 'Enter a '.$item->metalType->name.' '.$item->purity->name.' rate before billing '.$piece->item_code.'.',
+                        ]);
+                    }
+
+                    $priced = $this->pricePiece($piece, (string) $rate->rate_per_gram);
+
+                    $trayNet = $trayNet->plus((string) $piece->net_weight);
+
+                    $lines[] = ['item' => $piece, 'display' => $item, 'rate' => $rate, 'priced' => $priced];
+                    $linesTotal = $linesTotal->plus($priced['line_amount']);
+                    $makingTotal = $makingTotal->plus($priced['making_amount']);
+                    $hallmarkTotal = $hallmarkTotal->plus($priced['wastage_amount']);
+                }
+
+                $branch = $items->first()->branch;
             }
+
+            $branch ??= Branch::query()
+                ->where('company_id', $company->id)
+                ->where('is_head_office', true)
+                ->first()
+                ?? Branch::query()->where('company_id', $company->id)->orderBy('id')->firstOrFail();
 
             $hallmarkOutside = ! $existing || $existing->hallmark_amount !== null;
 
@@ -286,6 +305,12 @@ class SaleService
                 (bool) $this->settings->get('pricing.round_rupee', $company),
                 $hallmarkOutside ? (string) $hallmarkTotal->toScale(2, RoundingMode::HalfUp) : '0',
             );
+
+            $retailTotals = $retailBundle['totals'];
+            $merchandiseTotal = BigDecimal::of($bill->linesAmount)->plus($retailTotals['line']);
+            $taxableTotal = BigDecimal::of($bill->taxableAmount)->plus($retailTotals['taxable']);
+            $taxTotal = BigDecimal::of($bill->taxAmount)->plus($retailTotals['tax']);
+            $invoiceTotal = BigDecimal::of($bill->total)->plus($retailTotals['line']);
 
             $paid = BigDecimal::zero();
             $paymentRows = [];
@@ -308,7 +333,7 @@ class SaleService
                 unset($index);
             }
 
-            $total = BigDecimal::of($bill->total);
+            $total = $invoiceTotal;
             $advance = BigDecimal::zero();
 
             if ($order) {
@@ -366,18 +391,17 @@ class SaleService
             }
 
             $extra = BigDecimal::max($paid->plus($advance)->plus($credit)->minus($payable), BigDecimal::zero())->toScale(2, RoundingMode::HalfUp);
-            $branch = $items->first()->branch;
             $payload = [
                 'company_id' => $company->id,
                 'branch_id' => $branch->id,
                 'customer_id' => $customer->id,
                 'stock_tray_id' => $tray?->id,
                 'status' => 'posted',
-                'lines_amount' => $bill->linesAmount,
+                'lines_amount' => (string) $merchandiseTotal->toScale(2, RoundingMode::HalfUp),
                 'discount_amount' => $bill->discountAmount,
-                'taxable_amount' => $bill->taxableAmount,
+                'taxable_amount' => (string) $taxableTotal->toScale(2, RoundingMode::HalfUp),
                 'tax_percent' => $existing ? (string) $existing->tax_percent : (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0'),
-                'tax_amount' => $bill->taxAmount,
+                'tax_amount' => (string) $taxTotal->toScale(2, RoundingMode::HalfUp),
                 'making_mode' => $makingMode,
                 'making_amount' => $bill->makingAmount,
                 'making_tax_percent' => $bill->makingTaxPercent,
@@ -385,7 +409,7 @@ class SaleService
                 'hallmark_amount' => $hallmarkOutside ? $bill->hallmarkAmount : null,
                 'prices_include_tax' => ! $exclusive,
                 'round_off' => $bill->roundOff,
-                'total' => $bill->total,
+                'total' => (string) $invoiceTotal->toScale(2, RoundingMode::HalfUp),
                 'paid_amount' => (string) BigDecimal::min($paid->plus($advance)->plus($credit), $payable)->toScale(2, RoundingMode::HalfUp),                'advance_amount' => (string) $advance->toScale(2, RoundingMode::HalfUp),
                 'credit_amount' => (string) $credit,
                 'previous_due' => (string) $previous,
@@ -467,7 +491,25 @@ class SaleService
                 );
             }
 
-            if ($tray) {
+            foreach ($retailRows as $retailRow) {
+                SaleRetailLine::query()->create([
+                    'company_id' => $company->id,
+                    'sale_id' => $sale->id,
+                    'retail_product_id' => $retailRow['product']?->id,
+                    'name' => $retailRow['name'],
+                    'quantity' => $retailRow['quantity'],
+                    'unit_price' => $retailRow['unit_price'],
+                    'tax_mode' => $retailRow['priced']['tax_mode'],
+                    'tax_percent' => $retailRow['priced']['tax_percent'],
+                    'taxable_amount' => $retailRow['priced']['taxable_amount'],
+                    'tax_amount' => $retailRow['priced']['tax_amount'],
+                    'line_amount' => $retailRow['priced']['line_amount'],
+                    'hsn_code' => $retailRow['hsn_code'],
+                    'position' => $retailRow['position'],
+                ]);
+            }
+
+            if ($tray && $trayNet->isPositive()) {
                 $this->trays->recordSale($tray, $sale, (string) $trayNet->toScale(3, RoundingMode::HalfUp), $userId);
             }
 
@@ -476,7 +518,7 @@ class SaleService
                 PartyType::Customer,
                 (int) $customer->id,
                 LedgerDirection::Debit,
-                $bill->total,
+                (string) $invoiceTotal->toScale(2, RoundingMode::HalfUp),
                 'Invoice '.$sale->number,
                 $sale,
                 $userId,
@@ -538,7 +580,7 @@ class SaleService
                 $order->save();
             }
 
-            return $sale->load(['lines.stones', 'payments', 'customer', 'branch']);
+            return $sale->load(['lines.stones', 'retailLines', 'payments', 'customer', 'branch']);
         });
     }
 
@@ -670,7 +712,7 @@ class SaleService
      */
     private function reverseSaleEffects(Sale $sale, string $inventoryNote, bool $keepDocumentRows): void
     {
-        $sale->load(['lines.item.movements', 'lines.stones', 'payments']);
+        $sale->load(['lines.item.movements', 'lines.stones', 'retailLines', 'payments']);
         $this->trays->reverseSale($sale);
         $madeForBill = [];
 
@@ -720,9 +762,80 @@ class SaleService
             $line->delete();
         }
 
+        $sale->retailLines()->delete();
+
         foreach ($madeForBill as $item) {
             $item->delete();
         }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{lines: list<array<string, mixed>>, totals: array{line: string, taxable: string, tax: string}}
+     */
+    private function buildRetailLines(Company $company, array $rows): array
+    {
+        $fallback = (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0');
+        $lines = [];
+        $lineTotal = BigDecimal::zero();
+        $taxableTotal = BigDecimal::zero();
+        $taxTotal = BigDecimal::zero();
+        $position = 0;
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $name = trim((string) ($row['name'] ?? ''));
+
+            if ($name === '') {
+                continue;
+            }
+
+            $product = null;
+
+            if (trim((string) ($row['product_uuid'] ?? '')) !== '') {
+                $product = RetailProduct::query()
+                    ->where('uuid', (string) $row['product_uuid'])
+                    ->where('company_id', $company->id)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            $quantity = max(1, (int) ($row['quantity'] ?? 1));
+            $priced = $this->retailPricer->price([
+                'name' => $name,
+                'quantity' => $quantity,
+                'unit_price' => (string) ($row['unit_price'] ?? '0'),
+                'tax_mode' => (string) ($row['tax_mode'] ?? 'none'),
+                'tax_percent' => $row['tax_percent'] ?? null,
+                'tax_amount' => $row['tax_amount'] ?? null,
+            ], $fallback);
+
+            $lines[] = [
+                'product' => $product,
+                'name' => $name,
+                'quantity' => $quantity,
+                'unit_price' => number_format((float) ($row['unit_price'] ?? 0), 2, '.', ''),
+                'hsn_code' => trim((string) ($row['hsn_code'] ?? $product?->hsn_code ?? '')) ?: null,
+                'priced' => $priced,
+                'position' => $position,
+            ];
+            $position++;
+            $lineTotal = $lineTotal->plus($priced['line_amount']);
+            $taxableTotal = $taxableTotal->plus($priced['taxable_amount']);
+            $taxTotal = $taxTotal->plus($priced['tax_amount']);
+        }
+
+        return [
+            'lines' => $lines,
+            'totals' => [
+                'line' => (string) $lineTotal->toScale(2, RoundingMode::HalfUp),
+                'taxable' => (string) $taxableTotal->toScale(2, RoundingMode::HalfUp),
+                'tax' => (string) $taxTotal->toScale(2, RoundingMode::HalfUp),
+            ],
+        ];
     }
 
     public function madeForBill(Item $item, Sale $sale): bool

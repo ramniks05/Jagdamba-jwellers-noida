@@ -4,6 +4,7 @@ namespace App\Http\Requests\Commerce;
 
 use App\Enums\ChargeAppliesTo;
 use App\Enums\PaymentMethod;
+use App\Enums\RetailTaxMode;
 use App\Models\Sale;
 use App\Support\Limits;
 use App\Support\StoneRate;
@@ -71,11 +72,31 @@ class SaleRequest extends FormRequest
             $soldAt = now(config('app.timezone'))->format('Y-m-d\TH:i');
         }
 
+        $retailItems = [];
+
+        foreach ((array) $this->input('retail_items', []) as $row) {
+            if (! is_array($row) || trim((string) ($row['name'] ?? '')) === '') {
+                continue;
+            }
+
+            $retailItems[] = [
+                'product_uuid' => trim((string) ($row['product_uuid'] ?? '')) ?: null,
+                'name' => trim((string) $row['name']),
+                'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
+                'unit_price' => trim((string) ($row['unit_price'] ?? '')),
+                'tax_mode' => (string) ($row['tax_mode'] ?? 'none'),
+                'tax_percent' => trim((string) ($row['tax_percent'] ?? '')) === '' ? null : trim((string) $row['tax_percent']),
+                'tax_amount' => trim((string) ($row['tax_amount'] ?? '')) === '' ? null : trim((string) $row['tax_amount']),
+                'hsn_code' => trim((string) ($row['hsn_code'] ?? '')) === '' ? null : trim((string) $row['hsn_code']),
+            ];
+        }
+
         $this->merge([
             'payments' => $payments,
             'item_ids' => array_values(array_filter((array) $this->input('item_ids', []))),
             'new_piece' => $piece,
             'new_pieces' => $pieces,
+            'retail_items' => $retailItems,
             'discount' => trim((string) $this->input('discount')) === '' ? '0' : $this->input('discount'),
             'notes' => trim((string) $this->input('notes')) === '' ? null : $this->input('notes'),
             'sold_at' => $soldAt,
@@ -158,6 +179,15 @@ class SaleRequest extends FormRequest
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'include_previous' => ['sometimes', 'boolean'],
             'sold_at' => ['required', 'date'],
+            'retail_items' => ['array'],
+            'retail_items.*.name' => ['required', 'string', 'max:160'],
+            'retail_items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
+            'retail_items.*.unit_price' => ['required', 'numeric', 'gt:0', Limits::MONEY],
+            'retail_items.*.tax_mode' => ['required', Rule::enum(RetailTaxMode::class)],
+            'retail_items.*.tax_percent' => ['nullable', 'numeric', 'gte:0', 'max:100'],
+            'retail_items.*.tax_amount' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
+            'retail_items.*.hsn_code' => ['nullable', 'string', 'max:20'],
+            'retail_items.*.product_uuid' => ['nullable', 'uuid', Rule::exists('retail_products', 'uuid')->where(fn ($query) => $shop($query)->where('is_active', true))],
         ];
     }
 
@@ -178,9 +208,10 @@ class SaleRequest extends FormRequest
             $ids = $this->input('item_ids', []);
             $name = trim((string) data_get($this->input('new_piece'), 'name', ''));
             $pieces = $this->input('new_pieces', []);
+            $retail = $this->input('retail_items', []);
 
-            if ($ids === [] && $name === '' && $pieces === []) {
-                $validator->errors()->add('item_ids', 'Choose a piece in stock, or add a new piece on this bill.');
+            if ($ids === [] && $name === '' && $pieces === [] && $retail === []) {
+                $validator->errors()->add('item_ids', 'Add jewellery, or an other item (name and price).');
             }
 
             $when = Carbon::parse((string) $this->input('sold_at'), config('app.timezone'));

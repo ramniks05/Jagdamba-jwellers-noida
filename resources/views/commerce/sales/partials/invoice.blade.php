@@ -102,6 +102,22 @@
                     <td class="num"><strong>{{ $money((string) $line->line_amount) }}</strong></td>
                 </tr>
             @endforeach
+            @foreach ($sale->retailLines as $line)
+                <tr>
+                    <td class="num">{{ $sale->lines->count() + $loop->iteration }}</td>
+                    <td>
+                        <strong>{{ $itemName($line->name) }}</strong>
+                        <div class="muted">Other item · Qty {{ $line->quantity }}</div>
+                    </td>
+                    <td></td>
+                    <td>{{ $line->hsn_code }}</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td class="num"><strong>{{ $money((string) $line->line_amount) }}</strong></td>
+                </tr>
+            @endforeach
         </tbody>
     </table>
 

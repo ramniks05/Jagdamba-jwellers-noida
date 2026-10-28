@@ -20,6 +20,7 @@ use App\Http\Controllers\Web\Commerce\OldGoldStockController;
 use App\Http\Controllers\Web\Commerce\PurchaseController;
 use App\Http\Controllers\Web\Commerce\QzSigningController;
 use App\Http\Controllers\Web\Commerce\RateController;
+use App\Http\Controllers\Web\Commerce\RetailProductController;
 use App\Http\Controllers\Web\Commerce\RepairController;
 use App\Http\Controllers\Web\Commerce\ReportController;
 use App\Http\Controllers\Web\Commerce\SaleController;
@@ -133,6 +134,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
 
     Route::resource('locations', LocationController::class)->except(['show', 'destroy']);
     Route::resource('trays', StockTrayController::class)->except(['show']);
+    Route::resource('retail-products', RetailProductController::class)->except(['show']);
     Route::get('customers/qr', [CustomerIntakeController::class, 'qr'])->name('customers.qr');
     Route::get('customer-intakes', [CustomerIntakeController::class, 'index'])->name('customer-intakes.index');
     Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');
@@ -189,4 +191,5 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
     Route::get('reports/outstanding', [ReportController::class, 'outstanding'])->name('reports.outstanding');
     Route::get('reports/trays', [ReportController::class, 'trays'])->name('reports.trays');
+    Route::get('reports/other-items', [ReportController::class, 'otherItems'])->name('reports.other-items');
 });

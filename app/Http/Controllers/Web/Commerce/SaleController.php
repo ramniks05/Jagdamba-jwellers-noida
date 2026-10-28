@@ -18,7 +18,9 @@ use App\Models\Item;
 use App\Models\MetalRate;
 use App\Models\MetalType;
 use App\Models\Payment;
+use App\Models\RetailProduct;
 use App\Models\Sale;
+use App\Models\SaleRetailLine;
 use App\Models\SaleLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
@@ -199,6 +201,7 @@ class SaleController extends Controller
             'metals' => MetalType::query()->with(['purities' => fn ($purities) => $purities->active()])->active()->orderBy('name')->get(),
             'locations' => StockLocation::query()->with('branch')->where('is_active', true)->orderBy('name')->get(),
             'trays' => StockTray::query()->active()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'code', 'name', 'grams', 'pieces']),
+            'retailProducts' => RetailProduct::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['uuid', 'code', 'name', 'default_unit_price', 'default_tax_mode', 'default_tax_percent', 'hsn_code']),
             'making' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Making)->where('is_active', true)->orderBy('name')->get(),
             'wastage' => ChargeMethod::query()->where('applies_to', ChargeAppliesTo::Wastage)->where('is_active', true)->orderBy('name')->get(),
             'rates' => MetalRate::query()->inForce()->orderByDesc('effective_at')->orderByDesc('id')->get(['metal_type_id', 'purity_id', 'branch_id', 'rate_per_gram']),
@@ -219,7 +222,7 @@ class SaleController extends Controller
     {
         $sale->load([
             'lines.item.movements', 'lines.item.metalType', 'lines.item.purity', 'lines.item.makingMethod',
-            'lines.item.wastageMethod', 'lines.item.location', 'lines.stones', 'payments',
+            'lines.item.wastageMethod', 'lines.item.location', 'lines.stones', 'retailLines', 'payments',
         ]);
         $stock = [];
         $stockIds = [];
@@ -261,6 +264,17 @@ class SaleController extends Controller
                 'amount' => (float) $sale->previous_due,
                 'bills' => (int) $sale->previous_bills,
             ] : null,
+            'retail' => $sale->retailLines->map(fn (SaleRetailLine $line): array => [
+                'product_uuid' => $line->product?->uuid,
+                'name' => $line->name,
+                'quantity' => (int) $line->quantity,
+                'unit_price' => (string) $line->unit_price,
+                'tax_mode' => $line->tax_mode->value,
+                'tax_percent' => $line->tax_percent !== null ? (string) $line->tax_percent : '',
+                'tax_amount' => (float) $line->tax_amount > 0 ? (string) $line->tax_amount : '',
+                'hsn_code' => (string) ($line->hsn_code ?? ''),
+                'line_amount' => (float) $line->line_amount,
+            ])->values()->all(),
         ];
     }
 

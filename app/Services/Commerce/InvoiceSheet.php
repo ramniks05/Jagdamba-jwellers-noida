@@ -29,7 +29,7 @@ class InvoiceSheet
      */
     public function data(Sale $sale, Company $company): array
     {
-        $sale->loadMissing(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
+        $sale->loadMissing(['lines.item', 'lines.stones', 'retailLines', 'payments', 'customer', 'branch', 'advanceOrder']);
         $link = $this->link($sale);
         $terms = (string) ($this->settings->get('invoice.terms', $company) ?? '');
 

@@ -15,6 +15,7 @@ use App\Models\MetalStockMovement;
 use App\Models\MetalType;
 use App\Models\Sale;
 use App\Models\SaleLine;
+use App\Models\SaleRetailLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
 use App\Models\StockTray;
@@ -345,6 +346,52 @@ class ReportController extends Controller
             'sales' => $sales,
             'weight' => $weight,
             'company' => $company,
+        ]);
+    }
+
+    public function otherItems(Request $request, NumberFormatService $format, CompanyContext $context): View
+    {
+        $this->authorize('reports.view');
+        $company = $context->company();
+        $from = $this->dateQuery($request->query('from')) ?? now()->startOfMonth()->toDateString();
+        $to = $this->dateQuery($request->query('to')) ?? now()->toDateString();
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        $query = SaleRetailLine::query()
+            ->select('sale_retail_lines.*')
+            ->join('sales', 'sales.id', '=', 'sale_retail_lines.sale_id')
+            ->with(['sale.customer'])
+            ->where('sales.status', 'posted')
+            ->whereDate('sales.sold_at', '>=', $from)
+            ->whereDate('sales.sold_at', '<=', $to)
+            ->when($search !== '', function ($rows) use ($search): void {
+                $like = $this->like($search);
+                $rows->where(fn ($inner) => $inner->where('sale_retail_lines.name', 'like', $like)
+                    ->orWhere('sales.number', 'like', $like));
+            })
+            ->orderByDesc('sales.sold_at')
+            ->orderByDesc('sale_retail_lines.id');
+
+        $totals = (clone $query)->toBase()
+            ->selectRaw('count(*) as lines, coalesce(sum(quantity), 0) as qty, coalesce(sum(line_amount), 0) as amount, coalesce(sum(tax_amount), 0) as tax')
+            ->first();
+
+        $money = fn (string $amount) => $format->money($amount, $company);
+
+        return view('commerce.reports.other-items', [
+            'lines' => $this->page($query, $request, (int) $totals->lines),
+            'filters' => compact('search', 'from', 'to'),
+            'lineCount' => (int) $totals->lines,
+            'quantity' => (int) $totals->qty,
+            'amount' => $money($this->decimal($totals->amount)),
+            'tax' => $money($this->decimal($totals->tax)),
+            'perPage' => $this->perPage($request),
+            'company' => $company,
+            'money' => $money,
         ]);
     }
 

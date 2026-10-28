@@ -73,6 +73,72 @@
                     </div>
                 </div>
                 <div class="card mb-3">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
+                        <span><i class="bi bi-basket"></i> Other items (no weight)</span>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#retail-panel" aria-expanded="true">Show / hide</button>
+                    </div>
+                    <div class="collapse show" id="retail-panel">
+                        <div class="card-body">
+                            <p class="small text-secondary mb-3">Murti, gifts, and fixed-price sales. These do not change metal stock.</p>
+                            @if ($retailProducts->isNotEmpty())
+                                <div class="mb-2">
+                                    <label class="form-label" for="retail-product">From list (optional)</label>
+                                    <select class="form-select" id="retail-product">
+                                        <option value="">— Type a one-off name —</option>
+                                        @foreach ($retailProducts as $product)
+                                            <option value="{{ $product->uuid }}"
+                                                data-name="{{ $product->name }}"
+                                                data-price="{{ $product->default_unit_price }}"
+                                                data-tax-mode="{{ $product->default_tax_mode->value }}"
+                                                data-tax-percent="{{ $product->default_tax_percent }}"
+                                                data-hsn="{{ $product->hsn_code }}">
+                                                {{ $product->name }} @if ($product->default_unit_price) · ₹ {{ number_format((float) $product->default_unit_price, 2) }} @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="retail-name">Name</label>
+                                    <input class="form-control" id="retail-name" maxlength="160" placeholder="Ganesh murti">
+                                </div>
+                                <div class="col-md-2 col-4">
+                                    <label class="form-label" for="retail-qty">Qty</label>
+                                    <input class="form-control" id="retail-qty" type="number" min="1" value="1">
+                                </div>
+                                <div class="col-md-4 col-8">
+                                    <label class="form-label" for="retail-price">Price (₹)</label>
+                                    <input class="form-control" id="retail-price" inputmode="decimal" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-4">
+                                    <label class="form-label" for="retail-tax-mode">GST</label>
+                                    <select class="form-select" id="retail-tax-mode">
+                                        <option value="none">No GST</option>
+                                        <option value="inclusive">With GST (in price)</option>
+                                        <option value="exclusive">With GST (extra)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 retail-tax-field">
+                                    <label class="form-label" for="retail-tax-percent">GST %</label>
+                                    <input class="form-control" id="retail-tax-percent" inputmode="decimal" placeholder="Shop {{ rtrim(rtrim(number_format((float) $gstPercent, 2), '0'), '.') }}%">
+                                </div>
+                                <div class="col-md-4 retail-tax-field">
+                                    <label class="form-label" for="retail-tax-amount">Or GST ₹ (manual)</label>
+                                    <input class="form-control" id="retail-tax-amount" inputmode="decimal" placeholder="Optional">
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                                <button class="btn btn-outline-primary" type="button" id="retail-add"><i class="bi bi-plus-lg"></i> Add to bill</button>
+                                <span class="small text-secondary" id="retail-preview"></span>
+                            </div>
+                            <div class="small text-danger d-none mt-2" id="retail-error"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mb-3">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
                         <div class="weigh-section-title">Category</div>
@@ -365,7 +431,15 @@
             'rate_per_gram' => (string) $rate->rate_per_gram,
         ])->values(),
         'lockedRates' => ($draft ?? [])['lockedRates'] ?? [],
-        'editing' => $draft ? ['stock' => $draft['stock'], 'fresh' => $draft['fresh']] : null,
+        'retailProducts' => $retailProducts->map(fn ($product) => [
+            'uuid' => $product->uuid,
+            'name' => $product->name,
+            'default_unit_price' => $product->default_unit_price !== null ? (string) $product->default_unit_price : '',
+            'default_tax_mode' => $product->default_tax_mode->value,
+            'default_tax_percent' => $product->default_tax_percent !== null ? (string) $product->default_tax_percent : '',
+            'hsn_code' => (string) ($product->hsn_code ?? ''),
+        ])->values(),
+        'editing' => $draft ? ['stock' => $draft['stock'], 'fresh' => $draft['fresh'], 'retail' => $draft['retail'] ?? []] : null,
         'fixedPrevious' => ($draft ?? [])['fixedPrevious'] ?? null,
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
@@ -377,6 +451,7 @@
         const money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const stockLines = [];
         const freshLines = [];
+        const retailLines = [];
         let editingIndex = null;
         let weighDefaults = null;
         let rateEdited = false;
@@ -689,6 +764,7 @@
         }
 
         function lineParts(line) {
+            if (line.kind === 'retail') return [];
             if (line.kind === 'fresh') return line.row.parts || [];
             const row = line.row;
             const parts = [];
@@ -715,6 +791,61 @@
             return parts;
         }
 
+        function priceRetailLine(row) {
+            const qty = Math.max(1, Number(row.quantity || 1));
+            const unit = round2(Number(row.unit_price || 0));
+            if (!(unit > 0)) return null;
+            const subtotal = round2(unit * qty);
+            const mode = row.tax_mode || 'none';
+            const manualTax = String(row.tax_amount ?? '').trim();
+            if (mode === 'none') {
+                return { line_amount: subtotal, tax_amount: 0, taxable_amount: subtotal };
+            }
+            if (manualTax !== '') {
+                const tax = round2(Number(manualTax));
+                if (mode === 'exclusive') {
+                    return { line_amount: round2(subtotal + tax), tax_amount: tax, taxable_amount: subtotal };
+                }
+                return { line_amount: subtotal, tax_amount: tax, taxable_amount: round2(subtotal - tax) };
+            }
+            const percent = Number(String(row.tax_percent ?? '').trim() || bill.gst || 0);
+            if (!(percent > 0)) {
+                return { line_amount: subtotal, tax_amount: 0, taxable_amount: subtotal };
+            }
+            if (mode === 'exclusive') {
+                const tax = round2(subtotal * percent / 100);
+                return { line_amount: round2(subtotal + tax), tax_amount: tax, taxable_amount: subtotal };
+            }
+            const tax = round2(subtotal * percent / (100 + percent));
+            return { line_amount: subtotal, tax_amount: tax, taxable_amount: round2(subtotal - tax) };
+        }
+
+        function retailTotals() {
+            return retailLines.reduce((acc, row) => {
+                const priced = priceRetailLine(row);
+                if (!priced) return acc;
+                acc.line += priced.line_amount;
+                acc.tax += priced.tax_amount;
+                return acc;
+            }, { line: 0, tax: 0 });
+        }
+
+        function syncRetailTaxFields() {
+            const show = document.getElementById('retail-tax-mode').value !== 'none';
+            document.querySelectorAll('.retail-tax-field').forEach((row) => row.classList.toggle('d-none', !show));
+        }
+
+        function previewRetail() {
+            const priced = priceRetailLine({
+                quantity: document.getElementById('retail-qty').value,
+                unit_price: document.getElementById('retail-price').value,
+                tax_mode: document.getElementById('retail-tax-mode').value,
+                tax_percent: document.getElementById('retail-tax-percent').value,
+                tax_amount: document.getElementById('retail-tax-amount').value,
+            });
+            document.getElementById('retail-preview').textContent = priced ? 'Line total ' + money.format(priced.line_amount) + (priced.tax_amount > 0 ? ' · GST ' + money.format(priced.tax_amount) : '') : '';
+        }
+
         function renderBill() {
             const body = document.getElementById('bill-lines');
             const inputs = document.getElementById('bill-piece-inputs');
@@ -723,6 +854,10 @@
             const lines = [
                 ...stockLines.map((row) => ({ kind: 'stock', title: row.code + ' · ' + row.name, amount: row.line, row })),
                 ...freshLines.map((row, index) => ({ kind: 'fresh', title: row.name + ' · ' + row.metal, amount: row.line, row, index })),
+                ...retailLines.map((row, index) => {
+                    const priced = priceRetailLine(row) || { line_amount: 0, tax_amount: 0 };
+                    return { kind: 'retail', title: row.name, amount: priced.line_amount, row, index, priced };
+                }),
             ];
             if (lines.length === 0) {
                 body.innerHTML = '<tr><td colspan="3">Nothing on this bill</td></tr>';
@@ -743,14 +878,18 @@
                 const meta = document.createElement('div');
                 meta.className = 'bill-line-meta';
                 const huid = line.kind === 'stock' ? line.row.huid : line.row.fields.huid;
-                meta.textContent = line.kind === 'stock'
+                meta.textContent = line.kind === 'retail'
+                    ? ['Other item', 'Qty ' + (line.row.quantity || 1), line.row.tax_mode === 'none' ? 'No GST' : (line.row.tax_mode === 'exclusive' ? 'GST extra' : 'GST in price')].filter(Boolean).join(' · ')
+                    : line.kind === 'stock'
                     ? [line.row.code, huid ? 'HUID ' + huid : '', line.row.metal, line.row.gross ? 'Gross ' + line.row.gross : '', line.row.net ? 'Net ' + line.row.net : ''].filter(Boolean).join(' · ')
                     : [line.row.category, line.row.metal, huid ? 'HUID ' + huid : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
                 nameCell.append(head, meta);
-                const split = document.createElement('div');
-                split.className = 'piece-split bill-line-split';
-                showSplit(split, lineParts(line).map((part) => ({ label: partLabel(part), value: money.format(part.amount) })));
-                nameCell.appendChild(split);
+                if (line.kind !== 'retail') {
+                    const split = document.createElement('div');
+                    split.className = 'piece-split bill-line-split';
+                    showSplit(split, lineParts(line).map((part) => ({ label: partLabel(part), value: money.format(part.amount) })));
+                    nameCell.appendChild(split);
+                }
                 const action = document.createElement('td');
                 action.className = 'text-end bill-line-cell';
                 const button = document.createElement('button');
@@ -759,6 +898,12 @@
                 button.setAttribute('aria-label', 'Remove');
                 button.title = 'Remove';
                 button.textContent = '×';
+                if (line.kind === 'retail' && line.priced.tax_amount > 0) {
+                    const gst = document.createElement('div');
+                    gst.className = 'bill-line-meta';
+                    gst.textContent = 'GST ' + money.format(line.priced.tax_amount);
+                    nameCell.appendChild(gst);
+                }
                 if (line.kind === 'fresh') {
                     tr.classList.toggle('is-editing', line.index === editingIndex);
                     const edit = document.createElement('button');
@@ -777,6 +922,8 @@
                         stockLines.splice(stockLines.indexOf(line.row), 1);
                         clearScanMessage(line.row.uuid);
                         setTimeout(() => scanInput.focus(), 0);
+                    } else if (line.kind === 'retail') {
+                        retailLines.splice(line.index, 1);
                     } else {
                         freshLines.splice(line.index, 1);
                         if (editingIndex === line.index) {
@@ -810,6 +957,14 @@
                             input.value = stone[key] ?? '';
                             inputs.appendChild(input);
                         });
+                    });
+                } else if (line.kind === 'retail') {
+                    ['product_uuid', 'name', 'quantity', 'unit_price', 'tax_mode', 'tax_percent', 'tax_amount', 'hsn_code'].forEach((key) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'retail_items[' + line.index + '][' + key + ']';
+                        input.value = line.row[key] ?? '';
+                        inputs.appendChild(input);
                     });
                 }
             });
@@ -867,8 +1022,12 @@
                 total = Math.round(exact);
                 roundOff = round2(total - exact);
             }
+            const retail = retailTotals();
+            exact = round2(exact + retail.line);
+            total = round2(total + retail.line);
+            tax = round2(tax + retail.tax);
 
-            return { ...base, making, mode, hallmark, taxedSubtotal, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff };
+            return { ...base, making, mode, hallmark, taxedSubtotal, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff, retail };
         }
 
         function discountForPayable(target) {
@@ -1367,12 +1526,63 @@
             },
         });
         renderCustomerOpenOrders(customer);
+        const retailProductSelect = document.getElementById('retail-product');
+        if (retailProductSelect) {
+            retailProductSelect.addEventListener('change', () => {
+                const option = retailProductSelect.selectedOptions[0];
+                if (!option || !option.value) return;
+                document.getElementById('retail-name').value = option.dataset.name || '';
+                if (option.dataset.price) document.getElementById('retail-price').value = option.dataset.price;
+                document.getElementById('retail-tax-mode').value = option.dataset.taxMode || 'none';
+                if (option.dataset.taxPercent) document.getElementById('retail-tax-percent').value = option.dataset.taxPercent;
+                document.getElementById('retail-tax-amount').value = '';
+                syncRetailTaxFields();
+                previewRetail();
+            });
+        }
+        ['retail-qty', 'retail-price', 'retail-tax-mode', 'retail-tax-percent', 'retail-tax-amount'].forEach((id) => {
+            const field = document.getElementById(id);
+            if (!field) return;
+            field.addEventListener('input', previewRetail);
+            if (id === 'retail-tax-mode') field.addEventListener('change', syncRetailTaxFields);
+        });
+        syncRetailTaxFields();
+        document.getElementById('retail-add').addEventListener('click', () => {
+            const error = document.getElementById('retail-error');
+            const name = document.getElementById('retail-name').value.trim();
+            const row = {
+                product_uuid: retailProductSelect && retailProductSelect.value ? retailProductSelect.value : '',
+                name,
+                quantity: document.getElementById('retail-qty').value || '1',
+                unit_price: document.getElementById('retail-price').value.trim(),
+                tax_mode: document.getElementById('retail-tax-mode').value,
+                tax_percent: document.getElementById('retail-tax-percent').value.trim(),
+                tax_amount: document.getElementById('retail-tax-amount').value.trim(),
+                hsn_code: retailProductSelect && retailProductSelect.selectedOptions[0] ? (retailProductSelect.selectedOptions[0].dataset.hsn || '') : '',
+            };
+            if (name === '' || !priceRetailLine(row)) {
+                error.textContent = name === '' ? 'Type the item name.' : 'Enter a price greater than zero.';
+                error.classList.remove('d-none');
+                return;
+            }
+            error.classList.add('d-none');
+            retailLines.push(row);
+            document.getElementById('retail-name').value = '';
+            document.getElementById('retail-price').value = '';
+            document.getElementById('retail-tax-amount').value = '';
+            document.getElementById('retail-qty').value = '1';
+            if (retailProductSelect) retailProductSelect.value = '';
+            previewRetail();
+            renderBill();
+        });
+
         if (bill.editing) {
             bill.editing.stock.forEach((uuid) => {
                 const row = bill.pieces.find((piece) => piece.uuid === uuid);
                 if (row) stockLines.push(row);
             });
             bill.editing.fresh.forEach((row) => freshLines.push(row));
+            (bill.editing.retail || []).forEach((row) => retailLines.push(row));
             if (bill.fixedPrevious) document.getElementById('include-previous').checked = false;
         }
         renderBill();

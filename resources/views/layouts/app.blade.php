@@ -63,6 +63,7 @@
                     @can('inventory.view')
                         <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}" href="{{ route('locations.index') }}"><i class="bi bi-geo-alt"></i><span>Locations</span></a>
                         <a class="nav-link {{ request()->routeIs('trays.*') ? 'active' : '' }}" href="{{ route('trays.index') }}"><i class="bi bi-inbox"></i><span>Trays</span></a>
+                        <a class="nav-link {{ request()->routeIs('retail-products.*') ? 'active' : '' }}" href="{{ route('retail-products.index') }}"><i class="bi bi-basket"></i><span>Other items</span></a>
                     @endcan
                     @if (auth()->user()->can('customers.view') || auth()->user()->can('suppliers.view') || auth()->user()->can('schemes.view') || auth()->user()->can('sales.view'))
                         <div class="menu-label">Accounts</div>
@@ -88,6 +89,7 @@
                         <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-people"></i><span>Customer dues report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.own-gold') ? 'active' : '' }}" href="{{ route('reports.own-gold') }}"><i class="bi bi-gem"></i><span>Own gold report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.trays') ? 'active' : '' }}" href="{{ route('reports.trays') }}"><i class="bi bi-inbox"></i><span>Tray report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.other-items') ? 'active' : '' }}" href="{{ route('reports.other-items') }}"><i class="bi bi-basket"></i><span>Other item sales</span></a>
                     @endcan
                     @can('masters.view')
                         <div class="menu-label">Masters</div>

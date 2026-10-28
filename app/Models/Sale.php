@@ -91,6 +91,11 @@ class Sale extends Model
         return $this->hasMany(SaleLine::class);
     }
 
+    public function retailLines(): HasMany
+    {
+        return $this->hasMany(SaleRetailLine::class)->orderBy('position')->orderBy('id');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
