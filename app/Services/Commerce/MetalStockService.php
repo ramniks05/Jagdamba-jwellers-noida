@@ -74,6 +74,64 @@ class MetalStockService
     /**
      * @param  array<string, mixed>  $attributes
      */
+    public function updateOpening(Company $company, MetalStockMovement $movement, array $attributes, ?int $userId = null): MetalStockMovement
+    {
+        $this->context->ensureId((int) $company->id);
+
+        if ($movement->kind !== MetalStockKind::Opening) {
+            throw ValidationException::withMessages([
+                'kind' => 'Only opening stock can be corrected here.',
+            ]);
+        }
+
+        $branch = Branch::query()->where('uuid', $attributes['branch_uuid'])->first();
+        $metal = MetalType::query()->where('uuid', $attributes['metal_uuid'])->where('is_active', true)->first();
+        $purity = Purity::query()->where('uuid', $attributes['purity_uuid'])->where('is_active', true)->first();
+
+        if (! $branch || ! $metal || ! $purity || (int) $purity->metal_type_id !== (int) $metal->id) {
+            throw ValidationException::withMessages([
+                'purity_uuid' => 'Choose a purity of the selected metal.',
+            ]);
+        }
+
+        $grams = BigDecimal::of((string) $attributes['grams'])->toScale(3, RoundingMode::HalfUp);
+
+        if ($grams->isNegativeOrZero()) {
+            throw ValidationException::withMessages([
+                'grams' => 'Enter the grams.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($movement, $branch, $metal, $purity, $grams, $userId) {
+            $conflict = MetalStockMovement::query()
+                ->where('branch_id', $branch->id)
+                ->where('metal_type_id', $metal->id)
+                ->where('purity_id', $purity->id)
+                ->where('kind', MetalStockKind::Opening)
+                ->where('id', '!=', $movement->id)
+                ->exists();
+
+            if ($conflict) {
+                throw ValidationException::withMessages([
+                    'purity_uuid' => 'Opening stock for this branch and purity already exists. Change that row instead.',
+                ]);
+            }
+
+            $movement->branch_id = $branch->id;
+            $movement->metal_type_id = $metal->id;
+            $movement->purity_id = $purity->id;
+            $movement->grams = (string) $grams;
+            $movement->user_id = $userId;
+            $movement->occurred_at = now();
+            $movement->save();
+
+            return $movement;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
     public function updatePurchase(Company $company, MetalStockMovement $movement, array $attributes, ?int $userId = null): MetalStockMovement
     {
         $this->context->ensureId((int) $company->id);
@@ -233,11 +291,17 @@ class MetalStockService
     }
 
     /**
-     * @return Collection<int, array{metal: string, metal_uuid: string, purity: string, purity_uuid: string, opening: string, purchased: string, sold: string, balance: string, short: bool}>
+     * @return Collection<int, array{metal: string, metal_uuid: string, purity: string, purity_uuid: string, opening: string, opening_uuid: ?string, purchased: string, sold: string, balance: string, short: bool}>
      */
     public function balances(?Supplier $supplier = null): Collection
     {
         $purchase = MetalStockKind::Purchase->value;
+        $headOfficeBranchId = Branch::query()->where('is_head_office', true)->value('id');
+        $openingByMetalPurity = MetalStockMovement::query()
+            ->where('kind', MetalStockKind::Opening)
+            ->get(['uuid', 'metal_type_id', 'purity_id', 'branch_id'])
+            ->groupBy(fn (MetalStockMovement $movement) => $movement->metal_type_id.'-'.$movement->purity_id);
+
         $rows = MetalStockMovement::query()
             ->select('metal_type_id', 'purity_id')
             ->selectRaw("coalesce(sum(case when kind = ? then grams else 0 end), 0) as opening_grams", [MetalStockKind::Opening->value])
@@ -266,12 +330,21 @@ class MetalStockService
         $metals = MetalType::query()->whereIn('id', $rows->pluck('metal_type_id'))->get()->keyBy('id');
         $purities = Purity::query()->whereIn('id', $rows->pluck('purity_id'))->get()->keyBy('id');
 
-        return $rows->map(function ($row) use ($metals, $purities, $supplier) {
+        return $rows->map(function ($row) use ($metals, $purities, $supplier, $openingByMetalPurity, $headOfficeBranchId) {
             $opening = BigDecimal::of((string) $row->opening_grams);
             $purchased = BigDecimal::of((string) $row->purchased_grams);
             $shown = $supplier ? BigDecimal::of((string) $row->supplier_purchased_grams) : $purchased;
             $sold = BigDecimal::of((string) $row->sold_grams)->minus((string) $row->returned_grams);
             $balance = $opening->plus($purchased)->minus($sold);
+            $openingGroup = $openingByMetalPurity->get($row->metal_type_id.'-'.$row->purity_id, collect());
+            $openingUuid = null;
+
+            if ($openingGroup->count() === 1) {
+                $openingUuid = (string) $openingGroup->first()->uuid;
+            } elseif ($openingGroup->count() > 1 && $headOfficeBranchId) {
+                $openingUuid = (string) ($openingGroup->firstWhere('branch_id', (int) $headOfficeBranchId)?->uuid ?? '');
+                $openingUuid = $openingUuid === '' ? null : $openingUuid;
+            }
 
             return [
                 'metal' => (string) ($metals[$row->metal_type_id]->name ?? ''),
@@ -279,6 +352,7 @@ class MetalStockService
                 'purity' => (string) ($purities[$row->purity_id]->name ?? ''),
                 'purity_uuid' => (string) ($purities[$row->purity_id]->uuid ?? ''),
                 'opening' => (string) $opening->toScale(3, RoundingMode::HalfUp),
+                'opening_uuid' => $openingUuid,
                 'purchased' => (string) $shown->toScale(3, RoundingMode::HalfUp),
                 'sold' => (string) $sold->toScale(3, RoundingMode::HalfUp),
                 'balance' => (string) $balance->toScale(3, RoundingMode::HalfUp),

@@ -28,7 +28,16 @@ class MetalStockController extends Controller
 
     public function update(MetalStockRequest $request, MetalStockMovement $movement, MetalStockService $stock, NumberFormatService $format, CompanyContext $context): RedirectResponse
     {
-        abort_unless($movement->kind === MetalStockKind::Purchase, 404);
+        abort_unless(in_array($movement->kind, [MetalStockKind::Purchase, MetalStockKind::Opening], true), 404);
+
+        if ($movement->kind === MetalStockKind::Opening) {
+            $stock->updateOpening($context->company(), $movement, $request->validated(), $request->user()?->id);
+
+            return redirect()
+                ->route('reports.stock')
+                ->with('status', 'Opening stock updated.');
+        }
+
         $movement = $stock->updatePurchase($context->company(), $movement, $request->validated(), $request->user()?->id);
 
         return redirect()

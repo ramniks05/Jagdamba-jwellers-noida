@@ -105,7 +105,7 @@ class ReportController extends Controller
         $editing = $editUuid === '' ? null : MetalStockMovement::query()
             ->with(['branch', 'metalType', 'purity', 'reference'])
             ->where('uuid', $editUuid)
-            ->where('kind', MetalStockKind::Purchase)
+            ->whereIn('kind', [MetalStockKind::Purchase, MetalStockKind::Opening])
             ->first();
         $purchases = $canCorrect
             ? MetalStockMovement::query()
@@ -148,6 +148,7 @@ class ReportController extends Controller
             'roundRupee' => (bool) $settings->get('pricing.round_rupee', $company),
             'editing' => $editing,
             'purchases' => $purchases,
+            'canCorrect' => $canCorrect,
         ]);
     }
 

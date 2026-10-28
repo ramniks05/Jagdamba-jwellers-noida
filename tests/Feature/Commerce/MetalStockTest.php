@@ -293,6 +293,40 @@ class MetalStockTest extends TestCase
             ->assertSee('₹ 20,600.00');
     }
 
+    public function test_opening_stock_can_be_changed_from_the_stock_board(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+        $gold = MetalType::query()->where('code', 'GOLD')->firstOrFail();
+        $purity = Purity::query()->where('code', '22K')->firstOrFail();
+        $branch = StockLocation::query()->where('code', 'MAIN')->firstOrFail()->branch;
+
+        $this->stock($owner, $branch, $gold, $purity, 'opening', '500');
+        $this->seeShop($owner);
+        $opening = MetalStockMovement::query()->where('kind', MetalStockKind::Opening)->firstOrFail();
+        $this->assertSame('500.000', $this->balance('22K'));
+
+        $this->actingAs($owner)->get(route('reports.stock', ['edit' => $opening->uuid]))
+            ->assertOk()
+            ->assertSee('Change opening stock')
+            ->assertSee('Save opening')
+            ->assertSee('Change opening')
+            ->assertDontSee('Correct purchase');
+
+        $this->actingAs($owner)->put(route('reports.stock.update', $opening), [
+            'kind' => 'opening',
+            'branch_uuid' => $branch->uuid,
+            'metal_uuid' => $gold->uuid,
+            'purity_uuid' => $purity->uuid,
+            'grams' => '450',
+        ])->assertRedirect(route('reports.stock'))->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $opening->refresh();
+        $this->assertSame('450.000', (string) $opening->grams);
+        $this->assertSame('450.000', $this->balance('22K'));
+    }
+
     public function test_a_purchase_can_be_corrected(): void
     {
         $owner = $this->shopUser();

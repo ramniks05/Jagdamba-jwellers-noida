@@ -3,6 +3,9 @@
 @section('title', request()->boolean('grams') ? 'Stock and purchase report' : (request()->boolean('report') ? 'Pieces report' : 'Stock and purchase'))
 
 @section('content')
+    @php
+        $editingOpening = ($editing ?? null)?->kind === App\Enums\MetalStockKind::Opening;
+    @endphp
     @include('commerce.reports.partials.head', ['title' => request()->boolean('grams') ? 'Stock and purchase report' : (request()->boolean('report') ? 'Pieces report' : 'Stock and purchase'), 'print' => request()->boolean('report') || request()->boolean('grams')])
     @if (request()->boolean('report') || request()->boolean('grams'))
     <form class="filter-bar no-print" method="GET" action="{{ route('reports.stock') }}">
@@ -61,14 +64,14 @@
             $editingSupplier = $editing?->reference instanceof App\Models\Supplier ? $editing->reference->uuid : null;
         @endphp
         <div class="card mb-3 no-print">
-            <div class="card-header bg-white">{{ $editing ? 'Correct purchase' : 'Add Purchase to stock' }}</div>
+            <div class="card-header bg-white">{{ $editingOpening ? 'Change opening stock' : ($editing ? 'Correct purchase' : 'Add Purchase to stock') }}</div>
             <div class="card-body">
-                <p class="text-secondary small">{{ $editing ? 'Change the supplier, bill number, metal, grams, or rate. Stock and the amount owed are updated.' : 'Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds grams from a supplier and needs that supplier’s bill number. Weight times the rate, then GST, is the total. A normal bill takes those grams off.' }}</p>
+                <p class="text-secondary small">@if ($editingOpening)Change the opening grams for this purity. In hand updates with it.@elseif ($editing)Change the supplier, bill number, metal, grams, or rate. Stock and the amount owed are updated.@else Stock is grams of a purity. Opening sets what is already in the shop. A purchase adds grams from a supplier and needs that supplier’s bill number. Weight times the rate, then GST, is the total. A normal bill takes those grams off.@endif</p>
                 <form method="POST" action="{{ $editing ? route('reports.stock.update', $editing) : route('reports.stock.store') }}" class="row g-2 align-items-end" id="metal-stock-form" data-gst="{{ $purchaseGst }}" data-round="{{ $roundRupee ? '1' : '0' }}">
                     @csrf
                     @if ($editing)
                         @method('PUT')
-                        <input type="hidden" name="kind" value="purchase">
+                        <input type="hidden" name="kind" value="{{ $editingOpening ? 'opening' : 'purchase' }}">
                     @endif
                     @if ($branches->count() > 1)
                         <div class="col-md-2 col-6">
@@ -83,7 +86,7 @@
                         <input type="hidden" name="branch_uuid" value="{{ $editing?->branch?->uuid ?? $branches->first()?->uuid }}">
                     @endif
                     @php
-                        $showPurchase = $editing || old('kind', 'purchase') === 'purchase';
+                        $showPurchase = ($editing && ! $editingOpening) || (! $editing && old('kind', 'purchase') === 'purchase');
                     @endphp
                     @unless ($editing)
                     <div class="col-md-2 col-6">
@@ -110,21 +113,31 @@
                     </div>
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-metal">Metal</label>
-                        <select class="form-select" id="stock-metal" name="metal_uuid" required>
-                            @foreach ($metals as $metal)
-                                <option value="{{ $metal->uuid }}" @selected(old('metal_uuid', $editing?->metalType?->uuid) === $metal->uuid)>{{ $metal->name }}</option>
-                            @endforeach
-                        </select>
+                        @if ($editingOpening)
+                            <input type="hidden" name="metal_uuid" value="{{ $editing->metalType?->uuid }}">
+                            <input class="form-control" id="stock-metal" value="{{ $editing->metalType?->name }}" readonly>
+                        @else
+                            <select class="form-select" id="stock-metal" name="metal_uuid" required>
+                                @foreach ($metals as $metal)
+                                    <option value="{{ $metal->uuid }}" @selected(old('metal_uuid', $editing?->metalType?->uuid) === $metal->uuid)>{{ $metal->name }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                     </div>
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-purity">Purity</label>
-                        <select class="form-select" id="stock-purity" name="purity_uuid" required>
-                            @foreach ($metals as $metal)
-                                @foreach ($metal->purities as $purity)
-                                    <option value="{{ $purity->uuid }}" data-metal="{{ $metal->uuid }}" @selected(old('purity_uuid', $editing?->purity?->uuid) === $purity->uuid)>{{ $purity->name }}</option>
+                        @if ($editingOpening)
+                            <input type="hidden" name="purity_uuid" value="{{ $editing->purity?->uuid }}">
+                            <input class="form-control" id="stock-purity" value="{{ $editing->purity?->name }}" readonly>
+                        @else
+                            <select class="form-select" id="stock-purity" name="purity_uuid" required>
+                                @foreach ($metals as $metal)
+                                    @foreach ($metal->purities as $purity)
+                                        <option value="{{ $purity->uuid }}" data-metal="{{ $metal->uuid }}" @selected(old('purity_uuid', $editing?->purity?->uuid) === $purity->uuid)>{{ $purity->name }}</option>
+                                    @endforeach
                                 @endforeach
-                            @endforeach
-                        </select>
+                            </select>
+                        @endif
                     </div>
                     <div class="col-md-2 col-6">
                         <label class="form-label" for="stock-grams">Grams</label>
@@ -138,7 +151,7 @@
                         <p class="small mb-0">Metal value <strong id="stock-metal-value">0.00</strong> · GST {{ $purchaseGst }}% <strong id="stock-gst">0.00</strong> · Total <strong id="stock-total">0.00</strong></p>
                     </div>
                     <div class="col-auto d-flex gap-2">
-                        <button class="btn btn-primary" type="submit">{{ $editing ? 'Save correction' : 'Add to stock' }}</button>
+                        <button class="btn btn-primary" type="submit">{{ $editingOpening ? 'Save opening' : ($editing ? 'Save correction' : 'Add to stock') }}</button>
                         @if ($editing)
                             <a class="btn btn-outline-secondary" href="{{ route('reports.stock') }}">Cancel</a>
                         @endif
@@ -200,9 +213,14 @@
                             </thead>
                             <tbody>
                                 @foreach ($rows as $row)
-                                    <tr>
+                                    <tr @class(['table-active' => $editingOpening && $editing && ($row['opening_uuid'] ?? null) === $editing->uuid])>
                                         <td>{{ $row['purity'] }}</td>
-                                        <td class="num">{{ $weight($row['opening']) }}</td>
+                                        <td class="num">
+                                            {{ $weight($row['opening']) }}
+                                            @if ($canCorrect && ! $supplierName && ($row['opening_uuid'] ?? null) && (float) $row['opening'] > 0)
+                                                <div class="small"><a href="{{ route('reports.stock', ['edit' => $row['opening_uuid']]) }}">Change opening</a></div>
+                                            @endif
+                                        </td>
                                         <td class="num">{{ $weight($row['purchased']) }}</td>
                                         <td class="num">{{ $weight($row['sold']) }}</td>
                                         <td class="num {{ $row['short'] ? 'text-danger' : '' }}"><strong>{{ $weight($row['balance']) }}</strong></td>

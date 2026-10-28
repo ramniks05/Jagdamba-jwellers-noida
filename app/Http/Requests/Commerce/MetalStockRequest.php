@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commerce;
 
 use App\Enums\MetalStockKind;
+use App\Models\MetalStockMovement;
 use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -30,6 +31,18 @@ class MetalStockRequest extends FormRequest
     public function rules(): array
     {
         $shop = fn ($query) => $query->where('company_id', $this->user()->company_id)->whereNull('deleted_at');
+        $movement = $this->route('movement');
+        $openingCorrection = $movement instanceof MetalStockMovement && $movement->kind === MetalStockKind::Opening;
+
+        if ($openingCorrection) {
+            return [
+                'kind' => ['required', Rule::in([MetalStockKind::Opening->value])],
+                'branch_uuid' => ['required', 'uuid', Rule::exists('branches', 'uuid')->where($shop)],
+                'metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
+                'purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
+                'grams' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
+            ];
+        }
 
         return [
             'kind' => ['required', Rule::in([MetalStockKind::Opening->value, MetalStockKind::Purchase->value])],
