@@ -28,7 +28,7 @@
                             <div class="col-md-6">
                                 <label class="form-label" for="weight">Weight received</label>
                                 <div class="weight-input">
-                                    <input class="form-control bill-weight" id="weight" name="gross_weight" value="{{ old('gross_weight') }}" inputmode="decimal" placeholder="0.000" required>
+                                    <input class="form-control bill-weight counter-num" id="weight" name="gross_weight" value="{{ old('gross_weight') }}" inputmode="decimal" placeholder="0.000" required>
                                     <span>g</span>
                                 </div>
                             </div>
@@ -45,7 +45,7 @@
                             <div class="row g-3 mt-0">
                                 <div class="col-md-4">
                                     <label class="form-label" for="estimate">Estimate ₹</label>
-                                    <input class="form-control" id="estimate" name="estimated_cost" value="{{ old('estimated_cost', '0') }}" inputmode="decimal">
+                                    <input class="form-control counter-num" id="estimate" name="estimated_cost" value="{{ old('estimated_cost', '') }}" inputmode="decimal" placeholder="0">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label" for="expected">Ready by</label>

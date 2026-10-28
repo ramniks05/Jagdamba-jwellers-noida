@@ -62,6 +62,7 @@ function customerPicker(options) {
     function render() {
         const query = $('customer-search').value.trim();
         const box = $('customer-results');
+        if (!box) return;
         box.innerHTML = '';
         if (query === '') return;
         const rows = found();
@@ -272,22 +273,41 @@ function customerPicker(options) {
         $('new-customer-mobile').value = '';
     }
 
-    $('customer-search').addEventListener('input', render);
-    $('customer-search').addEventListener('keydown', (event) => {
+    const search = $('customer-search');
+    if (!search) {
+        console.error('customer-picker: #customer-search is missing on this page.');
+        return {
+            choose: () => {},
+            clear: () => {},
+            current: () => null,
+            ensure: () => false,
+        };
+    }
+    search.addEventListener('input', render);
+    search.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
         const first = found()[0];
         if (first) choose(first);
     });
-    $('save-customer').addEventListener('click', saveNew);
+    const saveCustomer = $('save-customer');
+    if (saveCustomer) saveCustomer.addEventListener('click', saveNew);
     const walkin = settings.customers.find((row) => row.walkin);
     if (walkin) {
         const button = $('customer-walkin');
-        button.classList.remove('d-none');
-        button.addEventListener('click', () => choose(walkin));
+        if (button) {
+            button.classList.remove('d-none');
+            button.addEventListener('click', () => choose(walkin));
+        }
     }
     const preset = settings.customers.find((row) => row.uuid === $('customer-uuid').value);
-    if (preset) choose(preset);
+    if (preset) {
+        try {
+            choose(preset);
+        } catch (error) {
+            console.error('customer-picker: preset customer failed', error);
+        }
+    }
 
     return {
         choose,

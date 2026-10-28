@@ -60,7 +60,7 @@
                                     </div>
                                     <div>
                                         <label for="weight">Expected wt g</label>
-                                        <input class="form-control metal-net" id="weight" name="expected_weight" value="{{ old('expected_weight') }}" inputmode="decimal" placeholder="0.000" required>
+                                        <input class="form-control metal-net counter-num" id="weight" name="expected_weight" value="{{ old('expected_weight') }}" inputmode="decimal" placeholder="0.000" required>
                                     </div>
                                     <div>
                                         <label for="order-rate">Rate / g</label>
@@ -89,7 +89,7 @@
                                                 <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected(old('making_method', $making->firstWhere('code', 'percentage')?->uuid) === $method->uuid)>{{ $method->name }}</option>
                                             @endforeach
                                         </select>
-                                        <input class="form-control charge-value" id="making-value" name="making_value" inputmode="decimal" value="{{ old('making_value', '0') }}" aria-label="{{ $makingTitle }} amount">
+                                        <input class="form-control charge-value counter-num" id="making-value" name="making_value" inputmode="decimal" value="{{ old('making_value', '') }}" placeholder="0" aria-label="{{ $makingTitle }} amount">
                                     </div>
                                 </div>
                                 <div class="weight-field">

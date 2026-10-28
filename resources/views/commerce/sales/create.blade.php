@@ -72,6 +72,7 @@
                         <div class="scan-status" id="scan-status" role="status" aria-live="polite"></div>
                     </div>
                 </div>
+                @if ($retailEnabled ?? false)
                 <div class="card mb-3">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
                         <span><i class="bi bi-basket"></i> Other items (no weight)</span>
@@ -109,7 +110,7 @@
                                 </div>
                                 <div class="col-md-4 col-8">
                                     <label class="form-label" for="retail-price">Price (₹)</label>
-                                    <input class="form-control" id="retail-price" inputmode="decimal" placeholder="0.00">
+                                    <input class="form-control counter-num" id="retail-price" inputmode="decimal" placeholder="0.00">
                                 </div>
                             </div>
                             <div class="row g-2 mt-1">
@@ -138,6 +139,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
                 <div class="card mb-3">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
@@ -179,15 +181,15 @@
                                     </div>
                                     <div>
                                         <label for="weigh-gross">Gross g</label>
-                                        <input class="form-control metal-net bill-weight" id="weigh-gross" inputmode="decimal" placeholder="0.000">
+                                        <input class="form-control metal-net bill-weight counter-num" id="weigh-gross" inputmode="decimal" placeholder="0.000">
                                     </div>
                                     <div>
                                         <label for="weigh-stone">Stone g</label>
-                                        <input class="form-control" id="weigh-stone" inputmode="decimal" placeholder="0.000">
+                                        <input class="form-control counter-num" id="weigh-stone" inputmode="decimal" placeholder="0.000">
                                     </div>
                                     <div>
                                         <label for="weigh-other-g">Other g</label>
-                                        <input class="form-control" id="weigh-other-g" inputmode="decimal" placeholder="0.000">
+                                        <input class="form-control counter-num" id="weigh-other-g" inputmode="decimal" placeholder="0.000">
                                     </div>
                                     <div>
                                         <label for="weigh-net">Net g</label>
@@ -197,7 +199,7 @@
                                 <div class="metal-row mt-2">
                                     <div>
                                         <label for="weigh-metal-rate">Rate / g</label>
-                                        <input class="form-control" id="weigh-metal-rate" inputmode="decimal" placeholder="Today's rate">
+                                        <input class="form-control counter-num" id="weigh-metal-rate" inputmode="decimal" placeholder="Today's rate">
                                     </div>
                                     <div>
                                         <label for="weigh-metal-value">Value</label>
@@ -226,7 +228,7 @@
                                                 <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'per_gram')>{{ $method->name }}</option>
                                             @endforeach
                                         </select>
-                                        <input class="form-control charge-value" id="weigh-making-value" inputmode="decimal" value="0" aria-label="Making amount">
+                                        <input class="form-control charge-value counter-num" id="weigh-making-value" inputmode="decimal" value="" placeholder="0" aria-label="Making amount">
                                     </div>
                                 </div>
                                 <div class="weight-field">
@@ -238,7 +240,7 @@
                                                 <option value="{{ $method->uuid }}" data-code="{{ $method->code }}" @selected($method->code === 'fixed')>{{ $method->name }}</option>
                                             @endforeach
                                         </select>
-                                        <input class="form-control charge-value" id="weigh-wastage-value" inputmode="decimal" value="0" aria-label="Hallmark amount">
+                                        <input class="form-control charge-value counter-num" id="weigh-wastage-value" inputmode="decimal" value="" placeholder="0" aria-label="Hallmark amount">
                                     </div>
                                 </div>
                             </div>
@@ -289,7 +291,15 @@
                             <label class="form-label mb-0" for="customer-pays">Customer will pay ₹</label>
                             <input class="form-control form-control-sm" id="customer-pays" inputmode="decimal" placeholder="Final amount" autocomplete="off">
                             <label class="form-label mb-0" for="discount">Discount ₹</label>
-                            <input class="form-control form-control-sm" id="discount" name="discount" inputmode="decimal" value="{{ old('discount', $sale?->discount_amount ?? '0') }}">
+                            @php
+                                $discountDefault = old('discount');
+                                if ($discountDefault === null) {
+                                    $discountDefault = $sale && (float) $sale->discount_amount > 0
+                                        ? (string) $sale->discount_amount
+                                        : '';
+                                }
+                            @endphp
+                            <input class="form-control form-control-sm counter-num" id="discount" name="discount" inputmode="decimal" value="{{ $discountDefault }}" placeholder="0">
                         </div>
                         <p class="text-secondary small mb-2">Change bill date only when you need a backdated invoice; default is now.</p>
                         <p class="text-secondary small d-none mb-2" id="customer-pays-note"></p>
@@ -354,7 +364,7 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="col-4"><input class="form-control bill-pay" name="payments[{{ $slot }}][amount]" value="{{ $savedPayment['amount'] ?? '' }}" placeholder="Amount"></div>
+                                <div class="col-4"><input class="form-control bill-pay counter-num" name="payments[{{ $slot }}][amount]" value="{{ $savedPayment['amount'] ?? '' }}" placeholder="Amount"></div>
                                 <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ $savedPayment['reference'] ?? '' }}" placeholder="Reference"></div>
                             </div>
                         @endforeach
@@ -441,6 +451,7 @@
         ])->values(),
         'editing' => $draft ? ['stock' => $draft['stock'], 'fresh' => $draft['fresh'], 'retail' => $draft['retail'] ?? []] : null,
         'fixedPrevious' => ($draft ?? [])['fixedPrevious'] ?? null,
+        'retailEnabled' => $retailEnabled ?? false,
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
 
@@ -457,6 +468,24 @@
         let rateEdited = false;
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
         let payState = { total: 0, advance: 0, oldDue: 0, creditUsed: 0 };
+        const picker = customerPicker({
+            customers: bill.customers,
+            createUrl: bill.customerUrl,
+            showUrl: bill.customerShowUrl,
+            csrf: bill.csrf,
+            addLabel: 'Add to bill',
+            chipLabel: 'Bill to',
+            onChange: (row) => {
+                customer = row;
+                if (!bill.fixedPrevious) {
+                    const oldDueBox = document.getElementById('include-previous');
+                    if (oldDueBox) oldDueBox.checked = !!(row && Number(row.due_amount) > 0);
+                }
+                renderCustomerOpenOrders(row);
+                renderTotals();
+            },
+        });
+        renderCustomerOpenOrders(customer);
 
         function renderCustomerOpenOrders(row) {
             const panel = document.getElementById('customer-open-orders');
@@ -831,19 +860,23 @@
         }
 
         function syncRetailTaxFields() {
-            const show = document.getElementById('retail-tax-mode').value !== 'none';
+            const mode = document.getElementById('retail-tax-mode');
+            if (!mode) return;
+            const show = mode.value !== 'none';
             document.querySelectorAll('.retail-tax-field').forEach((row) => row.classList.toggle('d-none', !show));
         }
 
         function previewRetail() {
+            const preview = document.getElementById('retail-preview');
+            if (!preview) return;
             const priced = priceRetailLine({
-                quantity: document.getElementById('retail-qty').value,
-                unit_price: document.getElementById('retail-price').value,
-                tax_mode: document.getElementById('retail-tax-mode').value,
-                tax_percent: document.getElementById('retail-tax-percent').value,
-                tax_amount: document.getElementById('retail-tax-amount').value,
+                quantity: document.getElementById('retail-qty')?.value,
+                unit_price: document.getElementById('retail-price')?.value,
+                tax_mode: document.getElementById('retail-tax-mode')?.value,
+                tax_percent: document.getElementById('retail-tax-percent')?.value,
+                tax_amount: document.getElementById('retail-tax-amount')?.value,
             });
-            document.getElementById('retail-preview').textContent = priced ? 'Line total ' + money.format(priced.line_amount) + (priced.tax_amount > 0 ? ' · GST ' + money.format(priced.tax_amount) : '') : '';
+            preview.textContent = priced ? 'Line total ' + money.format(priced.line_amount) + (priced.tax_amount > 0 ? ' · GST ' + money.format(priced.tax_amount) : '') : '';
         }
 
         function renderBill() {
@@ -941,6 +974,14 @@
                     input.name = 'item_ids[]';
                     input.value = line.row.uuid;
                     inputs.appendChild(input);
+                } else if (line.kind === 'retail') {
+                    ['product_uuid', 'name', 'quantity', 'unit_price', 'tax_mode', 'tax_percent', 'tax_amount', 'hsn_code'].forEach((key) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'retail_items[' + line.index + '][' + key + ']';
+                        input.value = line.row[key] ?? '';
+                        inputs.appendChild(input);
+                    });
                 } else {
                     Object.entries(line.row.fields).forEach(([key, value]) => {
                         const input = document.createElement('input');
@@ -957,14 +998,6 @@
                             input.value = stone[key] ?? '';
                             inputs.appendChild(input);
                         });
-                    });
-                } else if (line.kind === 'retail') {
-                    ['product_uuid', 'name', 'quantity', 'unit_price', 'tax_mode', 'tax_percent', 'tax_amount', 'hsn_code'].forEach((key) => {
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'retail_items[' + line.index + '][' + key + ']';
-                        input.value = line.row[key] ?? '';
-                        inputs.appendChild(input);
                     });
                 }
             });
@@ -1099,8 +1132,11 @@
             const stoneTotal = priced.stoneTotal;
             const wastageTotal = priced.wastageTotal;
             const showRow = (id, amount, show) => {
-                document.getElementById(id + '-row').classList.toggle('d-none', !show);
-                document.getElementById(id).textContent = money.format(amount);
+                const row = document.getElementById(id + '-row');
+                const cell = document.getElementById(id);
+                if (!row || !cell) return;
+                row.classList.toggle('d-none', !show);
+                cell.textContent = money.format(amount);
             };
             showRow('bill-stone', stoneTotal, stoneTotal > 0);
             showRow('bill-wastage', wastageTotal, wastageTotal > 0 && !bill.hallmarkOutside);
@@ -1315,7 +1351,7 @@
         });
         document.getElementById('bill-form').addEventListener('keydown', (event) => {
             const field = event.target;
-            if (event.key !== 'Enter' || field === scanInput || field.tagName !== 'INPUT') return;
+            if (event.key !== 'Enter' || field === scanInput || field.id === 'customer-search' || field.tagName !== 'INPUT') return;
             if (['button', 'submit', 'checkbox', 'radio'].includes(field.type)) return;
             event.preventDefault();
         });
@@ -1450,14 +1486,14 @@
             if (!picker.ensure()) {
                 event.preventDefault();
             }
-            if (stockLines.length === 0 && freshLines.length === 0) {
+            if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
                 event.preventDefault();
                 scanInput.focus();
             }
         });
         document.getElementById('bill-preview').addEventListener('click', async () => {
             if (!picker.ensure()) return;
-            if (stockLines.length === 0 && freshLines.length === 0) {
+            if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
                 scanInput.focus();
                 return;
             }
@@ -1508,24 +1544,12 @@
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) resetWeigh();
         });
-        weighDefaults = weighState();
-        const picker = customerPicker({
-            customers: bill.customers,
-            createUrl: bill.customerUrl,
-            showUrl: bill.customerShowUrl,
-            csrf: bill.csrf,
-            addLabel: 'Add to bill',
-            chipLabel: 'Bill to',
-            onChange: (row) => {
-                customer = row;
-                if (!bill.fixedPrevious) {
-                    document.getElementById('include-previous').checked = !!(row && Number(row.due_amount) > 0);
-                }
-                renderCustomerOpenOrders(row);
-                renderTotals();
-            },
-        });
-        renderCustomerOpenOrders(customer);
+        try {
+            weighDefaults = weighState();
+        } catch (error) {
+            weighDefaults = null;
+        }
+        if (bill.retailEnabled) {
         const retailProductSelect = document.getElementById('retail-product');
         if (retailProductSelect) {
             retailProductSelect.addEventListener('change', () => {
@@ -1533,8 +1557,9 @@
                 if (!option || !option.value) return;
                 document.getElementById('retail-name').value = option.dataset.name || '';
                 if (option.dataset.price) document.getElementById('retail-price').value = option.dataset.price;
-                document.getElementById('retail-tax-mode').value = option.dataset.taxMode || 'none';
-                if (option.dataset.taxPercent) document.getElementById('retail-tax-percent').value = option.dataset.taxPercent;
+                document.getElementById('retail-tax-mode').value = option.getAttribute('data-tax-mode') || option.dataset.taxMode || 'none';
+                const taxPercent = option.getAttribute('data-tax-percent') || option.dataset.taxPercent;
+                if (taxPercent) document.getElementById('retail-tax-percent').value = taxPercent;
                 document.getElementById('retail-tax-amount').value = '';
                 syncRetailTaxFields();
                 previewRetail();
@@ -1547,7 +1572,8 @@
             if (id === 'retail-tax-mode') field.addEventListener('change', syncRetailTaxFields);
         });
         syncRetailTaxFields();
-        document.getElementById('retail-add').addEventListener('click', () => {
+        const retailAdd = document.getElementById('retail-add');
+        if (retailAdd) retailAdd.addEventListener('click', () => {
             const error = document.getElementById('retail-error');
             const name = document.getElementById('retail-name').value.trim();
             const row = {
@@ -1575,6 +1601,7 @@
             previewRetail();
             renderBill();
         });
+        }
 
         if (bill.editing) {
             bill.editing.stock.forEach((uuid) => {

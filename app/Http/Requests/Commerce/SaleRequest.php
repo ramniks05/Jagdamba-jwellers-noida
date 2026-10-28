@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\RetailTaxMode;
 use App\Models\Sale;
 use App\Support\Limits;
+use App\Support\RetailBilling;
 use App\Support\StoneRate;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
@@ -114,7 +115,7 @@ class SaleRequest extends FormRequest
         $keepWalkIn = $editing instanceof Sale && (bool) $editing->customer?->is_system;
         $named = fn ($query) => $shop($query)->when(! $keepWalkIn, fn ($query) => $query->where('is_system', false));
 
-        return [
+        $rules = [
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where($named)],
             'tray_uuid' => [
                 'nullable',
@@ -179,16 +180,23 @@ class SaleRequest extends FormRequest
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'include_previous' => ['sometimes', 'boolean'],
             'sold_at' => ['required', 'date'],
-            'retail_items' => ['array'],
-            'retail_items.*.name' => ['required', 'string', 'max:160'],
-            'retail_items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
-            'retail_items.*.unit_price' => ['required', 'numeric', 'gt:0', Limits::MONEY],
-            'retail_items.*.tax_mode' => ['required', Rule::enum(RetailTaxMode::class)],
-            'retail_items.*.tax_percent' => ['nullable', 'numeric', 'gte:0', 'max:100'],
-            'retail_items.*.tax_amount' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
-            'retail_items.*.hsn_code' => ['nullable', 'string', 'max:20'],
-            'retail_items.*.product_uuid' => ['nullable', 'uuid', Rule::exists('retail_products', 'uuid')->where(fn ($query) => $shop($query)->where('is_active', true))],
         ];
+
+        if (RetailBilling::enabled()) {
+            $rules = array_merge($rules, [
+                'retail_items' => ['array'],
+                'retail_items.*.name' => ['required', 'string', 'max:160'],
+                'retail_items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
+                'retail_items.*.unit_price' => ['required', 'numeric', 'gt:0', Limits::MONEY],
+                'retail_items.*.tax_mode' => ['required', Rule::enum(RetailTaxMode::class)],
+                'retail_items.*.tax_percent' => ['nullable', 'numeric', 'gte:0', 'max:100'],
+                'retail_items.*.tax_amount' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
+                'retail_items.*.hsn_code' => ['nullable', 'string', 'max:20'],
+                'retail_items.*.product_uuid' => ['nullable', 'uuid', Rule::exists('retail_products', 'uuid')->where(fn ($query) => $shop($query)->where('is_active', true))],
+            ]);
+        }
+
+        return $rules;
     }
 
     /**

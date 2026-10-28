@@ -28,6 +28,7 @@ use App\Models\StockTray;
 use App\Services\Foundation\DocumentNumberService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
+use App\Support\RetailBilling;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
@@ -491,22 +492,24 @@ class SaleService
                 );
             }
 
-            foreach ($retailRows as $retailRow) {
-                SaleRetailLine::query()->create([
-                    'company_id' => $company->id,
-                    'sale_id' => $sale->id,
-                    'retail_product_id' => $retailRow['product']?->id,
-                    'name' => $retailRow['name'],
-                    'quantity' => $retailRow['quantity'],
-                    'unit_price' => $retailRow['unit_price'],
-                    'tax_mode' => $retailRow['priced']['tax_mode'],
-                    'tax_percent' => $retailRow['priced']['tax_percent'],
-                    'taxable_amount' => $retailRow['priced']['taxable_amount'],
-                    'tax_amount' => $retailRow['priced']['tax_amount'],
-                    'line_amount' => $retailRow['priced']['line_amount'],
-                    'hsn_code' => $retailRow['hsn_code'],
-                    'position' => $retailRow['position'],
-                ]);
+            if (RetailBilling::enabled()) {
+                foreach ($retailRows as $retailRow) {
+                    SaleRetailLine::query()->create([
+                        'company_id' => $company->id,
+                        'sale_id' => $sale->id,
+                        'retail_product_id' => $retailRow['product']?->id,
+                        'name' => $retailRow['name'],
+                        'quantity' => $retailRow['quantity'],
+                        'unit_price' => $retailRow['unit_price'],
+                        'tax_mode' => $retailRow['priced']['tax_mode'],
+                        'tax_percent' => $retailRow['priced']['tax_percent'],
+                        'taxable_amount' => $retailRow['priced']['taxable_amount'],
+                        'tax_amount' => $retailRow['priced']['tax_amount'],
+                        'line_amount' => $retailRow['priced']['line_amount'],
+                        'hsn_code' => $retailRow['hsn_code'],
+                        'position' => $retailRow['position'],
+                    ]);
+                }
             }
 
             if ($tray && $trayNet->isPositive()) {
@@ -762,7 +765,9 @@ class SaleService
             $line->delete();
         }
 
-        $sale->retailLines()->delete();
+        if (RetailBilling::enabled()) {
+            $sale->retailLines()->delete();
+        }
 
         foreach ($madeForBill as $item) {
             $item->delete();
@@ -775,6 +780,13 @@ class SaleService
      */
     private function buildRetailLines(Company $company, array $rows): array
     {
+        if (! RetailBilling::enabled()) {
+            return [
+                'lines' => [],
+                'totals' => ['line' => '0.00', 'taxable' => '0.00', 'tax' => '0.00'],
+            ];
+        }
+
         $fallback = (string) ($this->settings->get('pricing.gst_percent', $company) ?? '0');
         $lines = [];
         $lineTotal = BigDecimal::zero();

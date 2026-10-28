@@ -118,7 +118,7 @@
                         @endforeach
                         <div class="mt-3" style="max-width: 16rem">
                             <label class="form-label">Cash refund</label>
-                            <input class="form-control" name="refund" value="0">
+                            <input class="form-control counter-num" name="refund" value="" placeholder="0">
                         </div>
                         <button class="btn btn-outline-primary mt-3" type="submit">Save credit note</button>
                     </div>

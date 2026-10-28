@@ -207,6 +207,7 @@
             }
         })();
     </script>
+    <script src="{{ asset('js/counter-numeric.js') }}?v={{ @filemtime(public_path('js/counter-numeric.js')) }}"></script>
     @stack('scripts')
 </body>
 </html>
