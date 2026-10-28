@@ -389,7 +389,7 @@ class SaleController extends Controller
             $draft = $sale
                 ? $sales->revise($sale, $request->validated(), $request->user()?->id)
                 : $sales->post($company, $request->validated(), $request->user()?->id);
-            $draft->load(['lines.item', 'lines.stones', 'payments', 'customer', 'branch', 'advanceOrder']);
+            $draft->load(['lines.item', 'lines.stones', 'retailLines', 'payments', 'customer', 'branch', 'advanceOrder']);
             $html = view('commerce.sales.partials.invoice', $invoice->data($draft, $company) + ['preview' => true])->render();
         } finally {
             DB::rollBack();

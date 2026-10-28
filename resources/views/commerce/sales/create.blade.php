@@ -132,7 +132,7 @@
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
-                                <button class="btn btn-outline-primary" type="button" id="retail-add"><i class="bi bi-plus-lg"></i> Add to bill</button>
+                                <button class="btn btn-outline-primary" type="button" id="retail-add"><i class="bi bi-plus-lg"></i> Add other item</button>
                                 <span class="small text-secondary" id="retail-preview"></span>
                             </div>
                             <div class="small text-danger d-none mt-2" id="retail-error"></div>
@@ -309,7 +309,8 @@
                             <div class="bill-row d-none" id="bill-stone-row"><span>Stones</span><span id="bill-stone">0.00</span></div>
                             <div class="bill-row d-none" id="bill-wastage-row"><span>Hallmark</span><span id="bill-wastage">0.00</span></div>
                             <div class="bill-row d-none" id="bill-making-row"><span id="bill-making-label">{{ $makingMode === 'inside' ? 'Making' : 'Processing charge' }}</span><span id="bill-making">0.00</span></div>
-                            <div class="bill-row bill-row-sub"><span>Pieces total</span><span id="bill-subtotal">0.00</span></div>
+                            <div class="bill-row bill-row-sub"><span>Jewellery total</span><span id="bill-subtotal">0.00</span></div>
+                            <div class="bill-row d-none" id="bill-retail-row"><span>Other items</span><span id="bill-retail">0.00</span></div>
                         </div>
                         <div class="bill-block">
                             <div class="bill-row d-none" id="bill-discount-row"><span>Discount</span><span id="bill-discount">0.00</span></div>
@@ -820,9 +821,16 @@
             return parts;
         }
 
+        function parseAmount(value) {
+            const trimmed = String(value ?? '').trim().replace(/,/g, '');
+            if (trimmed === '') return 0;
+            const num = Number(trimmed);
+            return Number.isFinite(num) ? num : 0;
+        }
+
         function priceRetailLine(row) {
-            const qty = Math.max(1, Number(row.quantity || 1));
-            const unit = round2(Number(row.unit_price || 0));
+            const qty = Math.max(1, parseInt(String(row.quantity || 1), 10) || 1);
+            const unit = round2(parseAmount(row.unit_price));
             if (!(unit > 0)) return null;
             const subtotal = round2(unit * qty);
             const mode = row.tax_mode || 'none';
@@ -831,7 +839,7 @@
                 return { line_amount: subtotal, tax_amount: 0, taxable_amount: subtotal };
             }
             if (manualTax !== '') {
-                const tax = round2(Number(manualTax));
+                const tax = round2(parseAmount(manualTax));
                 if (mode === 'exclusive') {
                     return { line_amount: round2(subtotal + tax), tax_amount: tax, taxable_amount: subtotal };
                 }
@@ -879,6 +887,74 @@
             preview.textContent = priced ? 'Line total ' + money.format(priced.line_amount) + (priced.tax_amount > 0 ? ' · GST ' + money.format(priced.tax_amount) : '') : '';
         }
 
+        function bindRetailPanel() {
+            const retailAdd = document.getElementById('retail-add');
+            if (!retailAdd || retailAdd.dataset.bound === '1') return;
+            retailAdd.dataset.bound = '1';
+            const retailProductSelect = document.getElementById('retail-product');
+            if (retailProductSelect) {
+                retailProductSelect.addEventListener('change', () => {
+                    const option = retailProductSelect.selectedOptions[0];
+                    if (!option || !option.value) return;
+                    document.getElementById('retail-name').value = option.dataset.name || '';
+                    if (option.dataset.price) document.getElementById('retail-price').value = option.dataset.price;
+                    document.getElementById('retail-tax-mode').value = option.getAttribute('data-tax-mode') || option.dataset.taxMode || 'none';
+                    const taxPercent = option.getAttribute('data-tax-percent') || option.dataset.taxPercent;
+                    if (taxPercent) document.getElementById('retail-tax-percent').value = taxPercent;
+                    document.getElementById('retail-tax-amount').value = '';
+                    syncRetailTaxFields();
+                    previewRetail();
+                });
+            }
+            ['retail-qty', 'retail-price', 'retail-tax-mode', 'retail-tax-percent', 'retail-tax-amount'].forEach((id) => {
+                const field = document.getElementById(id);
+                if (!field) return;
+                field.addEventListener('input', previewRetail);
+                if (id === 'retail-tax-mode') field.addEventListener('change', syncRetailTaxFields);
+            });
+            syncRetailTaxFields();
+            retailAdd.addEventListener('click', () => {
+                const error = document.getElementById('retail-error');
+                const nameEl = document.getElementById('retail-name');
+                const priceEl = document.getElementById('retail-price');
+                const qtyEl = document.getElementById('retail-qty');
+                const taxModeEl = document.getElementById('retail-tax-mode');
+                const taxPercentEl = document.getElementById('retail-tax-percent');
+                const taxAmountEl = document.getElementById('retail-tax-amount');
+                if (!nameEl || !priceEl || !taxModeEl) return;
+                const name = nameEl.value.trim();
+                const row = {
+                    product_uuid: retailProductSelect && retailProductSelect.value ? retailProductSelect.value : '',
+                    name,
+                    quantity: qtyEl ? (qtyEl.value || '1') : '1',
+                    unit_price: priceEl.value.trim(),
+                    tax_mode: taxModeEl.value,
+                    tax_percent: taxPercentEl ? taxPercentEl.value.trim() : '',
+                    tax_amount: taxAmountEl ? taxAmountEl.value.trim() : '',
+                    hsn_code: retailProductSelect && retailProductSelect.selectedOptions[0] ? (retailProductSelect.selectedOptions[0].dataset.hsn || '') : '',
+                };
+                const priced = priceRetailLine(row);
+                if (!error) return;
+                if (name === '' || !priced) {
+                    error.textContent = name === '' ? 'Type the item name.' : 'Enter a price greater than zero.';
+                    error.classList.remove('d-none');
+                    return;
+                }
+                error.classList.add('d-none');
+                row.unit_price = String(parseAmount(row.unit_price));
+                retailLines.push(row);
+                nameEl.value = '';
+                priceEl.value = '';
+                if (taxAmountEl) taxAmountEl.value = '';
+                if (qtyEl) qtyEl.value = '1';
+                if (retailProductSelect) retailProductSelect.value = '';
+                previewRetail();
+                renderBill();
+            });
+        }
+
+        bindRetailPanel();
+
         function renderBill() {
             const body = document.getElementById('bill-lines');
             const inputs = document.getElementById('bill-piece-inputs');
@@ -910,7 +986,7 @@
                 head.append(name, total);
                 const meta = document.createElement('div');
                 meta.className = 'bill-line-meta';
-                const huid = line.kind === 'stock' ? line.row.huid : line.row.fields.huid;
+                const huid = line.kind === 'stock' ? line.row.huid : line.row.fields?.huid;
                 meta.textContent = line.kind === 'retail'
                     ? ['Other item', 'Qty ' + (line.row.quantity || 1), line.row.tax_mode === 'none' ? 'No GST' : (line.row.tax_mode === 'exclusive' ? 'GST extra' : 'GST in price')].filter(Boolean).join(' · ')
                     : line.kind === 'stock'
@@ -1025,7 +1101,7 @@
             const hallmark = bill.hallmarkOutside ? Math.min(base.subtotal, base.wastageTotal) : 0;
             const taxedSubtotal = round2(base.subtotal - hallmark);
             const making = Math.min(taxedSubtotal, base.making);
-            const discount = Math.min(taxedSubtotal, Math.max(0, round2(Number(discountValue) || 0)));
+            const discount = Math.min(taxedSubtotal, Math.max(0, round2(parseAmount(discountValue))));
             const taxOf = (amount, percent) => percent > 0
                 ? round2(bill.exclusive ? amount * percent / 100 : amount * percent / (percent + 100))
                 : 0;
@@ -1155,7 +1231,8 @@
             if (wastageTotal > 0 && !bill.hallmarkOutside) taxParts.push('hallmark');
             if (mode === 'inside' && making > 0) taxParts.push('making');
             const taxOn = taxParts.join(' + ') + (discount > 0 ? ' after discount' : '');
-            const taxNote = subtotal <= 0 ? '' : ' on ' + taxOn + (bill.exclusive ? ' ' + money.format(taxBase) : ' (included)');
+            const retailTax = priced.retail ? priced.retail.tax : 0;
+            const taxNote = subtotal <= 0 && retailTax <= 0 ? '' : (subtotal <= 0 ? ' incl. other items' : ' on ' + taxOn + (bill.exclusive ? ' ' + money.format(taxBase) : ' (included)'));
             document.getElementById('bill-tax-label').textContent = 'GST ' + bill.gst + '%' + taxNote;
             document.getElementById('bill-making-tax-row').classList.toggle('d-none', mode !== 'separate' || making <= 0);
             document.getElementById('bill-making-tax-label').textContent = 'GST ' + bill.makingGst + '% on processing charge' + (subtotal > 0 ? (bill.exclusive ? ' ' + money.format(makingBase) : ' (included)') : '');
@@ -1167,6 +1244,8 @@
             document.getElementById('bill-net-weight').textContent = netWeight.toFixed(3) + ' g';
             document.getElementById('bill-metal').textContent = money.format(metalValue);
             document.getElementById('bill-subtotal').textContent = money.format(subtotal);
+            const retailAmount = priced.retail ? priced.retail.line : 0;
+            showRow('bill-retail', retailAmount, retailAmount > 0);
             document.getElementById('bill-tax').textContent = money.format(tax);
             showRow('bill-round', roundOff, roundOff !== 0);
             document.getElementById('bill-total').textContent = money.format(total);
@@ -1199,14 +1278,15 @@
             const oldBox = document.getElementById('include-previous');
             const oldDue = bill.fixedPrevious
                 ? Number(bill.fixedPrevious.amount || 0)
-                : (customer && !customer.walkin && oldBox.checked ? Number(customer.due_amount || 0) : 0);
+                : (customer && !customer.walkin && oldBox && oldBox.checked ? Number(customer.due_amount || 0) : 0);
             document.getElementById('bill-old-due-row').classList.toggle('d-none', bill.fixedPrevious ? oldDue <= 0 : !(customer && Number(customer.due_amount) > 0 && !customer.walkin));
             document.getElementById('bill-old-due-label').textContent = bill.fixedPrevious
                 ? '(' + bill.fixedPrevious.bills + (bill.fixedPrevious.bills === 1 ? ' bill already on this invoice)' : ' bills already on this invoice)')
                 : (customer && customer.due_bills ? '(' + customer.due_bills + (customer.due_bills === 1 ? ' bill)' : ' bills)') : '');
             document.getElementById('bill-old-due').textContent = money.format(oldDue);
             const credit = customer && !customer.walkin ? Number(customer.credit || 0) : 0;
-            const creditUsed = credit > 0 && document.getElementById('use-credit-toggle').checked ? round2(Math.min(credit, payNow)) : 0;
+            const creditToggle = document.getElementById('use-credit-toggle');
+            const creditUsed = credit > 0 && creditToggle && creditToggle.checked ? round2(Math.min(credit, payNow)) : 0;
             document.getElementById('bill-credit-row').classList.toggle('d-none', credit <= 0);
             document.getElementById('bill-credit-available').textContent = money.format(credit) + ' on account';
             document.getElementById('bill-credit').textContent = '− ' + money.format(creditUsed);
@@ -1338,17 +1418,22 @@
             scanMessage('success', 'Added ' + [piece.code, piece.name, piece.metal, piece.net ? 'Net ' + piece.net : '', piece.label].filter(Boolean).join(' · '), piece.uuid);
         }
 
-        scanInput.addEventListener('keydown', (event) => {
-            if (event.isComposing) return;
-            if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey && scanInput.value.trim() !== '')) {
-                event.preventDefault();
+        if (scanInput) {
+            scanInput.addEventListener('keydown', (event) => {
+                if (event.isComposing) return;
+                if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey && scanInput.value.trim() !== '')) {
+                    event.preventDefault();
+                    queueScan();
+                }
+            });
+        }
+        const scanAdd = document.getElementById('scan-add');
+        if (scanAdd && scanInput) {
+            scanAdd.addEventListener('click', () => {
                 queueScan();
-            }
-        });
-        document.getElementById('scan-add').addEventListener('click', () => {
-            queueScan();
-            scanInput.focus();
-        });
+                scanInput.focus();
+            });
+        }
         document.getElementById('bill-form').addEventListener('keydown', (event) => {
             const field = event.target;
             if (event.key !== 'Enter' || field === scanInput || field.id === 'customer-search' || field.tagName !== 'INPUT') return;
@@ -1549,60 +1634,6 @@
         } catch (error) {
             weighDefaults = null;
         }
-        if (bill.retailEnabled) {
-        const retailProductSelect = document.getElementById('retail-product');
-        if (retailProductSelect) {
-            retailProductSelect.addEventListener('change', () => {
-                const option = retailProductSelect.selectedOptions[0];
-                if (!option || !option.value) return;
-                document.getElementById('retail-name').value = option.dataset.name || '';
-                if (option.dataset.price) document.getElementById('retail-price').value = option.dataset.price;
-                document.getElementById('retail-tax-mode').value = option.getAttribute('data-tax-mode') || option.dataset.taxMode || 'none';
-                const taxPercent = option.getAttribute('data-tax-percent') || option.dataset.taxPercent;
-                if (taxPercent) document.getElementById('retail-tax-percent').value = taxPercent;
-                document.getElementById('retail-tax-amount').value = '';
-                syncRetailTaxFields();
-                previewRetail();
-            });
-        }
-        ['retail-qty', 'retail-price', 'retail-tax-mode', 'retail-tax-percent', 'retail-tax-amount'].forEach((id) => {
-            const field = document.getElementById(id);
-            if (!field) return;
-            field.addEventListener('input', previewRetail);
-            if (id === 'retail-tax-mode') field.addEventListener('change', syncRetailTaxFields);
-        });
-        syncRetailTaxFields();
-        const retailAdd = document.getElementById('retail-add');
-        if (retailAdd) retailAdd.addEventListener('click', () => {
-            const error = document.getElementById('retail-error');
-            const name = document.getElementById('retail-name').value.trim();
-            const row = {
-                product_uuid: retailProductSelect && retailProductSelect.value ? retailProductSelect.value : '',
-                name,
-                quantity: document.getElementById('retail-qty').value || '1',
-                unit_price: document.getElementById('retail-price').value.trim(),
-                tax_mode: document.getElementById('retail-tax-mode').value,
-                tax_percent: document.getElementById('retail-tax-percent').value.trim(),
-                tax_amount: document.getElementById('retail-tax-amount').value.trim(),
-                hsn_code: retailProductSelect && retailProductSelect.selectedOptions[0] ? (retailProductSelect.selectedOptions[0].dataset.hsn || '') : '',
-            };
-            if (name === '' || !priceRetailLine(row)) {
-                error.textContent = name === '' ? 'Type the item name.' : 'Enter a price greater than zero.';
-                error.classList.remove('d-none');
-                return;
-            }
-            error.classList.add('d-none');
-            retailLines.push(row);
-            document.getElementById('retail-name').value = '';
-            document.getElementById('retail-price').value = '';
-            document.getElementById('retail-tax-amount').value = '';
-            document.getElementById('retail-qty').value = '1';
-            if (retailProductSelect) retailProductSelect.value = '';
-            previewRetail();
-            renderBill();
-        });
-        }
-
         if (bill.editing) {
             bill.editing.stock.forEach((uuid) => {
                 const row = bill.pieces.find((piece) => piece.uuid === uuid);
@@ -1614,6 +1645,6 @@
         }
         renderBill();
         previewWeigh();
-        if (document.activeElement === document.body || document.activeElement === null) scanInput.focus();
+        if (scanInput && (document.activeElement === document.body || document.activeElement === null)) scanInput.focus();
     </script>
 @endpush
