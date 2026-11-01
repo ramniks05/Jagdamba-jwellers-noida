@@ -326,10 +326,14 @@ class SaleService
                 }
 
                 $paid = $paid->plus($amount);
+                $receivedAt = isset($row['received_at']) && trim((string) $row['received_at']) !== ''
+                    ? Carbon::parse((string) $row['received_at'], config('app.timezone'))
+                    : $soldAt;
                 $paymentRows[] = [
                     'method' => PaymentMethod::from($row['method']),
                     'amount' => (string) $amount,
                     'reference' => trim((string) ($row['reference'] ?? '')) ?: null,
+                    'received_at' => $receivedAt,
                 ];
                 unset($index);
             }
@@ -542,7 +546,7 @@ class SaleService
                     'narration' => ($previous->isPositive()
                         ? 'Received against '.$sale->number.' including old due'
                         : 'Received against '.$sale->number).($extra->isPositive() ? ' · '.$extra.' kept as advance' : ''),
-                    'received_at' => $soldAt,
+                    'received_at' => $row['received_at'],
                     'user_id' => $userId,
                 ]);
                 $this->ledger->post(

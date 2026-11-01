@@ -102,7 +102,7 @@
 
             throw new LabelPrintError(
                 'qz_unreachable',
-                'QZ Tray is not running on this computer. Install QZ Tray, start it, allow this website when it asks, then try again.'
+                'QZ Tray is not running on this counter PC. On this same computer: (1) Install QZ Tray from qz.io/download if missing. (2) Start QZ Tray — look for the QZ icon in the Windows tray. (3) Reload this page and click Allow when QZ asks. Tags cannot print from the server alone; the browser needs QZ on the PC connected to the Zebra printer.'
             );
         }
     }

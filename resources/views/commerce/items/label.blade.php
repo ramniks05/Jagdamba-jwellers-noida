@@ -74,6 +74,15 @@
                     <div class="small mb-3" id="tag-printer-status" role="status" aria-live="polite">
                         <span class="text-secondary">Checking QZ Tray on this computer…</span>
                     </div>
+                    <details class="small mb-3 text-secondary" id="tag-qz-help">
+                        <summary>QZ Tray not running?</summary>
+                        <ol class="ps-3 mb-0 mt-2">
+                            <li>Use the <strong>same PC</strong> where the Zebra tag printer is plugged in (USB).</li>
+                            <li>Install <a href="https://qz.io/download/" target="_blank" rel="noopener">QZ Tray</a> if it is missing, then start it (QZ icon in the tray).</li>
+                            <li>Reload this page. When QZ asks, choose <strong>Allow</strong> for this website.</li>
+                            <li>Match the printer name in <a href="{{ route('labels.settings.edit') }}">Tag settings</a> to Windows exactly.</li>
+                        </ol>
+                    </details>
                     <label class="form-label" for="tag-copies">Copies</label>
                     <input class="form-control mb-1" id="tag-copies" type="number" min="1" max="{{ $maxCopies }}" step="1" value="1" inputmode="numeric" @disabled($problem)>
                     <div class="form-text mb-3">Up to {{ $maxCopies }} at a time.</div>

@@ -59,6 +59,14 @@ async function waitForPreviewBody(page) {
     return preview;
 }
 
+async function openBillPanel(page, name) {
+    const tab = page.locator(`[data-bill-panel="${name}"]`);
+    if (await tab.count()) {
+        await tab.click();
+        await page.waitForSelector(`#bill-panel-${name}:not(.d-none)`, { timeout: 5000 });
+    }
+}
+
 async function testJewelleryBill(page) {
     await page.goto(`${base}/sales/create`, { waitUntil: 'domcontentloaded' });
     await pickCustomer(page);
@@ -68,6 +76,7 @@ async function testJewelleryBill(page) {
         return;
     }
 
+    await openBillPanel(page, 'scan');
     await page.fill('#scan-code', config.scan_code);
     await page.press('#scan-code', 'Enter');
 
@@ -110,6 +119,7 @@ async function testOtherItemBill(page) {
         return;
     }
 
+    await openBillPanel(page, 'retail');
     await page.locator('#retail-name').scrollIntoViewIfNeeded();
     await page.fill('#retail-name', 'E2E murti');
     await page.fill('#retail-price', '750');

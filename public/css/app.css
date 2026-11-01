@@ -889,6 +889,101 @@ a {
     align-self: start;
 }
 
+.bill-workspace {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.bill-tray-bar {
+    align-items: center;
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    padding: 0.55rem 0.85rem;
+}
+
+.bill-tray-label {
+    color: #6d6258;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.bill-tray-bar .form-select {
+    flex: 1 1 12rem;
+    max-width: 100%;
+}
+
+.bill-workspace-bar {
+    align-items: center;
+    background: linear-gradient(120deg, rgba(198, 161, 91, 0.12), transparent 55%), #fffaf3;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1rem;
+    justify-content: space-between;
+    padding: 0.65rem 0.85rem;
+}
+
+.bill-workspace-label {
+    color: var(--maroon);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.bill-workspace-modes {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: flex-end;
+}
+
+.bill-mode-btn {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: #4a4038;
+    display: inline-flex;
+    font-size: 0.82rem;
+    font-weight: 650;
+    gap: 0.35rem;
+    padding: 0.35rem 0.85rem;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.bill-mode-btn:hover {
+    border-color: var(--gold);
+    color: var(--maroon);
+}
+
+.bill-mode-btn.is-active {
+    background: var(--maroon);
+    border-color: var(--maroon);
+    color: #fff;
+}
+
+.bill-mode-btn.is-active i {
+    opacity: 0.95;
+}
+
+.bill-workspace .bill-panel {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.bill-workspace .bill-panel + .bill-panel {
+    border-top: 1px solid var(--line);
+}
+
 .permission-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

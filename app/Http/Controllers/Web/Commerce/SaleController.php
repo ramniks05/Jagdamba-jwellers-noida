@@ -267,6 +267,7 @@ class SaleController extends Controller
                 'method' => $payment->method->value,
                 'amount' => (string) $payment->amount,
                 'reference' => (string) ($payment->reference ?? ''),
+                'received_at' => $payment->received_at?->timezone(config('app.timezone'))->format('Y-m-d\TH:i'),
             ])->values()->all(),
             'fixedPrevious' => (float) $sale->previous_due > 0 ? [
                 'amount' => (float) $sale->previous_due,

@@ -309,6 +309,12 @@ function customerPicker(options) {
         }
     }
 
+    document.querySelectorAll('#customer-find [data-bs-toggle="tooltip"]').forEach((node) => {
+        if (typeof bootstrap !== 'undefined') {
+            bootstrap.Tooltip.getOrCreateInstance(node);
+        }
+    });
+
     return {
         choose,
         clear,
