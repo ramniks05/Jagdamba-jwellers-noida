@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Company;
 use App\Models\Item;
+use App\Models\RetailProduct;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
@@ -102,6 +103,16 @@ class JewelleryLabelZplService
     /**
      * @param  array<string, mixed>  $settings
      */
+    public function generateRetail(RetailProduct $product, array $settings = []): string
+    {
+        $resolved = $this->resolve($settings);
+
+        return $this->render($this->layout($this->retailProductFields($product)), $resolved);
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
     public function generateTest(array $settings = []): string
     {
         $resolved = $this->resolve($settings);
@@ -121,6 +132,21 @@ class JewelleryLabelZplService
         return $this->layout($fields) + [
             'settings' => $resolved,
             'tag_mode' => $fields['tag_mode'] ?? 'weight',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public function previewRetail(RetailProduct $product, array $settings = []): array
+    {
+        $resolved = $this->resolve($settings);
+        $fields = $this->retailProductFields($product);
+
+        return $this->layout($fields) + [
+            'settings' => $resolved,
+            'tag_mode' => $fields['tag_mode'],
         ];
     }
 
@@ -179,8 +205,18 @@ class JewelleryLabelZplService
             ? $barcode
             : trim((string) $item->item_code);
 
+        return $this->assertPayload($payload, 'This piece has no code to print.');
+    }
+
+    public function payloadForRetail(RetailProduct $product): string
+    {
+        return $this->assertPayload(trim((string) $product->code), 'This other item has no code to print.');
+    }
+
+    private function assertPayload(string $payload, string $emptyMessage): string
+    {
         if ($payload === '') {
-            throw ValidationException::withMessages(['payload' => 'This piece has no code to print.']);
+            throw ValidationException::withMessages(['payload' => $emptyMessage]);
         }
 
         if (! preg_match(self::PAYLOAD_PATTERN, $payload)) {
@@ -434,6 +470,32 @@ class JewelleryLabelZplService
      * @param  array<string, mixed>  $settings
      * @return array{payload: string, code: string, type: ?string, shop: ?string, weights: list<string>, tag_mode: string}
      */
+    /**
+     * @return array{payload: string, code: string, type: ?string, shop: ?string, weights: list<string>, tag_mode: string}
+     */
+    private function retailProductFields(RetailProduct $product): array
+    {
+        $price = BigDecimal::of((string) ($product->default_unit_price ?? '0'));
+
+        if (! $price->isPositive()) {
+            throw ValidationException::withMessages([
+                'price' => 'Set a default price on this other item before printing a tag.',
+            ]);
+        }
+
+        $name = trim((string) $product->name);
+        $code = trim((string) $product->code);
+
+        return [
+            'payload' => $this->payloadForRetail($product),
+            'code' => $code,
+            'type' => $name !== '' ? mb_convert_case($name, MB_CASE_TITLE) : null,
+            'shop' => $this->shopName(),
+            'tag_mode' => 'mrp',
+            'weights' => ['MRP : '.$this->mrpOnTag((string) $product->default_unit_price)],
+        ];
+    }
+
     private function itemFields(Item $item, array $settings): array
     {
         $item->loadMissing(['purity', 'category']);

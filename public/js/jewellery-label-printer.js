@@ -252,13 +252,17 @@
             });
         },
 
-        printBatch: function (batchUrl, items, copies, onProgress) {
+        printBatch: function (batchUrl, ids, copies, onProgress, listKey) {
+            listKey = listKey || 'items';
+
             return guarded(async function () {
                 const printer = await findPrinter();
+                const payload = { copies: copies };
+                payload[listKey] = ids;
                 const response = await request(batchUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': state.csrf },
-                    body: JSON.stringify({ items: items, copies: copies }),
+                    body: JSON.stringify(payload),
                 });
                 const body = await response.json();
                 const printed = [];
@@ -275,7 +279,7 @@
                     }
 
                     if (onProgress) {
-                        onProgress(printed.length + failed.length, items.length);
+                        onProgress(printed.length + failed.length, ids.length);
                     }
                 }
 

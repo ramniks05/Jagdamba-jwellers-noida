@@ -135,6 +135,9 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::resource('locations', LocationController::class)->except(['show', 'destroy']);
     Route::resource('trays', StockTrayController::class)->except(['show']);
     Route::resource('retail-products', RetailProductController::class)->except(['show']);
+    Route::get('retail-products/{retail_product}/barcode-preview', [ItemLabelController::class, 'showRetail'])->name('retail-products.label');
+    Route::get('retail-products/{retail_product}/barcode-zpl', [ItemLabelController::class, 'zplRetail'])->middleware('throttle:120,1')->name('retail-products.label.zpl');
+    Route::post('jewellery/barcode-zpl/retail-batch', [ItemLabelController::class, 'retailBatch'])->middleware('throttle:30,1')->name('labels.retail.batch');
     Route::get('customers/qr', [CustomerIntakeController::class, 'qr'])->name('customers.qr');
     Route::get('customer-intakes', [CustomerIntakeController::class, 'index'])->name('customer-intakes.index');
     Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');

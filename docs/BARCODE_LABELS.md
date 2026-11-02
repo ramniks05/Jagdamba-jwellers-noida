@@ -37,6 +37,9 @@ needs `settings.manage`.
 | --- | --- | --- | --- |
 | GET | `/items/{item}/barcode-preview` | `items.label` | Preview and print page |
 | GET | `/items/{item}/barcode-zpl?copies=N` | `items.label.zpl` | `text/plain; charset=UTF-8` ZPL |
+| GET | `/retail-products/{product}/barcode-preview` | `retail-products.label` | Other item MRP tag preview |
+| GET | `/retail-products/{product}/barcode-zpl?copies=N` | `retail-products.label.zpl` | Other item ZPL (default price as MRP) |
+| POST | `/jewellery/barcode-zpl/retail-batch` | `labels.retail.batch` | Batch print other-item tags |
 | GET | `/jewellery/barcode-test` | `labels.test` | Test tag page, no piece needed |
 | GET | `/jewellery/barcode-test-zpl?copies=N` | `labels.test.zpl` | Test tag ZPL |
 | POST | `/jewellery/barcode-zpl/batch` | `labels.batch` | JSON `{tags: [{uuid, code, zpl}], errors: [{uuid, code, message}]}`, up to 100 pieces |

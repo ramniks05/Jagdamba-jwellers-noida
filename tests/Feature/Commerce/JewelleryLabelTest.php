@@ -7,6 +7,7 @@ use App\Models\ChargeMethod;
 use App\Models\InventoryTransaction;
 use App\Models\Item;
 use App\Models\MetalType;
+use App\Models\RetailProduct;
 use App\Models\Purity;
 use App\Models\StockLocation;
 use App\Models\User;
@@ -89,6 +90,34 @@ class JewelleryLabelTest extends TestCase
         $this->assertStringContainsString('^FDG. Wt : 123.456 gm^FS', $zpl);
         $this->assertStringContainsString('^FDN. Wt. : 120.001 gm^FS', $zpl);
         $this->assertStringContainsString('^FDMA,JAGDAMBA-OLD-TAG-0001^FS', $zpl);
+    }
+
+    public function test_an_other_item_prints_an_mrp_tag_from_its_default_price(): void
+    {
+        $owner = $this->shopUser();
+        $this->seeShop($owner);
+
+        $product = RetailProduct::query()->create([
+            'company_id' => $owner->company_id,
+            'code' => 'MURTI1',
+            'name' => 'Ganesh murti',
+            'default_unit_price' => '850.00',
+            'default_tax_mode' => 'none',
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+
+        $layout = app(JewelleryLabelZplService::class)->previewRetail($product);
+        $this->assertSame('mrp', $layout['tag_mode']);
+
+        $zpl = $this->actingAs($owner)->get(route('retail-products.label.zpl', $product))->assertOk()->getContent();
+        $this->assertStringContainsString('^FDMURTI1^FS', $zpl);
+        $this->assertMatchesRegularExpression('/\^FDMRP : .*850/', $zpl);
+        $this->assertStringNotContainsString('G. Wt :', $zpl);
+
+        $this->actingAs($owner)->get(route('retail-products.label', $product))
+            ->assertOk()
+            ->assertSee('Print tag for Ganesh murti');
     }
 
     public function test_an_mrp_piece_prints_mrp_instead_of_weights_on_the_tag(): void

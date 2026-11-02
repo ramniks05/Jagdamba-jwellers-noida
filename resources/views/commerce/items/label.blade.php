@@ -1,15 +1,23 @@
 @extends('layouts.app')
 
-@section('title', $item ? 'Tag '.$item->item_code : 'Test tag')
+@section('title', $retailProduct ? 'Tag '.$retailProduct->code : ($item ? 'Tag '.$item->item_code : 'Test tag'))
 
 @section('content')
     @php
         $scale = $preview ? min(3, 620 / max(1, $preview['width'])) : 1;
-        $zplUrl = $item ? route('items.label.zpl', $item) : route('labels.test.zpl');
+        if ($retailProduct) {
+            $zplUrl = route('retail-products.label.zpl', $retailProduct);
+        } elseif ($item) {
+            $zplUrl = route('items.label.zpl', $item);
+        } else {
+            $zplUrl = route('labels.test.zpl');
+        }
     @endphp
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        @if ($item)
+        @if ($retailProduct)
+            <a href="{{ route('retail-products.index') }}"><i class="bi bi-arrow-left"></i> Other items</a>
+        @elseif ($item)
             <a href="{{ route('items.show', $item) }}"><i class="bi bi-arrow-left"></i> {{ $item->item_code }}</a>
         @else
             <a href="{{ route('items.index') }}"><i class="bi bi-arrow-left"></i> All pieces</a>
@@ -22,9 +30,19 @@
         </div>
     </div>
 
-    <h1 class="page-title h3 mb-1">{{ $item ? 'Print tag for '.$item->item_code : 'Print a test tag' }}</h1>
+    <h1 class="page-title h3 mb-1">
+        @if ($retailProduct)
+            Print tag for {{ $retailProduct->name }} ({{ $retailProduct->code }})
+        @elseif ($item)
+            Print tag for {{ $item->item_code }}
+        @else
+            Print a test tag
+        @endif
+    </h1>
     <p class="text-secondary mb-3">
-        @if ($item)
+        @if ($retailProduct)
+            MRP tag from the default price. Printing does not change stock or billing.
+        @elseif ($item)
             Prints straight to the tag printer on this computer. Printing does not change stock.
         @else
             A sample tag to check size and position. It is not linked to any piece.
@@ -86,7 +104,7 @@
                     <label class="form-label" for="tag-copies">Copies</label>
                     <input class="form-control mb-1" id="tag-copies" type="number" min="1" max="{{ $maxCopies }}" step="1" value="1" inputmode="numeric" @disabled($problem)>
                     <div class="form-text mb-3">Up to {{ $maxCopies }} at a time.</div>
-                    <button class="btn btn-primary w-100" type="button" id="tag-print" @disabled($problem)><i class="bi bi-printer"></i> {{ $item ? 'Print tag' : 'Print test tag' }}</button>
+                    <button class="btn btn-primary w-100" type="button" id="tag-print" @disabled($problem)><i class="bi bi-printer"></i> {{ $item || $retailProduct ? 'Print tag' : 'Print test tag' }}</button>
                     <div class="small mt-3" id="tag-print-result" role="alert" aria-live="assertive"></div>
                 </div>
             </div>
