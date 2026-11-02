@@ -91,6 +91,21 @@ class JewelleryLabelTest extends TestCase
         $this->assertStringContainsString('^FDMA,JAGDAMBA-OLD-TAG-0001^FS', $zpl);
     }
 
+    public function test_an_mrp_piece_prints_mrp_instead_of_weights_on_the_tag(): void
+    {
+        [$owner, $item] = $this->counter('MRP0001');
+        $item->forceFill(['mrp' => '75000'])->save();
+
+        $layout = app(JewelleryLabelZplService::class)->preview($item->fresh());
+        $this->assertSame('mrp', $layout['tag_mode']);
+        $this->assertCount(1, array_filter($layout['texts'], fn (array $row) => str_starts_with($row['text'], 'MRP :')));
+
+        $zpl = $this->actingAs($owner)->get(route('items.label.zpl', $item))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/\^FDMRP : .*75,?000/', $zpl);
+        $this->assertStringNotContainsString('G. Wt :', $zpl);
+        $this->assertStringNotContainsString('N. Wt.', $zpl);
+    }
+
     public function test_the_code_keeps_an_existing_barcode_unless_set_to_piece_code(): void
     {
         [$owner, $item] = $this->counter('GSE2742');

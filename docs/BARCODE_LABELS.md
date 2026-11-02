@@ -83,7 +83,8 @@ All coordinates are constants in `JewelleryLabelZplService` (`WIDTH`, `HEIGHT`, 
 
 - **Left flap** (text x 8–155):
   - Piece code and purity are printed in `^A0N,22,19`.
-  - Weights are printed in `^A0N,21,w`.
+  - When the piece has **MRP ₹** greater than zero, one **MRP :** line is printed instead of gross and net weight (same tag size).
+  - Otherwise weights are printed in `^A0N,21,w`.
   - If a line would be too wide, the font is narrowed, down to width 10. Left flap text is never cut.
   - A piece code that is too long even then is refused with a message.
 - **Right flap, name column** (x 292–372):
