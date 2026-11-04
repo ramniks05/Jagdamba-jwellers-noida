@@ -118,6 +118,17 @@ class AdvanceOrderTest extends TestCase
         $response->assertSee('Bridal ring', false);
     }
 
+    public function test_new_order_form_supports_multiple_metal_lines(): void
+    {
+        [$owner] = $this->counter();
+
+        $this->actingAs($owner)->get(route('orders.create'))
+            ->assertOk()
+            ->assertSee('Add another purity', false)
+            ->assertSee('order-metal-lines.js', false)
+            ->assertSee('lines[0][metal_uuid]', false);
+    }
+
     public function test_an_order_needs_a_named_customer(): void
     {
         [$owner, $gold, $purity] = $this->counter();
