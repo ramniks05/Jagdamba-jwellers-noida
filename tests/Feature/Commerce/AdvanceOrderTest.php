@@ -139,8 +139,13 @@ class AdvanceOrderTest extends TestCase
 
         $this->actingAs($owner)->put(route('orders.update', $order), [
             'description' => 'Updated necklace',
-            'expected_weight' => '12.500',
-            'rate_per_gram' => '5100',
+            'lines' => [[
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'expected_weight' => '12.500',
+                'rate_per_gram' => '5100',
+                'estimated_making' => '0',
+            ]],
             'estimated_making' => '1500',
             'design_notes' => 'Size 16',
             'due_on' => now()->addDays(20)->toDateString(),
@@ -167,10 +172,68 @@ class AdvanceOrderTest extends TestCase
         $this->actingAs($owner)->get(route('orders.edit', $order))->assertRedirect(route('orders.show', $order));
         $this->actingAs($owner)->put(route('orders.update', $order), [
             'description' => 'Too late',
-            'expected_weight' => '10',
-            'rate_per_gram' => '5000',
+            'lines' => [[
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'expected_weight' => '10',
+                'rate_per_gram' => '5000',
+                'estimated_making' => '0',
+            ]],
             'estimated_making' => '0',
         ])->assertSessionHasErrors('description');
+    }
+
+    public function test_one_order_can_have_two_purities_and_bill_each_at_its_locked_rate(): void
+    {
+        [$owner, $gold] = $this->counter();
+        $purity18 = Purity::query()->where('code', '18K')->firstOrFail();
+        $purity20 = Purity::query()->where('code', '20K')->firstOrFail();
+        $this->rate($owner, $gold, $purity18, '4800');
+        $this->rate($owner, $gold, $purity20, '5200');
+
+        $customer = $this->customer($owner);
+        $payload = $this->booking($customer, $gold, $purity18, '15000');
+        unset($payload['metal_uuid'], $payload['purity_uuid'], $payload['expected_weight']);
+        $payload['description'] = 'Ring and tops set';
+        $payload['lines'] = [
+            [
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity18->uuid,
+                'expected_weight' => '4',
+                'rate_per_gram' => '4800',
+            ],
+            [
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity20->uuid,
+                'expected_weight' => '6',
+                'rate_per_gram' => '5200',
+            ],
+        ];
+
+        $this->actingAs($owner)->post(route('orders.store'), $payload)->assertRedirect();
+        $this->seeShop($owner);
+        $order = AdvanceOrder::query()->with('lines')->latest('id')->firstOrFail();
+        $this->assertSame('Ring and tops set', $order->description);
+        $this->assertCount(2, $order->lines);
+        $this->assertSame('10.000', (string) $order->expected_weight);
+
+        $this->actingAs($owner)->post(route('orders.ready', $order))->assertRedirect();
+        $ring = $this->piece($owner, $gold, $purity18, 'ORD18');
+        $tops = $this->piece($owner, $gold, $purity20, 'ORD20');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $customer->uuid,
+            'order_uuid' => $order->uuid,
+            'item_ids' => [$ring->uuid, $tops->uuid],
+            'discount' => '0',
+            'payments' => [['method' => 'cash', 'amount' => '35000']],
+        ])->assertRedirect();
+
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $rates = $sale->lines()->orderBy('id')->pluck('rate_per_gram')->map(fn ($rate) => (string) $rate)->all();
+        $this->assertContains('4800.00', $rates);
+        $this->assertContains('5200.00', $rates);
+        $this->assertSame('15000.00', (string) $sale->advance_amount);
     }
 
     public function test_an_order_can_keep_a_rate_other_than_today(): void

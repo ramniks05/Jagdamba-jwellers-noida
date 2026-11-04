@@ -10,14 +10,29 @@
             'separate' => 'Processing charge with GST '.(float) $makingGstPercent.'%',
             'processing' => 'Processing charge, no GST',
         ][$makingMode] ?? 'Making inside jewellery GST';
-        $metalLabel = trim(($order->metalType?->name).' '.($order->purity?->name));
+        $metalLabel = $order->metalSummary();
         $dueValue = old('due_on', $order->due_on?->toDateString());
+        $lineRows = $order->lines->isNotEmpty()
+            ? $order->lines->map(fn ($line) => [
+                'metal_uuid' => $line->metalType?->uuid,
+                'purity_uuid' => $line->purity?->uuid,
+                'expected_weight' => (string) $line->expected_weight,
+                'rate_per_gram' => (string) $line->rate_per_gram,
+                'estimated_making' => (string) $line->estimated_making,
+            ])->all()
+            : [[
+                'metal_uuid' => $order->metalType?->uuid,
+                'purity_uuid' => $order->purity?->uuid,
+                'expected_weight' => (string) $order->expected_weight,
+                'rate_per_gram' => (string) $order->rate_per_gram,
+                'estimated_making' => (string) $order->estimated_making,
+            ]];
     @endphp
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Customer and metal stay as booked. Change the piece details, locked rate, or delivery date. Advance is changed from the order page.</p>
+            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, or delivery date. Advance is changed from the order page.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">
@@ -51,32 +66,10 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="weigh-section">
-                            <div class="weigh-section-title">Metal</div>
-                            <div class="stone-box mt-0">
-                                <p class="mb-2"><strong>{{ $metalLabel }}</strong></p>
-                                <div class="metal-row">
-                                    <div>
-                                        <label for="weight">Expected wt g</label>
-                                        <input class="form-control metal-net counter-num @error('expected_weight') is-invalid @enderror" id="weight" name="expected_weight" value="{{ old('expected_weight', $order->expected_weight) }}" inputmode="decimal" placeholder="0.000" required>
-                                        @error('expected_weight')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div>
-                                        <label for="order-rate">Rate / g (locked)</label>
-                                        <input class="form-control @error('rate_per_gram') is-invalid @enderror" id="order-rate" name="rate_per_gram" inputmode="decimal" value="{{ old('rate_per_gram', $order->rate_per_gram) }}" required>
-                                        @error('rate_per_gram')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                    <div>
-                                        <label for="order-metal-value">Value</label>
-                                        <input class="form-control" id="order-metal-value" readonly tabindex="-1" placeholder="0">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals, 'lineRows' => $lineRows])
+                        @error('lines')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
                         <div class="weigh-section">
                             <div class="charges-head">
                                 <div class="weigh-section-title">Charges</div>
@@ -154,6 +147,13 @@
     </form>
 
     <script type="application/json" id="order-config">{!! json_encode([
+        'branchId' => $branchId,
+        'rates' => $rates->map(fn ($rate) => [
+            'metal_type_id' => $rate->metal_type_id,
+            'purity_id' => $rate->purity_id,
+            'branch_id' => $rate->branch_id,
+            'rate_per_gram' => (string) $rate->rate_per_gram,
+        ])->values(),
         'metalLabel' => $metalLabel,
         'advanceHeld' => (float) $order->advanceHeld(),
         'seedMaking' => (float) old('estimated_making', $order->estimated_making),
@@ -166,6 +166,7 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('js/order-metal-lines.js') }}?v={{ filemtime(public_path('js/order-metal-lines.js')) }}"></script>
     <script>
         const order = JSON.parse(document.getElementById('order-config').textContent);
         const money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -194,12 +195,9 @@
             $(id).textContent = money.format(amount);
         }
 
-        function renderOrder() {
-            const rateValue = Number(String($('order-rate').value).replace(/,/g, '')) || 0;
-            const weight = Number($('weight').value || 0);
-            const metalValue = round2(weight * rateValue);
-            $('order-metal-value').value = rateValue > 0 && weight > 0 ? money.format(metalValue) : '';
-
+        function renderOrderSummary(totals) {
+            const weight = totals.totalWeight;
+            const metalValue = totals.totalMetal;
             const method = selected('making-method');
             const code = method && method.value ? (method.dataset.code || 'fixed') : '';
             const chargeValue = code ? Number($('making-value').value || 0) : 0;
@@ -211,8 +209,8 @@
 
             const empty = $('order-empty');
             const sums = $('order-sums');
-            if (weight <= 0 || rateValue <= 0) {
-                empty.textContent = rateValue > 0 ? 'Enter the expected weight' : 'Enter the rate per gram';
+            if (weight <= 0 || totals.anyMissingRate) {
+                empty.textContent = totals.anyMissingRate ? 'Enter the rate on each line' : 'Enter the expected weight on each line';
                 empty.classList.remove('d-none');
                 sums.classList.add('d-none');
                 return;
@@ -234,8 +232,8 @@
             const advance = order.advanceHeld;
 
             $('sum-weight').textContent = weight.toFixed(3) + ' g';
-            $('sum-rate').textContent = money.format(rateValue) + ' / g';
-            $('sum-metal-label').textContent = 'Metal value ' + order.metalLabel;
+            $('sum-rate').textContent = totals.rateLabels.length === 1 ? totals.rateLabels[0].split(' @ ')[1] : totals.rateLabels.length + ' locked rates';
+            $('sum-metal-label').textContent = totals.rateLabels.length === 1 ? 'Metal value ' + totals.rateLabels[0].split(' @ ')[0] : 'Metal value (all lines)';
             $('sum-metal').textContent = money.format(metalValue);
             showRow('sum-making', making, making > 0);
             $('sum-making-label').textContent = {
@@ -255,26 +253,36 @@
             $('sum-balance').textContent = money.format(round2(Math.max(total - advance, 0)));
         }
 
+        const metalLines = initOrderMetalLines(order, { onTotals: renderOrderSummary });
+
         $('order-products').addEventListener('click', (event) => {
             const button = event.target.closest('button');
             if (!button) return;
             document.querySelectorAll('#order-products button').forEach((row) => row.classList.remove('active'));
             button.classList.add('active');
             $('description').value = button.dataset.name;
-            $('weight').focus();
+            document.querySelector('#order-lines .order-line-weight')?.focus();
         });
         $('making-method').addEventListener('change', () => {
             makingEdited = true;
             syncMaking();
-            renderOrder();
+            metalLines.render();
         });
         $('making-value').addEventListener('input', () => {
             makingEdited = true;
-            renderOrder();
+            metalLines.render();
         });
-        $('order-form').addEventListener('input', renderOrder);
-        $('order-form').addEventListener('change', renderOrder);
+        $('order-form').addEventListener('input', (event) => {
+            if (!event.target.closest('#order-lines')) {
+                metalLines.render();
+            }
+        });
         syncMaking();
-        renderOrder();
+        document.querySelectorAll('#order-lines .order-line-rate').forEach((field) => {
+            if (field.value) {
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+        metalLines.render();
     </script>
 @endpush

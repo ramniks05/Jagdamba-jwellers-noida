@@ -915,8 +915,35 @@ class SaleService
 
     private function orderRate(?AdvanceOrder $order, Item $piece): ?MetalRate
     {
-        if (! $order
-            || (int) $order->metal_type_id !== (int) $piece->metal_type_id
+        if (! $order) {
+            return null;
+        }
+
+        $order->loadMissing(['lines.metalRate', 'metalRate']);
+
+        if ($order->lines->isNotEmpty()) {
+            $line = $order->lines->first(fn ($line) => (int) $line->metal_type_id === (int) $piece->metal_type_id
+                && (int) $line->purity_id === (int) $piece->purity_id);
+
+            if (! $line) {
+                return null;
+            }
+
+            if ($line->metalRate) {
+                return $line->metalRate;
+            }
+
+            $rate = new MetalRate;
+            $rate->rate_per_gram = (string) $line->rate_per_gram;
+            if ($line->metal_rate_id) {
+                $rate->id = $line->metal_rate_id;
+                $rate->exists = true;
+            }
+
+            return $rate;
+        }
+
+        if ((int) $order->metal_type_id !== (int) $piece->metal_type_id
             || (int) $order->purity_id !== (int) $piece->purity_id) {
             return null;
         }

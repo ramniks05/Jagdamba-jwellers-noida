@@ -33,47 +33,7 @@
                             <label class="form-label" for="description">Name</label>
                             <input class="form-control" id="description" name="description" value="{{ old('description') }}" placeholder="Bridal necklace set" maxlength="160" required>
                         </div>
-                        <div class="weigh-section">
-                            <div class="weigh-section-title">Metal</div>
-                            <div class="stone-box mt-0">
-                                <div class="stone-box-head">
-                                    <span class="weigh-step-label">Today's rate. Change it for this order</span>
-                                </div>
-                                <div class="metal-row">
-                                    <div>
-                                        <label for="metal">Metal</label>
-                                        <select class="form-select" id="metal" name="metal_uuid">
-                                            @foreach ($metals as $metal)
-                                                <option value="{{ $metal->uuid }}" data-id="{{ $metal->id }}" @selected(old('metal_uuid') === $metal->uuid)>{{ $metal->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label for="purity">Purity</label>
-                                        <select class="form-select" id="purity" name="purity_uuid">
-                                            @foreach ($metals as $metal)
-                                                @foreach ($metal->purities->sortByDesc('fineness') as $purity)
-                                                    <option value="{{ $purity->uuid }}" data-id="{{ $purity->id }}" data-metal="{{ $metal->id }}" @selected(old('purity_uuid') === $purity->uuid)>{{ $purity->name }}</option>
-                                                @endforeach
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label for="weight">Expected wt g</label>
-                                        <input class="form-control metal-net counter-num" id="weight" name="expected_weight" value="{{ old('expected_weight') }}" inputmode="decimal" placeholder="0.000" required>
-                                    </div>
-                                    <div>
-                                        <label for="order-rate">Rate / g</label>
-                                        <input class="form-control" id="order-rate" name="rate_per_gram" inputmode="decimal" placeholder="Today's rate">
-                                    </div>
-                                    <div>
-                                        <label for="order-metal-value">Value</label>
-                                        <input class="form-control" id="order-metal-value" readonly tabindex="-1" placeholder="0">
-                                    </div>
-                                </div>
-                                <div class="text-danger small mt-2 d-none" id="rate-missing"></div>
-                            </div>
-                        </div>
+                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals])
                         <div class="weigh-section">
                             <div class="charges-head">
                                 <div class="weigh-section-title">Charges</div>
@@ -189,11 +149,11 @@
 
 @push('scripts')
     <script src="{{ asset('js/customer-picker.js') }}?v={{ filemtime(public_path('js/customer-picker.js')) }}"></script>
+    <script src="{{ asset('js/order-metal-lines.js') }}?v={{ filemtime(public_path('js/order-metal-lines.js')) }}"></script>
     <script>
         const order = JSON.parse(document.getElementById('order-config').textContent);
         const money = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const $ = (id) => document.getElementById(id);
-        let rateEdited = false;
 
         function round2(value) {
             return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -202,28 +162,6 @@
         function selected(id) {
             const field = $(id);
             return field.options[field.selectedIndex];
-        }
-
-        function currentRate(metalId, purityId) {
-            const rows = order.rates.filter((rate) => String(rate.metal_type_id) === String(metalId) && String(rate.purity_id) === String(purityId));
-            return rows.find((rate) => String(rate.branch_id) === String(order.branchId))
-                || rows.find((rate) => rate.branch_id === null)
-                || null;
-        }
-
-        function syncPurities() {
-            const metal = selected('metal');
-            const purity = $('purity');
-            if (!metal) return;
-            Array.from(purity.options).forEach((row) => {
-                const show = row.dataset.metal === metal.dataset.id;
-                row.hidden = !show;
-                row.disabled = !show;
-            });
-            if (purity.selectedOptions[0]?.disabled) {
-                const first = Array.from(purity.options).find((row) => !row.disabled);
-                if (first) first.selected = true;
-            }
         }
 
         function syncMaking() {
@@ -239,25 +177,9 @@
             $(id).textContent = money.format(amount);
         }
 
-        function renderOrder() {
-            syncPurities();
-            const metal = selected('metal');
-            const purity = selected('purity');
-            const rate = metal && purity ? currentRate(metal.dataset.id, purity.dataset.id) : null;
-            const rateField = $('order-rate');
-            if (!rateEdited) {
-                rateField.value = rate ? Number(rate.rate_per_gram).toFixed(2) : '';
-            }
-            const typed = Number(String(rateField.value).replace(/,/g, ''));
-            const rateValue = Number.isFinite(typed) && typed > 0 ? typed : 0;
-            const weight = Number($('weight').value || 0);
-            const metalValue = round2(weight * rateValue);
-            const missing = $('rate-missing');
-            missing.classList.toggle('d-none', rateValue > 0);
-            missing.textContent = rateValue > 0 ? '' : 'Enter the rate per gram. Today’s rate fills in when it is set.';
-            $('order-rate').value = rateEdited ? rateField.value : (rate ? Number(rate.rate_per_gram).toFixed(2) : '');
-            $('order-metal-value').value = rateValue > 0 && weight > 0 ? money.format(metalValue) : '';
-
+        function renderOrderSummary(totals) {
+            const weight = totals.totalWeight;
+            const metalValue = totals.totalMetal;
             const method = selected('making-method');
             const code = method && method.value ? (method.dataset.code || 'fixed') : '';
             const chargeValue = code ? Number($('making-value').value || 0) : 0;
@@ -266,8 +188,8 @@
 
             const empty = $('order-empty');
             const sums = $('order-sums');
-            if (weight <= 0 || rateValue <= 0) {
-                empty.textContent = rateValue > 0 ? 'Enter the expected weight' : 'Enter the rate per gram';
+            if (weight <= 0 || totals.anyMissingRate || metalValue <= 0) {
+                empty.textContent = totals.anyMissingRate ? 'Enter the rate on each line' : (weight > 0 ? 'Enter the rate on each line' : 'Enter the expected weight on each line');
                 empty.classList.remove('d-none');
                 sums.classList.add('d-none');
                 return;
@@ -289,8 +211,8 @@
             const advance = Number($('advance').value || 0);
 
             $('sum-weight').textContent = weight.toFixed(3) + ' g';
-            $('sum-rate').textContent = money.format(rateValue) + ' / g';
-            $('sum-metal-label').textContent = 'Metal value ' + metal.text + ' ' + purity.text;
+            $('sum-rate').textContent = totals.rateLabels.length === 1 ? totals.rateLabels[0].split(' @ ')[1] : totals.rateLabels.length + ' locked rates';
+            $('sum-metal-label').textContent = totals.rateLabels.length === 1 ? 'Metal value ' + totals.rateLabels[0].split(' @ ')[0] : 'Metal value (all lines)';
             $('sum-metal').textContent = money.format(metalValue);
             showRow('sum-making', making, making > 0);
             $('sum-making-label').textContent = {
@@ -311,6 +233,8 @@
             $('sum-balance').textContent = money.format(round2(Math.max(total - advance, 0)));
         }
 
+        const metalLines = initOrderMetalLines(order, { onTotals: renderOrderSummary });
+
         const picker = customerPicker({
             customers: order.customers,
             createUrl: order.customerUrl,
@@ -325,21 +249,22 @@
             document.querySelectorAll('#order-products button').forEach((row) => row.classList.remove('active'));
             button.classList.add('active');
             $('description').value = button.dataset.name;
-            $('weight').focus();
+            document.querySelector('#order-lines .order-line-weight')?.focus();
         });
-        function refreshOrder(event) {
-            if (event && (event.target.id === 'metal' || event.target.id === 'purity')) rateEdited = false;
-            if (event && event.target.id === 'order-rate') rateEdited = true;
-            renderOrder();
-        }
-        $('making-method').addEventListener('change', syncMaking);
-        $('order-form').addEventListener('input', refreshOrder);
-        $('order-form').addEventListener('change', refreshOrder);
+        $('making-method').addEventListener('change', () => {
+            syncMaking();
+            metalLines.render();
+        });
+        $('order-form').addEventListener('input', (event) => {
+            if (!event.target.closest('#order-lines')) {
+                metalLines.render();
+            }
+        });
         $('order-form').addEventListener('submit', (event) => {
-            renderOrder();
+            metalLines.render();
             if (!picker.ensure()) event.preventDefault();
         });
         syncMaking();
-        renderOrder();
+        metalLines.render();
     </script>
 @endpush

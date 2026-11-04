@@ -16,7 +16,19 @@
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
                 <strong>Delivering order {{ $order->number }}</strong> for {{ $order->customer?->name }} · {{ $order->description }}<br>
-                <span class="small">{{ $order->metalType?->name }} {{ $order->purity?->name }} is billed at the locked rate {{ $money((string) $order->rate_per_gram) }} / g. The advance of {{ $money($order->advanceHeld()) }} is taken off this bill.</span>
+                <span class="small">
+                    @if ($order->lines->isNotEmpty() && $order->lines->count() > 1)
+                        @foreach ($order->lines as $line)
+                            {{ trim($line->metalType?->name.' '.$line->purity?->name) }} at {{ $money((string) $line->rate_per_gram) }} / g
+                            @if (! $loop->last)
+                                ·
+                            @endif
+                        @endforeach
+                    @else
+                        {{ $order->metalType?->name }} {{ $order->purity?->name }} is billed at the locked rate {{ $money((string) $order->rate_per_gram) }} / g.
+                    @endif
+                    The advance of {{ $money($order->advanceHeld()) }} is taken off this bill.
+                </span>
             </div>
             <a class="btn btn-outline-secondary btn-sm" href="{{ route('sales.create') }}">Bill without the order</a>
         </div>
@@ -451,6 +463,13 @@
             'metal_type_id' => $order->metal_type_id,
             'purity_id' => $order->purity_id,
             'rate' => (string) $order->rate_per_gram,
+            'lines' => $order->lines->isNotEmpty()
+                ? $order->lines->map(fn ($line) => [
+                    'metal_type_id' => $line->metal_type_id,
+                    'purity_id' => $line->purity_id,
+                    'rate' => (string) $line->rate_per_gram,
+                ])->values()->all()
+                : null,
             'advance' => (float) $order->advanceHeld(),
         ] : null,
         'customers' => $customers->map(function ($customer) use ($credits, $openDues, $ledgerDues, $money) {
@@ -578,7 +597,12 @@
         }
 
         function currentRate(metalId, purityId, branchId) {
-            if (bill.order && String(bill.order.metal_type_id) === String(metalId) && String(bill.order.purity_id) === String(purityId)) {
+            if (bill.order?.lines?.length) {
+                const line = bill.order.lines.find((row) => String(row.metal_type_id) === String(metalId) && String(row.purity_id) === String(purityId));
+                if (line) {
+                    return { rate_per_gram: line.rate };
+                }
+            } else if (bill.order && String(bill.order.metal_type_id) === String(metalId) && String(bill.order.purity_id) === String(purityId)) {
                 return { rate_per_gram: bill.order.rate };
             }
             const locked = (bill.lockedRates || []).find((rate) => String(rate.metal_type_id) === String(metalId) && String(rate.purity_id) === String(purityId));

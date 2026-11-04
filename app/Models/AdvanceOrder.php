@@ -57,9 +57,43 @@ class AdvanceOrder extends Model
 
     public function goldEstimate(): string
     {
+        if ($this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists()) {
+            $this->loadMissing('lines');
+
+            return (string) $this->lines->reduce(
+                fn (BigDecimal $sum, AdvanceOrderLine $line) => $sum->plus($line->goldEstimate()),
+                BigDecimal::zero(),
+            )->toScale(2, RoundingMode::HalfUp);
+        }
+
         return (string) BigDecimal::of((string) $this->expected_weight)
             ->multipliedBy((string) $this->rate_per_gram)
             ->toScale(2, RoundingMode::HalfUp);
+    }
+
+    public function totalEstimatedMaking(): string
+    {
+        if ($this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists()) {
+            $this->loadMissing('lines');
+
+            return (string) $this->lines->reduce(
+                fn (BigDecimal $sum, AdvanceOrderLine $line) => $sum->plus((string) $line->estimated_making),
+                BigDecimal::zero(),
+            )->toScale(2, RoundingMode::HalfUp);
+        }
+
+        return (string) BigDecimal::of((string) $this->estimated_making)->toScale(2, RoundingMode::HalfUp);
+    }
+
+    public function metalSummary(): string
+    {
+        $this->loadMissing(['lines.metalType', 'lines.purity']);
+
+        if ($this->lines->isNotEmpty()) {
+            return $this->lines->map(fn (AdvanceOrderLine $line) => trim($line->metalLabel()))->filter()->unique()->implode(' · ');
+        }
+
+        return trim(($this->metalType?->name ?? '').' '.($this->purity?->name ?? ''));
     }
 
     public function advanceHeld(): string
@@ -102,5 +136,10 @@ class AdvanceOrder extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(AdvanceOrderLine::class)->orderBy('sort_order')->orderBy('id');
     }
 }
