@@ -53,8 +53,21 @@
                                     </div>
                                 </div>
                                 <div class="weight-field">
+                                    <label for="booked-at">
+                                        Order date &amp; time
+                                        <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="For an old order, pick the booking date — it saves at 12:00 noon. The advance receipt uses the same date." aria-label="About order date"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                                    </label>
+                                    <input class="form-control @error('booked_at') is-invalid @enderror" id="booked-at" name="booked_at" type="datetime-local" value="{{ old('booked_at', now()->timezone(config('app.timezone'))->format('Y-m-d\TH:i')) }}" step="60">
+                                    @error('booked_at')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="weight-field">
                                     <label for="due-on">Delivery date</label>
-                                    <input class="form-control" id="due-on" name="due_on" type="date" value="{{ old('due_on') }}" min="{{ now()->toDateString() }}">
+                                    <input class="form-control @error('due_on') is-invalid @enderror" id="due-on" name="due_on" type="date" value="{{ old('due_on') }}">
+                                    @error('due_on')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                             <div class="mt-2">

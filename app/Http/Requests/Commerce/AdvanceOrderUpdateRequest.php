@@ -5,7 +5,9 @@ namespace App\Http\Requests\Commerce;
 use App\Models\AdvanceOrder;
 use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class AdvanceOrderUpdateRequest extends FormRequest
 {
@@ -18,6 +20,22 @@ class AdvanceOrderUpdateRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $tz = config('app.timezone');
+        $order = $this->route('order');
+        $bookedAt = trim((string) $this->input('booked_at', ''));
+
+        if ($bookedAt === '') {
+            $bookedAt = $order instanceof AdvanceOrder && $order->booked_at
+                ? $order->booked_at->timezone($tz)->format('Y-m-d\TH:i')
+                : now($tz)->format('Y-m-d\TH:i');
+        }
+
+        $bookedCarbon = Carbon::parse($bookedAt, $tz);
+
+        if (! $bookedCarbon->isSameDay(now($tz))) {
+            $bookedAt = $bookedCarbon->copy()->setTime(12, 0)->format('Y-m-d\TH:i');
+        }
+
         $lines = $this->input('lines');
 
         if (! is_array($lines) || $lines === []) {
@@ -49,6 +67,7 @@ class AdvanceOrderUpdateRequest extends FormRequest
             'lines' => $lines,
             'estimated_making' => trim((string) $this->input('estimated_making')) === '' ? '0' : $this->input('estimated_making'),
             'due_on' => trim((string) $this->input('due_on')) === '' ? null : $this->input('due_on'),
+            'booked_at' => $bookedAt,
         ]);
     }
 
@@ -57,6 +76,8 @@ class AdvanceOrderUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $bookedDay = Carbon::parse((string) $this->input('booked_at'), config('app.timezone'))->toDateString();
+
         return [
             'description' => ['required', 'string', 'max:160'],
             'design_notes' => ['nullable', 'string', 'max:1000'],
@@ -66,8 +87,30 @@ class AdvanceOrderUpdateRequest extends FormRequest
             'lines.*.expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'lines.*.rate_per_gram' => ['required', 'numeric', 'gt:0', Limits::RATE],
             'lines.*.estimated_making' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
-            'due_on' => ['nullable', 'date'],
+            'booked_at' => ['required', 'date'],
+            'due_on' => ['nullable', 'date', 'after_or_equal:'.$bookedDay],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'due_on.after_or_equal' => 'The delivery date cannot be before the order date.',
+        ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $when = Carbon::parse((string) $this->input('booked_at'), config('app.timezone'));
+
+            if ($when->isFuture()) {
+                $validator->errors()->add('booked_at', 'Order date and time cannot be in the future.');
+            }
+        });
     }
 }

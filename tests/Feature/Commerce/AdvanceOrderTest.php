@@ -140,6 +140,26 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame(0, AdvanceOrder::query()->count());
     }
 
+    public function test_an_order_can_be_booked_on_an_old_date(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $tz = config('app.timezone');
+
+        $this->actingAs($owner)->post(route('orders.store'), array_merge($this->booking($customer, $gold, $purity, '8000'), [
+            'booked_at' => '2026-10-01 15:30:00',
+            'due_on' => '2026-10-20',
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $order = AdvanceOrder::query()->latest('id')->firstOrFail();
+        $this->assertSame('2026-10-01', $order->booked_at->timezone($tz)->format('Y-m-d'));
+        $this->assertSame('12:00', $order->booked_at->timezone($tz)->format('H:i'));
+        $this->assertSame('2026-10-20', $order->due_on?->toDateString());
+        $payment = $order->payments()->latest('id')->firstOrFail();
+        $this->assertSame('2026-10-01 12:00:00', $payment->received_at?->timezone($tz)->format('Y-m-d H:i:s'));
+    }
+
     public function test_an_advance_invoice_can_change_its_bill_date(): void
     {
         [$owner, $gold, $purity] = $this->counter();
@@ -223,6 +243,7 @@ class AdvanceOrderTest extends TestCase
             ]],
             'estimated_making' => '1500',
             'design_notes' => 'Size 16',
+            'booked_at' => '2026-09-15 18:00:00',
             'due_on' => now()->addDays(20)->toDateString(),
             'notes' => 'Rush',
         ])->assertRedirect(route('orders.show', $order));
@@ -234,6 +255,8 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame('1500.00', (string) $order->estimated_making);
         $this->assertSame('Size 16', $order->design_notes);
         $this->assertSame('Rush', $order->notes);
+        $this->assertSame('2026-09-15', $order->booked_at->timezone(config('app.timezone'))->format('Y-m-d'));
+        $this->assertSame('12:00', $order->booked_at->timezone(config('app.timezone'))->format('H:i'));
         $this->assertSame('10000.00', (string) $order->advance_paid);
 
         $this->actingAs($owner)->get(route('orders.show', $order))->assertOk()->assertSee('Updated necklace');

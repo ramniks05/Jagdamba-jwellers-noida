@@ -19,6 +19,7 @@ use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -61,6 +62,7 @@ class AdvanceOrderService
 
             $resolvedLines = $this->resolveLines($attributes['lines'] ?? [], $branch);
             $first = $resolvedLines[0];
+            $bookedAt = $this->bookedAt($attributes);
             $number = $this->numbers->issue($this->numbers->for(DocumentType::AdvanceOrder, $branch));
             $order = AdvanceOrder::query()->create([
                 'company_id' => $company->id,
@@ -78,14 +80,14 @@ class AdvanceOrderService
                 'advance_paid' => '0',
                 'advance_refunded' => '0',
                 'status' => 'booked',
-                'booked_at' => now(),
+                'booked_at' => $bookedAt,
                 'due_on' => $attributes['due_on'] ?? null,
                 'notes' => trim((string) ($attributes['notes'] ?? '')) ?: null,
                 'user_id' => $userId,
             ]);
 
             $this->storeLines($order, $resolvedLines);
-            $this->receive($order, (string) $advance, (string) $attributes['method'], $attributes['reference'] ?? null, $userId);
+            $this->receive($order, (string) $advance, (string) $attributes['method'], $attributes['reference'] ?? null, $userId, $bookedAt);
 
             return $order->refresh()->load('lines.metalType', 'lines.purity');
         });
@@ -136,6 +138,7 @@ class AdvanceOrderService
             $order->expected_weight = $this->sumWeights($resolvedLines);
             $order->rate_per_gram = $first['rate_per_gram'];
             $order->estimated_making = $this->sumMaking($resolvedLines);
+            $order->booked_at = $this->bookedAt($attributes, $order);
             $order->due_on = $attributes['due_on'] ?? null;
             $order->notes = trim((string) ($attributes['notes'] ?? '')) ?: null;
             $order->save();
@@ -264,7 +267,7 @@ class AdvanceOrderService
         ];
     }
 
-    private function receive(AdvanceOrder $order, string $amount, string $method, ?string $reference, ?int $userId): void
+    private function receive(AdvanceOrder $order, string $amount, string $method, ?string $reference, ?int $userId, ?Carbon $receivedAt = null): void
     {
         $receipt = $this->numbers->issue($this->numbers->for(DocumentType::Receipt, $order->branch));
         $payment = Payment::query()->create([
@@ -278,7 +281,7 @@ class AdvanceOrderService
             'amount' => $amount,
             'reference' => trim((string) $reference) ?: null,
             'narration' => 'Advance for order '.$order->number,
-            'received_at' => now(),
+            'received_at' => $receivedAt ?? now(),
             'user_id' => $userId,
         ]);
         $this->ledger->post(
@@ -293,6 +296,21 @@ class AdvanceOrderService
         );
         $order->advance_paid = (string) BigDecimal::of((string) $order->advance_paid)->plus($amount)->toScale(2, RoundingMode::HalfUp);
         $order->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function bookedAt(array $attributes, ?AdvanceOrder $existing = null): Carbon
+    {
+        $timezone = config('app.timezone');
+        $raw = trim((string) ($attributes['booked_at'] ?? ''));
+
+        if ($raw === '') {
+            return $existing?->booked_at?->timezone($timezone) ?? now($timezone);
+        }
+
+        return Carbon::parse($raw, $timezone);
     }
 
     private function mustBeOpen(AdvanceOrder $order, string $field): void

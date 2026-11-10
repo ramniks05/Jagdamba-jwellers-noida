@@ -12,6 +12,7 @@
         ][$makingMode] ?? 'Making inside jewellery GST';
         $metalLabel = $order->metalSummary();
         $dueValue = old('due_on', $order->due_on?->toDateString());
+        $bookedValue = old('booked_at', $order->booked_at?->timezone(config('app.timezone'))->format('Y-m-d\TH:i'));
         $lineRows = $order->lines->isNotEmpty()
             ? $order->lines->map(fn ($line) => [
                 'metal_uuid' => $line->metalType?->uuid,
@@ -32,7 +33,7 @@
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, or delivery date. Advance is changed from the order page.</p>
+            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, order date, or delivery date. Advance is changed from the order page.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">
@@ -87,6 +88,16 @@
                                         </select>
                                         <input class="form-control charge-value counter-num" id="making-value" inputmode="decimal" value="" placeholder="0" aria-label="{{ $makingTitle }} amount">
                                     </div>
+                                </div>
+                                <div class="weight-field">
+                                    <label for="booked-at">
+                                        Order date &amp; time
+                                        <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="For an old order, pick the booking date — it saves at 12:00 noon." aria-label="About order date"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                                    </label>
+                                    <input class="form-control @error('booked_at') is-invalid @enderror" id="booked-at" name="booked_at" type="datetime-local" value="{{ $bookedValue }}" step="60">
+                                    @error('booked_at')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="weight-field">
                                     <label for="due-on">Delivery date</label>

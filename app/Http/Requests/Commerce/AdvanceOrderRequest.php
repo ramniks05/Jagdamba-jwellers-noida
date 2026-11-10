@@ -6,7 +6,9 @@ use App\Enums\PaymentMethod;
 use App\Models\AdvanceOrder;
 use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class AdvanceOrderRequest extends FormRequest
 {
@@ -17,6 +19,19 @@ class AdvanceOrderRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $tz = config('app.timezone');
+        $bookedAt = trim((string) $this->input('booked_at', ''));
+
+        if ($bookedAt === '') {
+            $bookedAt = now($tz)->format('Y-m-d\TH:i');
+        }
+
+        $bookedCarbon = Carbon::parse($bookedAt, $tz);
+
+        if (! $bookedCarbon->isSameDay(now($tz))) {
+            $bookedAt = $bookedCarbon->copy()->setTime(12, 0)->format('Y-m-d\TH:i');
+        }
+
         $lines = $this->input('lines');
 
         if (! is_array($lines) || $lines === []) {
@@ -48,6 +63,7 @@ class AdvanceOrderRequest extends FormRequest
             'lines' => $lines,
             'estimated_making' => trim((string) $this->input('estimated_making')) === '' ? '0' : $this->input('estimated_making'),
             'due_on' => trim((string) $this->input('due_on')) === '' ? null : $this->input('due_on'),
+            'booked_at' => $bookedAt,
         ]);
     }
 
@@ -58,6 +74,7 @@ class AdvanceOrderRequest extends FormRequest
     {
         $companyId = $this->user()->company_id;
         $shop = fn ($query) => $query->where('company_id', $companyId)->whereNull('deleted_at');
+        $bookedDay = Carbon::parse((string) $this->input('booked_at'), config('app.timezone'))->toDateString();
 
         return [
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId)->where('is_system', false))],
@@ -69,7 +86,8 @@ class AdvanceOrderRequest extends FormRequest
             'lines.*.expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
             'lines.*.rate_per_gram' => ['nullable', 'numeric', 'gt:0', Limits::RATE],
             'lines.*.estimated_making' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
-            'due_on' => ['nullable', 'date', 'after_or_equal:today'],
+            'booked_at' => ['required', 'date'],
+            'due_on' => ['nullable', 'date', 'after_or_equal:'.$bookedDay],
             'advance' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['nullable', 'string', 'max:80'],
@@ -85,8 +103,19 @@ class AdvanceOrderRequest extends FormRequest
         return [
             'customer_uuid.required' => 'Choose the customer.',
             'customer_uuid.exists' => 'Choose the customer. An order cannot be in the walk-in name.',
-            'due_on.after_or_equal' => 'The delivery date cannot be in the past.',
+            'due_on.after_or_equal' => 'The delivery date cannot be before the order date.',
             'advance.gt' => 'Take an advance to book the order.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $when = Carbon::parse((string) $this->input('booked_at'), config('app.timezone'));
+
+            if ($when->isFuture()) {
+                $validator->errors()->add('booked_at', 'Order date and time cannot be in the future.');
+            }
+        });
     }
 }
