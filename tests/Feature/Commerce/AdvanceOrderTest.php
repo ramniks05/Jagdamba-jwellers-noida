@@ -129,6 +129,69 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame(0, AdvanceOrder::query()->count());
     }
 
+    public function test_an_advance_invoice_can_change_its_bill_date(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $order = $this->book($owner, $customer, $gold, $purity, '20000');
+        $this->actingAs($owner)->post(route('orders.ready', $order))->assertRedirect();
+        $item = $this->piece($owner, $gold, $purity, 'ORD02');
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $customer->uuid,
+            'order_uuid' => $order->uuid,
+            'item_ids' => [$item->uuid],
+            'discount' => '0',
+            'payments' => [['method' => 'cash', 'amount' => '31500']],
+            'sold_at' => '2026-10-06 10:00:00',
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $number = $sale->number;
+        $this->assertSame('20000.00', (string) $sale->advance_amount);
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Edit invoice');
+
+        $this->actingAs($owner)->get(route('sales.edit', $sale))
+            ->assertOk()
+            ->assertSee('Order '.$order->number)
+            ->assertSee('Update '.$number);
+
+        $this->actingAs($owner)->put(route('sales.update', $sale), [
+            'customer_uuid' => $customer->uuid,
+            'order_uuid' => $order->uuid,
+            'discount' => '0',
+            'new_pieces' => [[
+                'name' => 'Bridal ring',
+                'metal_uuid' => $gold->uuid,
+                'purity_uuid' => $purity->uuid,
+                'location_uuid' => StockLocation::query()->where('code', 'MAIN')->firstOrFail()->uuid,
+                'gross_weight' => '10',
+                'other_weight' => '0',
+                'making_value' => '0',
+                'wastage_value' => '0',
+                'rate_per_gram' => '5000',
+            ]],
+            'payments' => [['method' => 'cash', 'amount' => '31500']],
+            'sold_at' => '2026-10-01 15:30:00',
+        ])->assertRedirect(route('sales.show', $sale))->assertSessionHasNoErrors();
+
+        $this->seeShop($owner);
+        $sale->refresh();
+        $order->refresh();
+        $this->assertSame($number, $sale->number);
+        $this->assertSame('20000.00', (string) $sale->advance_amount);
+        $this->assertSame('51500.00', (string) $sale->total);
+        $this->assertSame('0.00', $sale->balanceDue());
+        $this->assertSame('2026-10-01 15:30:00', $sale->sold_at->timezone(config('app.timezone'))->format('Y-m-d H:i:s'));
+        $this->assertSame('delivered', $order->status);
+        $this->assertSame($sale->id, $order->sale_id);
+        $this->assertSame('0.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+    }
+
     public function test_an_open_order_can_be_edited(): void
     {
         [$owner, $gold, $purity] = $this->counter();

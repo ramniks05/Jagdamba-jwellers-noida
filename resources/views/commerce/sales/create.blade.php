@@ -13,10 +13,12 @@
     @if ($order)
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
-                <strong>Delivering order {{ $order->number }}</strong> for {{ $order->customer?->name }} · {{ $order->description }}<br>
+                <strong>{{ $sale ? 'Order' : 'Delivering order' }} {{ $order->number }}</strong> for {{ $order->customer?->name }} · {{ $order->description }}<br>
                 <span class="small">{{ $order->metalType?->name }} {{ $order->purity?->name }} is billed at the locked rate {{ $money((string) $order->rate_per_gram) }} / g. The advance of {{ $money($order->advanceHeld()) }} is taken off this bill.</span>
             </div>
-            <a class="btn btn-outline-secondary btn-sm" href="{{ route('sales.create') }}">Bill without the order</a>
+            @unless ($sale)
+                <a class="btn btn-outline-secondary btn-sm" href="{{ route('sales.create') }}">Bill without the order</a>
+            @endunless
         </div>
     @endif
     <form method="POST" action="{{ $sale ? route('sales.update', $sale) : route('sales.store') }}" id="bill-form" autocomplete="off">

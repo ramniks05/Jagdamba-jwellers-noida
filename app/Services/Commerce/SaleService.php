@@ -9,19 +9,19 @@ use App\Enums\LedgerDirection;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Models\AdvanceOrder;
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Item;
 use App\Models\LedgerEntry;
 use App\Models\MetalRate;
 use App\Models\MetalStockMovement;
-use App\Models\Branch;
 use App\Models\Payment;
 use App\Models\RetailProduct;
 use App\Models\Sale;
 use App\Models\SaleLine;
-use App\Models\SaleRetailLine;
 use App\Models\SaleLineStone;
+use App\Models\SaleRetailLine;
 use App\Models\SaleReturnLine;
 use App\Models\SaleSettlement;
 use App\Models\StockTray;
@@ -168,8 +168,12 @@ class SaleService
 
             if (! empty($attributes['order_uuid'])) {
                 $order = AdvanceOrder::query()->where('uuid', $attributes['order_uuid'])->lockForUpdate()->first();
+                $sameDeliveredOrder = $existing
+                    && $order
+                    && (int) $order->sale_id === (int) $existing->id
+                    && $order->status === 'delivered';
 
-                if (! $order || ! $order->isOpen()) {
+                if (! $order || (! $order->isOpen() && ! $sameDeliveredOrder)) {
                     throw ValidationException::withMessages([
                         'order_uuid' => 'This order is not open any more.',
                     ]);
@@ -594,7 +598,7 @@ class SaleService
      */
     public function revise(Sale $sale, array $attributes, ?int $userId = null): Sale
     {
-        $sale->loadMissing('lines.item');
+        $sale->loadMissing(['lines.item', 'advanceOrder']);
         $rates = [];
 
         foreach ($sale->lines as $line) {
@@ -610,6 +614,10 @@ class SaleService
 
         $attributes['locked_rates'] = $rates;
 
+        if (empty($attributes['order_uuid']) && $sale->advanceOrder) {
+            $attributes['order_uuid'] = $sale->advanceOrder->uuid;
+        }
+
         return $this->post(Company::query()->whereKey($sale->company_id)->firstOrFail(), $attributes, $userId, $sale);
     }
 
@@ -617,10 +625,6 @@ class SaleService
     {
         if ($sale->isCancelled()) {
             return 'This invoice was cancelled and cannot be changed.';
-        }
-
-        if ($sale->advanceOrder()->exists()) {
-            return 'This invoice delivered an order, so it stays as it was saved.';
         }
 
         $lineIds = $sale->relationLoaded('lines') ? $sale->lines->modelKeys() : $sale->lines()->pluck('id');
@@ -708,6 +712,15 @@ class SaleService
         }
 
         $this->reverseSaleEffects($sale, 'Invoice edited', keepDocumentRows: false);
+
+        $order = AdvanceOrder::query()->where('sale_id', $sale->id)->lockForUpdate()->first();
+
+        if ($order) {
+            $order->sale_id = null;
+            $order->delivered_at = null;
+            $order->status = $order->ready_at !== null ? 'ready' : 'booked';
+            $order->save();
+        }
     }
 
     /**

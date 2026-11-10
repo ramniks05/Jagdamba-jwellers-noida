@@ -19,25 +19,25 @@ use App\Models\MetalRate;
 use App\Models\MetalType;
 use App\Models\Payment;
 use App\Models\RetailProduct;
-use App\Support\RetailBilling;
 use App\Models\Sale;
-use App\Models\SaleRetailLine;
 use App\Models\SaleLine;
+use App\Models\SaleRetailLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
 use App\Models\StockTray;
 use App\Models\WhatsappMessage;
 use App\Services\Commerce\InvoiceSheet;
-use App\Services\Commerce\WeightSummary;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
 use App\Services\Commerce\SaleReturnService;
 use App\Services\Commerce\SaleService;
+use App\Services\Commerce\WeightSummary;
 use App\Services\Commerce\WhatsappService;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
 use App\Support\CustomerShare;
+use App\Support\RetailBilling;
 use Brick\Math\BigDecimal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -143,6 +143,10 @@ class SaleController extends Controller
         $order = $request->filled('order')
             ? AdvanceOrder::query()->with(['customer', 'metalType', 'purity'])->where('uuid', (string) $request->query('order'))->whereIn('status', AdvanceOrder::OPEN)->first()
             : null;
+        if (! $order && $sale) {
+            $sale->loadMissing(['advanceOrder.customer', 'advanceOrder.metalType', 'advanceOrder.purity']);
+            $order = $sale->advanceOrder;
+        }
         $items = Item::query()
             ->with(['metalType', 'purity', 'makingMethod', 'wastageMethod', 'stones'])
             ->where('own_gold', false)
