@@ -37,6 +37,9 @@ needs `settings.manage`.
 | --- | --- | --- | --- |
 | GET | `/items/{item}/barcode-preview` | `items.label` | Preview and print page |
 | GET | `/items/{item}/barcode-zpl?copies=N` | `items.label.zpl` | `text/plain; charset=UTF-8` ZPL |
+| GET | `/retail-products/{product}/barcode-preview` | `retail-products.label` | Other item MRP tag preview |
+| GET | `/retail-products/{product}/barcode-zpl?copies=N` | `retail-products.label.zpl` | Other item ZPL (default price as MRP) |
+| POST | `/jewellery/barcode-zpl/retail-batch` | `labels.retail.batch` | Batch print other-item tags |
 | GET | `/jewellery/barcode-test` | `labels.test` | Test tag page, no piece needed |
 | GET | `/jewellery/barcode-test-zpl?copies=N` | `labels.test.zpl` | Test tag ZPL |
 | POST | `/jewellery/barcode-zpl/batch` | `labels.batch` | JSON `{tags: [{uuid, code, zpl}], errors: [{uuid, code, message}]}`, up to 100 pieces |
@@ -83,7 +86,8 @@ All coordinates are constants in `JewelleryLabelZplService` (`WIDTH`, `HEIGHT`, 
 
 - **Left flap** (text x 8–155):
   - Piece code and purity are printed in `^A0N,22,19`.
-  - Weights are printed in `^A0N,21,w`.
+  - When the piece has **MRP ₹** greater than zero, one **MRP :** line is printed instead of gross and net weight (same tag size).
+  - Otherwise weights are printed in `^A0N,21,w`.
   - If a line would be too wide, the font is narrowed, down to width 10. Left flap text is never cut.
   - A piece code that is too long even then is refused with a message.
 - **Right flap, name column** (x 292–372):

@@ -3,7 +3,8 @@
 @section('title', $order->number)
 
 @php
-    $metal = trim(($order->metalType?->name).' '.($order->purity?->name));
+    $metal = $order->metalSummary();
+    $order->loadMissing('lines.metalType', 'lines.purity');
     $booked = $order->booked_at?->timezone(config('app.timezone'))->format('d-m-Y');
 @endphp
 
@@ -57,7 +58,12 @@
                         {{ $order->customer?->name }}
                         <span class="order-status is-{{ $order->status }}">{{ $order->statusLabel() }}</span>
                     </div>
-                    <div class="text-secondary small">{{ $metal }} · about {{ $weight((string) $order->expected_weight) }} · rate locked {{ $money((string) $order->rate_per_gram) }} / g</div>
+                    <div class="text-secondary small">
+                        {{ $metal }} · about {{ $weight((string) $order->expected_weight) }}
+                        @if ($order->lines->count() <= 1)
+                            · rate locked {{ $money((string) $order->rate_per_gram) }} / g
+                        @endif
+                    </div>
                 </div>
                 <div class="order-due {{ $dueTone }}"><i class="bi bi-calendar-event"></i> {{ $dueNote }}</div>
             </div>
@@ -197,18 +203,37 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>
-                        <strong>{{ $order->description }}</strong>
-                        @if ($order->design_notes)
-                            <div class="muted">{{ $order->design_notes }}</div>
-                        @endif
-                    </td>
-                    <td>{{ $metal }}</td>
-                    <td class="num">{{ $weight((string) $order->expected_weight) }}</td>
-                    <td class="num">{{ $money((string) $order->rate_per_gram) }}</td>
-                    <td class="num"><strong>{{ $money($estimate['gold']) }}</strong></td>
-                </tr>
+                @if ($order->lines->isNotEmpty())
+                    @foreach ($order->lines as $line)
+                        <tr>
+                            @if ($loop->first)
+                                <td rowspan="{{ $order->lines->count() }}">
+                                    <strong>{{ $order->description }}</strong>
+                                    @if ($order->design_notes)
+                                        <div class="muted">{{ $order->design_notes }}</div>
+                                    @endif
+                                </td>
+                            @endif
+                            <td>{{ trim($line->metalType?->name.' '.$line->purity?->name) }}</td>
+                            <td class="num">{{ $weight((string) $line->expected_weight) }}</td>
+                            <td class="num">{{ $money((string) $line->rate_per_gram) }}</td>
+                            <td class="num"><strong>{{ $money($line->goldEstimate()) }}</strong></td>
+                        </tr>
+                    @endforeach
+                @else
+                    <tr>
+                        <td>
+                            <strong>{{ $order->description }}</strong>
+                            @if ($order->design_notes)
+                                <div class="muted">{{ $order->design_notes }}</div>
+                            @endif
+                        </td>
+                        <td>{{ $metal }}</td>
+                        <td class="num">{{ $weight((string) $order->expected_weight) }}</td>
+                        <td class="num">{{ $money((string) $order->rate_per_gram) }}</td>
+                        <td class="num"><strong>{{ $money($estimate['gold']) }}</strong></td>
+                    </tr>
+                @endif
             </tbody>
         </table>
         <div class="invoice-bottom">

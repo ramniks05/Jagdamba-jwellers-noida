@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Commerce;
 
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Models\RetailProduct;
 use App\Models\Setting;
 use App\Services\Commerce\JewelleryLabelZplService;
 use chillerlan\QRCode\QRCode;
@@ -23,14 +24,25 @@ class ItemLabelController extends Controller
         $this->authorize('view', $item);
         $this->authorize('inventory.print');
 
-        return view('commerce.items.label', $this->screen($labels, $item) + ['item' => $item]);
+        return view('commerce.items.label', $this->screen($labels, $item) + ['item' => $item, 'retailProduct' => null]);
     }
 
     public function testPreview(JewelleryLabelZplService $labels): View
     {
         $this->authorize('inventory.print');
 
-        return view('commerce.items.label', $this->screen($labels, null) + ['item' => null]);
+        return view('commerce.items.label', $this->screen($labels, null) + ['item' => null, 'retailProduct' => null]);
+    }
+
+    public function showRetail(RetailProduct $retailProduct, JewelleryLabelZplService $labels): View
+    {
+        $this->authorize('view', $retailProduct);
+        $this->authorize('inventory.print');
+
+        return view('commerce.items.label', $this->screenRetail($labels, $retailProduct) + [
+            'item' => null,
+            'retailProduct' => $retailProduct,
+        ]);
     }
 
     public function zpl(Request $request, Item $item, JewelleryLabelZplService $labels): Response
@@ -46,6 +58,14 @@ class ItemLabelController extends Controller
         $this->authorize('inventory.print');
 
         return $this->plain($labels->generateTest(['copies' => $request->query('copies', 1)]));
+    }
+
+    public function zplRetail(Request $request, RetailProduct $retailProduct, JewelleryLabelZplService $labels): Response
+    {
+        $this->authorize('view', $retailProduct);
+        $this->authorize('inventory.print');
+
+        return $this->plain($labels->generateRetail($retailProduct, ['copies' => $request->query('copies', 1)]));
     }
 
     public function batch(Request $request, JewelleryLabelZplService $labels): JsonResponse
@@ -84,6 +104,50 @@ class ItemLabelController extends Controller
         return response()->json(['tags' => $tags, 'errors' => $errors], 200, ['Cache-Control' => 'no-store']);
     }
 
+    public function retailBatch(Request $request, JewelleryLabelZplService $labels): JsonResponse
+    {
+        $this->authorize('inventory.print');
+
+        $data = $request->validate([
+            'products' => ['required', 'array', 'min:1', 'max:'.self::BATCH_LIMIT],
+            'products.*' => ['required', 'uuid', 'distinct'],
+            'copies' => ['nullable', 'integer', 'min:1'],
+        ], [
+            'products.max' => 'Print at most '.self::BATCH_LIMIT.' tags at a time.',
+        ]);
+
+        $labels->resolve(['copies' => $data['copies'] ?? 1]);
+        $found = RetailProduct::query()->whereIn('uuid', $data['products'])->get()->keyBy('uuid');
+        $tags = [];
+        $errors = [];
+
+        foreach ($data['products'] as $uuid) {
+            $product = $found->get($uuid);
+
+            if (! $product || ! $request->user()->can('view', $product)) {
+                $errors[] = ['uuid' => $uuid, 'code' => null, 'message' => 'This other item was not found in this shop.'];
+
+                continue;
+            }
+
+            try {
+                $tags[] = [
+                    'uuid' => $uuid,
+                    'code' => $product->code,
+                    'zpl' => $labels->generateRetail($product, ['copies' => $data['copies'] ?? 1]),
+                ];
+            } catch (ValidationException $exception) {
+                $errors[] = [
+                    'uuid' => $uuid,
+                    'code' => $product->code,
+                    'message' => collect($exception->errors())->flatten()->first(),
+                ];
+            }
+        }
+
+        return response()->json(['tags' => $tags, 'errors' => $errors], 200, ['Cache-Control' => 'no-store']);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -94,6 +158,34 @@ class ItemLabelController extends Controller
 
         try {
             $preview = $labels->preview($item);
+        } catch (ValidationException $exception) {
+            $problem = collect($exception->errors())->flatten()->first();
+        }
+
+        $saved = $labels->saved();
+
+        return [
+            'preview' => $preview,
+            'problem' => $problem,
+            'previewQr' => $preview && $preview['code']['format'] === 'qr'
+                ? (new QRCode(new QROptions(['outputBase64' => true, 'scale' => 4, 'addQuietzone' => false])))->render($preview['payload'])
+                : null,
+            'printerName' => (string) $saved['printer_name'],
+            'maxCopies' => (int) $saved['max_copies'],
+            'canManageSettings' => auth()->user()->can('update', Setting::class),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function screenRetail(JewelleryLabelZplService $labels, RetailProduct $product): array
+    {
+        $preview = null;
+        $problem = null;
+
+        try {
+            $preview = $labels->previewRetail($product);
         } catch (ValidationException $exception) {
             $problem = collect($exception->errors())->flatten()->first();
         }

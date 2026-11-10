@@ -102,7 +102,7 @@
 
             throw new LabelPrintError(
                 'qz_unreachable',
-                'QZ Tray is not running on this computer. Install QZ Tray, start it, allow this website when it asks, then try again.'
+                'QZ Tray is not running on this counter PC. On this same computer: (1) Install QZ Tray from qz.io/download if missing. (2) Start QZ Tray — look for the QZ icon in the Windows tray. (3) Reload this page and click Allow when QZ asks. Tags cannot print from the server alone; the browser needs QZ on the PC connected to the Zebra printer.'
             );
         }
     }
@@ -252,13 +252,17 @@
             });
         },
 
-        printBatch: function (batchUrl, items, copies, onProgress) {
+        printBatch: function (batchUrl, ids, copies, onProgress, listKey) {
+            listKey = listKey || 'items';
+
             return guarded(async function () {
                 const printer = await findPrinter();
+                const payload = { copies: copies };
+                payload[listKey] = ids;
                 const response = await request(batchUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': state.csrf },
-                    body: JSON.stringify({ items: items, copies: copies }),
+                    body: JSON.stringify(payload),
                 });
                 const body = await response.json();
                 const printed = [];
@@ -275,7 +279,7 @@
                     }
 
                     if (onProgress) {
-                        onProgress(printed.length + failed.length, items.length);
+                        onProgress(printed.length + failed.length, ids.length);
                     }
                 }
 

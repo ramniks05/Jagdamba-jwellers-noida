@@ -16,6 +16,9 @@
     @unless ($canManage)
         <div class="alert alert-info">You can see these settings. Only an owner or manager can change them.</div>
     @endunless
+    <div class="alert alert-warning no-print">
+        <strong>Tag printing needs QZ Tray on each counter PC</strong> (not on the web server). Install from <a href="https://qz.io/download/" target="_blank" rel="noopener">qz.io/download</a>, start it so the QZ icon shows in the Windows tray, then open this shop in Chrome or Edge on that PC. Set the printer name below exactly as in Windows Settings → Printers. If the tag page says QZ is not running, QZ is stopped or this browser is on another machine without the Zebra printer.
+    </div>
     @error('settings')
         <div class="alert alert-danger">{{ $message }}</div>
     @enderror

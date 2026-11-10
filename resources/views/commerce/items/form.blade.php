@@ -311,7 +311,7 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="form-text mt-2">Tag price and MRP are only for your reference. Bills are always priced from the day’s rate.</div>
+                        <div class="form-text mt-2">Tag price is for your reference on weight tags. If <strong>MRP ₹</strong> is filled, the barcode tag prints that MRP instead of gross and net weight (same tag size). Bills still use the day’s rate unless you change the amount on the bill.</div>
                     </div>
                 </details>
             </div>

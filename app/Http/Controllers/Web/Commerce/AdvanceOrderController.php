@@ -34,7 +34,7 @@ class AdvanceOrderController extends Controller
 
         return view('commerce.orders.index', [
             'orders' => AdvanceOrder::query()
-                ->with(['customer', 'metalType', 'purity'])
+                ->with(['customer', 'metalType', 'purity', 'lines.metalType', 'lines.purity'])
                 ->when($show === 'open', fn ($query) => $query->whereIn('status', AdvanceOrder::OPEN))
                 ->when(in_array($show, ['delivered', 'cancelled'], true), fn ($query) => $query->where('status', $show))
                 ->orderByRaw('due_on is null')
@@ -94,7 +94,7 @@ class AdvanceOrderController extends Controller
             return redirect()->route('orders.show', $order)->with('status', 'This order cannot be edited.');
         }
 
-        $order->load(['customer', 'metalType', 'purity']);
+        $order->load(['customer', 'metalType', 'purity', 'lines.metalType', 'lines.purity']);
 
         return view('commerce.orders.edit', $this->orderFormData($settings, $context) + [
             'order' => $order,
@@ -114,18 +114,20 @@ class AdvanceOrderController extends Controller
     {
         $this->authorize('view', $order);
         $company = $context->company();
-        $order->load(['customer', 'metalType', 'purity', 'payments', 'sale']);
+        $order->load(['customer', 'metalType', 'purity', 'lines.metalType', 'lines.purity', 'payments', 'sale']);
         $money = fn (string $amount) => $format->money($amount, $company);
         $weight = fn (string $amount) => $format->weight($amount, $company);
         $estimate = $orders->estimate($order, $company);
-        $metal = trim(($order->metalType?->name).' '.($order->purity?->name));
+        $metal = $order->metalSummary();
+        $lineShare = $order->lines->isNotEmpty()
+            ? $order->lines->map(fn ($line) => trim($line->metalLabel()).' about '.$weight((string) $line->expected_weight).' @ '.$money((string) $line->rate_per_gram).' / g')->implode("\n")
+            : $metal.' about '.$weight((string) $order->expected_weight)."\n".'Rate locked '.$money((string) $order->rate_per_gram).' per gram';
         $share = $company->displayName()."\n"
             .'Order booking '.$order->number."\n"
             .'Date '.$order->booked_at?->timezone(config('app.timezone'))->format('d-m-Y')."\n"
             .'Customer '.($order->customer?->name)."\n\n"
             .$order->description."\n"
-            .$metal.' about '.$weight((string) $order->expected_weight)."\n"
-            .'Rate locked '.$money((string) $order->rate_per_gram).' per gram'."\n"
+            .$lineShare."\n"
             .($order->due_on ? 'Delivery by '.$order->due_on->format('d-m-Y')."\n" : '')
             ."\n".'Estimated bill '.$money($estimate['total'])."\n"
             .'Advance paid '.$money($order->advanceHeld())."\n"

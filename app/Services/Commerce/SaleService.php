@@ -330,10 +330,14 @@ class SaleService
                 }
 
                 $paid = $paid->plus($amount);
+                $receivedAt = isset($row['received_at']) && trim((string) $row['received_at']) !== ''
+                    ? Carbon::parse((string) $row['received_at'], config('app.timezone'))
+                    : $soldAt;
                 $paymentRows[] = [
                     'method' => PaymentMethod::from($row['method']),
                     'amount' => (string) $amount,
                     'reference' => trim((string) ($row['reference'] ?? '')) ?: null,
+                    'received_at' => $receivedAt,
                 ];
                 unset($index);
             }
@@ -546,7 +550,7 @@ class SaleService
                     'narration' => ($previous->isPositive()
                         ? 'Received against '.$sale->number.' including old due'
                         : 'Received against '.$sale->number).($extra->isPositive() ? ' · '.$extra.' kept as advance' : ''),
-                    'received_at' => $soldAt,
+                    'received_at' => $row['received_at'],
                     'user_id' => $userId,
                 ]);
                 $this->ledger->post(
@@ -924,8 +928,35 @@ class SaleService
 
     private function orderRate(?AdvanceOrder $order, Item $piece): ?MetalRate
     {
-        if (! $order
-            || (int) $order->metal_type_id !== (int) $piece->metal_type_id
+        if (! $order) {
+            return null;
+        }
+
+        $order->loadMissing(['lines.metalRate', 'metalRate']);
+
+        if ($order->lines->isNotEmpty()) {
+            $line = $order->lines->first(fn ($line) => (int) $line->metal_type_id === (int) $piece->metal_type_id
+                && (int) $line->purity_id === (int) $piece->purity_id);
+
+            if (! $line) {
+                return null;
+            }
+
+            if ($line->metalRate) {
+                return $line->metalRate;
+            }
+
+            $rate = new MetalRate;
+            $rate->rate_per_gram = (string) $line->rate_per_gram;
+            if ($line->metal_rate_id) {
+                $rate->id = $line->metal_rate_id;
+                $rate->exists = true;
+            }
+
+            return $rate;
+        }
+
+        if ((int) $order->metal_type_id !== (int) $piece->metal_type_id
             || (int) $order->purity_id !== (int) $piece->purity_id) {
             return null;
         }

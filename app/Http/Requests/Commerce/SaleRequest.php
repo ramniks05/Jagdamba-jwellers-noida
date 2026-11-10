@@ -30,9 +30,38 @@ class SaleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $tz = config('app.timezone');
+        $soldAtForMode = trim((string) $this->input('sold_at', ''));
+
+        if ($soldAtForMode === '') {
+            $soldAtForMode = now($tz)->format('Y-m-d\TH:i');
+        }
+
+        $soldAtCarbon = Carbon::parse($soldAtForMode, $tz);
+        $oldBilling = ! $soldAtCarbon->isSameDay(now($tz));
+
+        if ($oldBilling) {
+            $soldAtForMode = $soldAtCarbon->copy()->setTime(12, 0)->format('Y-m-d\TH:i');
+        }
+
         $payments = collect($this->input('payments', []))
             ->filter(fn ($row) => is_array($row) && trim((string) ($row['amount'] ?? '')) !== '')
             ->values()
+            ->map(function (array $row) use ($oldBilling, $tz, $soldAtForMode) {
+                if ($oldBilling) {
+                    $received = trim((string) ($row['received_at'] ?? ''));
+
+                    if ($received === '') {
+                        $received = $soldAtForMode;
+                    }
+
+                    $row['received_at'] = Carbon::parse($received, $tz)->format('Y-m-d\TH:i');
+                } else {
+                    unset($row['received_at']);
+                }
+
+                return $row;
+            })
             ->all();
 
         $piece = $this->input('new_piece');
@@ -67,11 +96,7 @@ class SaleRequest extends FormRequest
             $pieces[] = $this->pieceRow($row);
         }
 
-        $soldAt = trim((string) $this->input('sold_at', ''));
-
-        if ($soldAt === '') {
-            $soldAt = now(config('app.timezone'))->format('Y-m-d\TH:i');
-        }
+        $soldAt = $soldAtForMode;
 
         $retailItems = [];
 
@@ -177,6 +202,7 @@ class SaleRequest extends FormRequest
             'payments.*.method' => ['required', Rule::enum(PaymentMethod::class)],
             'payments.*.amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'payments.*.reference' => ['nullable', 'string', 'max:80'],
+            'payments.*.received_at' => ['nullable', 'date'],
             'use_credit' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'include_previous' => ['sometimes', 'boolean'],
             'sold_at' => ['required', 'date'],

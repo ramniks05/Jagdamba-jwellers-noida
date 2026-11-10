@@ -14,6 +14,9 @@ class RetailBillCreatePageTest extends TestCase
         $owner = $this->shopUser();
         $html = $this->actingAs($owner)->get(route('sales.create'))->assertOk()->getContent();
 
+        $this->assertStringContainsString('id="bill-workspace"', $html);
+        $this->assertStringContainsString('data-default-panel="weigh"', $html);
+        $this->assertStringContainsString('data-bill-panel="weigh"', $html);
         $this->assertStringContainsString('id="retail-add"', $html);
         $this->assertStringContainsString('id="bill-retail-row"', $html);
         $this->assertStringContainsString('function bindRetailPanel()', $html);

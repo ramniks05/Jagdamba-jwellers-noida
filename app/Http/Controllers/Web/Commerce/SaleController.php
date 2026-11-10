@@ -141,10 +141,16 @@ class SaleController extends Controller
         $sale?->loadMissing('stockTray');
         $draft = $sale ? $this->invoiceDraft($sale, $sales) : null;
         $order = $request->filled('order')
-            ? AdvanceOrder::query()->with(['customer', 'metalType', 'purity'])->where('uuid', (string) $request->query('order'))->whereIn('status', AdvanceOrder::OPEN)->first()
+            ? AdvanceOrder::query()->with(['customer', 'metalType', 'purity', 'lines'])->where('uuid', (string) $request->query('order'))->whereIn('status', AdvanceOrder::OPEN)->first()
             : null;
         if (! $order && $sale) {
-            $sale->loadMissing(['advanceOrder.customer', 'advanceOrder.metalType', 'advanceOrder.purity']);
+            $sale->loadMissing([
+                'advanceOrder.customer',
+                'advanceOrder.metalType',
+                'advanceOrder.purity',
+                'advanceOrder.lines.metalType',
+                'advanceOrder.lines.purity',
+            ]);
             $order = $sale->advanceOrder;
         }
         $items = Item::query()
@@ -172,6 +178,7 @@ class SaleController extends Controller
             foreach (AdvanceOrder::query()
                 ->whereIn('customer_id', $customerUuidById->keys())
                 ->whereIn('status', AdvanceOrder::OPEN)
+                ->with(['lines.metalType', 'lines.purity'])
                 ->orderByDesc('booked_at')
                 ->get() as $advanceOrder) {
                 $customerUuid = $customerUuidById[$advanceOrder->customer_id] ?? null;
@@ -271,6 +278,7 @@ class SaleController extends Controller
                 'method' => $payment->method->value,
                 'amount' => (string) $payment->amount,
                 'reference' => (string) ($payment->reference ?? ''),
+                'received_at' => $payment->received_at?->timezone(config('app.timezone'))->format('Y-m-d\TH:i'),
             ])->values()->all(),
             'fixedPrevious' => (float) $sale->previous_due > 0 ? [
                 'amount' => (float) $sale->previous_due,

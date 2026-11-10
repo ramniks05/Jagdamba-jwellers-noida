@@ -18,6 +18,7 @@
                     <label class="form-label" for="default_unit_price">Default price (₹)</label>
                     <input class="form-control @error('default_unit_price') is-invalid @enderror" id="default_unit_price" name="default_unit_price" value="{{ old('default_unit_price', $product->default_unit_price) }}" inputmode="decimal">
                     @error('default_unit_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    <div class="form-text">Used on bills and as the MRP on barcode tags (Other items list).</div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="default_tax_mode">GST on bill</label>

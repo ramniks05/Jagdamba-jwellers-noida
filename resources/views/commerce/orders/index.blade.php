@@ -36,9 +36,15 @@
                         <tr>
                             <td>{{ $order->number }}</td>
                             <td>{{ $order->customer?->name }}</td>
-                            <td>{{ $order->description }}<div class="small text-secondary">{{ $order->metalType?->name }} {{ $order->purity?->name }}</div></td>
+                            <td>{{ $order->description }}<div class="small text-secondary">{{ $order->metalSummary() }}</div></td>
                             <td class="num">{{ $weight((string) $order->expected_weight) }}</td>
-                            <td class="num">{{ $money((string) $order->rate_per_gram) }}</td>
+                            <td class="num">
+                                @if ($order->lines->count() > 1)
+                                    <span class="text-secondary small">Multiple</span>
+                                @else
+                                    {{ $money((string) $order->rate_per_gram) }}
+                                @endif
+                            </td>
                             <td class="num">{{ $money($order->advanceHeld()) }}</td>
                             <td class="{{ $late ? 'is-late' : '' }}">{{ $order->due_on?->format('d M Y') ?? '—' }}</td>
                             <td>{{ $order->statusLabel() }}</td>

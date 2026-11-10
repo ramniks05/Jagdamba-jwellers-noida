@@ -6,15 +6,29 @@
 @inject('shopContext', 'App\Support\CompanyContext')
 
 @section('content')
-    <h1 class="page-title h3 mb-3">{{ $sale ? 'Edit '.$sale->number : 'New bill' }}</h1>
-    @if ($sale)
-        <p class="text-secondary">Invoice {{ $sale->number }} stays the same. Change the weight, the charges, or the payment, then save it again.</p>
-    @endif
+    <h1 class="page-title h3 mb-3 d-inline-flex align-items-center gap-2 flex-wrap">
+        {{ $sale ? 'Edit '.$sale->number : 'New bill' }}
+        @if ($sale)
+            <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Invoice {{ $sale->number }} stays the same. Change the weight, the charges, or the payment, then save it again." aria-label="About editing this invoice"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+        @endif
+    </h1>
     @if ($order)
         <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
                 <strong>{{ $sale ? 'Order' : 'Delivering order' }} {{ $order->number }}</strong> for {{ $order->customer?->name }} · {{ $order->description }}<br>
-                <span class="small">{{ $order->metalType?->name }} {{ $order->purity?->name }} is billed at the locked rate {{ $money((string) $order->rate_per_gram) }} / g. The advance of {{ $money($order->advanceHeld()) }} is taken off this bill.</span>
+                <span class="small">
+                    @if ($order->lines->isNotEmpty() && $order->lines->count() > 1)
+                        @foreach ($order->lines as $line)
+                            {{ trim($line->metalType?->name.' '.$line->purity?->name) }} at {{ $money((string) $line->rate_per_gram) }} / g
+                            @if (! $loop->last)
+                                ·
+                            @endif
+                        @endforeach
+                    @else
+                        {{ $order->metalType?->name }} {{ $order->purity?->name }} is billed at the locked rate {{ $money((string) $order->rate_per_gram) }} / g.
+                    @endif
+                    The advance of {{ $money($order->advanceHeld()) }} is taken off this bill.
+                </span>
             </div>
             @unless ($sale)
                 <a class="btn btn-outline-secondary btn-sm" href="{{ route('sales.create') }}">Bill without the order</a>
@@ -34,24 +48,6 @@
         <div class="row g-3">
             <div class="col-lg-7">
                 @include('commerce.partials.customer-picker', ['addLabel' => 'Add to bill', 'errorText' => 'Choose the customer by name or mobile number, or add them as a new customer.'])
-                @if ($trays->isNotEmpty())
-                    <div class="card mb-3">
-                        <div class="card-header bg-white">Tray (optional)</div>
-                        <div class="card-body">
-                            <label class="form-label" for="tray-uuid">Bill from tray</label>
-                            <select class="form-select @error('tray_uuid') is-invalid @enderror" id="tray-uuid" name="tray_uuid">
-                                <option value="">— Not from a tray —</option>
-                                @foreach ($trays as $trayOption)
-                                    <option value="{{ $trayOption->uuid }}" @selected(old('tray_uuid', $sale?->stockTray?->uuid) === $trayOption->uuid)>
-                                        {{ $trayOption->name }} · {{ rtrim(rtrim(number_format((float) $trayOption->grams, 3, '.', ''), '0'), '.') }} g · {{ $trayOption->pieces }} pcs
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('tray_uuid')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-                            <div class="form-text">Net weight on the bill comes off this tray (1 piece per bill). Metal stock still uses each line’s metal and purity.</div>
-                        </div>
-                    </div>
-                @endif
                 @if (! $sale && ! $order)
                     <div class="card mb-3 d-none" id="customer-open-orders">
                         <div class="card-header bg-white py-2"><span><i class="bi bi-bag-check"></i> Open orders for this customer</span></div>
@@ -60,10 +56,37 @@
                         </div>
                     </div>
                 @endif
-                <div class="card mb-3 scan-card">
+                <div class="bill-workspace mb-3" id="bill-workspace" data-default-panel="weigh">
+                    @if ($trays->isNotEmpty())
+                        <div class="bill-tray-bar">
+                            <label class="bill-tray-label d-inline-flex align-items-center gap-1 mb-0" for="tray-uuid">
+                                From tray
+                                <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Net weight on the bill comes off this tray (1 piece per bill). Metal stock still uses each line’s metal and purity. Then add pieces with Weigh or Scan." aria-label="About billing from a tray"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                            </label>
+                            <select class="form-select form-select-sm @error('tray_uuid') is-invalid @enderror" id="tray-uuid" name="tray_uuid">
+                                <option value="">— Not from a tray —</option>
+                                @foreach ($trays as $trayOption)
+                                    <option value="{{ $trayOption->uuid }}" @selected(old('tray_uuid', $sale?->stockTray?->uuid) === $trayOption->uuid)>
+                                        {{ $trayOption->name }} · {{ rtrim(rtrim(number_format((float) $trayOption->grams, 3, '.', ''), '0'), '.') }} g · {{ $trayOption->pieces }} pcs
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('tray_uuid')<div class="invalid-feedback d-block w-100">{{ $message }}</div>@enderror
+                        </div>
+                    @endif
+                    <div class="bill-workspace-bar">
+                        <span class="bill-workspace-label">Add pieces</span>
+                        <div class="bill-workspace-modes" role="tablist" aria-label="How to add to the bill">
+                            <button type="button" class="bill-mode-btn" role="tab" data-bill-panel="weigh" aria-selected="false"><i class="bi bi-speedometer2"></i> Weigh</button>
+                            <button type="button" class="bill-mode-btn" role="tab" data-bill-panel="scan" aria-selected="false"><i class="bi bi-upc-scan"></i> Scan tag</button>
+                            @if ($retailEnabled ?? false)
+                                <button type="button" class="bill-mode-btn" role="tab" data-bill-panel="retail" aria-selected="false"><i class="bi bi-basket"></i> Other items</button>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="bill-panel card mb-0 scan-card d-none" id="bill-panel-scan" role="tabpanel">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-upc-scan"></i> Scan tag</span>
-                        <small class="text-secondary">Scanner or keyboard, then Enter</small>
+                        <span class="d-inline-flex align-items-center gap-1"><i class="bi bi-upc-scan"></i> Scan tag<button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Scanner or keyboard, then Enter." aria-label="How to scan"><i class="bi bi-info-circle" aria-hidden="true"></i></button></span>
                     </div>
                     <div class="card-body">
                         <label class="form-label" for="scan-code">Tag code</label>
@@ -75,14 +98,14 @@
                     </div>
                 </div>
                 @if ($retailEnabled ?? false)
-                <div class="card mb-3">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
-                        <span><i class="bi bi-basket"></i> Other items (no weight)</span>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#retail-panel" aria-expanded="true">Show / hide</button>
+                <div class="bill-panel card mb-0 d-none" id="bill-panel-retail" role="tabpanel">
+                    <div class="card-header bg-white">
+                        <span class="d-inline-flex align-items-center gap-1">
+                            <i class="bi bi-basket"></i> Other items (no weight)
+                            <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1 sale-retail-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Murti, gifts, and fixed-price sales. These do not change metal stock." aria-label="About other items"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                        </span>
                     </div>
-                    <div class="collapse show" id="retail-panel">
-                        <div class="card-body">
-                            <p class="small text-secondary mb-3">Murti, gifts, and fixed-price sales. These do not change metal stock.</p>
+                    <div class="card-body" id="retail-panel">
                             @if ($retailProducts->isNotEmpty())
                                 <div class="mb-2">
                                     <label class="form-label" for="retail-product">From list (optional)</label>
@@ -138,11 +161,10 @@
                                 <span class="small text-secondary" id="retail-preview"></span>
                             </div>
                             <div class="small text-danger d-none mt-2" id="retail-error"></div>
-                        </div>
                     </div>
                 </div>
                 @endif
-                <div class="card mb-3">
+                <div class="bill-panel card mb-0 d-none" id="bill-panel-weigh" role="tabpanel">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
                         <div class="weigh-section-title">Category</div>
@@ -160,7 +182,10 @@
                             <input class="form-control text-uppercase" id="weigh-huid" maxlength="32" placeholder="Type the hallmark ID if this piece is not in stock" autocomplete="off">
                         </div>
                         <div class="weigh-section">
-                            <div class="weigh-section-title">Weight</div>
+                            <div class="d-flex align-items-center gap-1 weigh-section-title">
+                                <span>Weight</span>
+                                <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1 sale-weight-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Type the scale weight. Leave stone and other blank for plain gold. Net = gross less stone and other, and the rate is on the net weight." aria-label="How to enter weight"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                            </div>
                             <div class="stone-box mt-0">
                                 <div class="metal-row sale-weights">
                                     <div>
@@ -209,7 +234,6 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="form-text">Type the scale weight. Leave stone and other blank for plain gold. Net = gross less stone and other, and the rate is on the net weight.</div>
                         </div>
                         <div class="weigh-section">
                             <div class="charges-head">
@@ -246,11 +270,13 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="form-check mt-3">
-                                <input class="form-check-input" type="checkbox" id="weigh-own">
-                                <label class="form-check-label" for="weigh-own">Own</label>
+                            <div class="d-flex align-items-center gap-1 mt-3">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="weigh-own">
+                                    <label class="form-check-label" for="weigh-own">Own</label>
+                                </div>
+                                <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1 sale-own-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Tick Own when this gold is only for the bill. It is not added to stock, and the main stock is not reduced. Those pieces are listed under Own gold. Untick it only when the weight should come off the main stock." aria-label="What Own means"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
                             </div>
-                            <div class="form-text">Tick Own when this gold is only for the bill. It is not added to stock, and the main stock is not reduced. Those pieces are listed under Own gold. Untick it only when the weight should come off the main stock.</div>
                             <div class="mt-2 {{ $locations->count() < 2 ? 'd-none' : '' }}">
                                 <label class="form-label" for="weigh-location">Location</label>
                                 <select class="form-select" id="weigh-location">
@@ -271,6 +297,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
             <div class="col-lg-5 bill-side">
                 <div class="card mb-3">
@@ -284,7 +311,10 @@
                     <div class="card-body bill-sums">
                         <div class="bill-settings">
                             <div class="bill-sold-at-wrap">
-                                <label class="form-label mb-0" for="sold-at">Bill date &amp; time</label>
+                                <label class="form-label mb-0 d-inline-flex align-items-center gap-1" for="sold-at">
+                                    Bill date &amp; time
+                                    <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="For an old bill, pick the invoice date — it saves at 12:00 noon. Payment date appears below when the bill is not today." aria-label="About bill date"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                                </label>
                                 <input class="form-control form-control-sm @error('sold_at') is-invalid @enderror" id="sold-at" name="sold_at" type="datetime-local" value="{{ old('sold_at', ($sale?->sold_at ?? now())->timezone(config('app.timezone'))->format('Y-m-d\TH:i')) }}" step="60">
                                 @error('sold_at')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -303,7 +333,6 @@
                             @endphp
                             <input class="form-control form-control-sm counter-num" id="discount" name="discount" inputmode="decimal" value="{{ $discountDefault }}" placeholder="0">
                         </div>
-                        <p class="text-secondary small mb-2">Change bill date only when you need a backdated invoice; default is now.</p>
                         <p class="text-secondary small d-none mb-2" id="customer-pays-note"></p>
                         <div class="bill-block">
                             <div class="bill-row bill-row-muted"><span>Net weight</span><span id="bill-net-weight">0.000 g</span></div>
@@ -351,27 +380,47 @@
                     </div>
                 </div>
                 <div class="card mb-3">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span>Payment</span>
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
+                        <span class="d-inline-flex align-items-center gap-1">
+                            Payment
+                            <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Old bill: invoice date uses 12:00 noon. Payment date defaults to the same day and time; change it if money was taken on another day." aria-label="Old bill and payment dates"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                        </span>
                         <button class="btn btn-outline-secondary btn-sm" id="use-total" type="button">Cash</button>
                     </div>
                     <div class="card-body">
-                        @php($savedPayments = ($draft ?? [])['payments'] ?? [])
-                        @foreach (range(0, max(2, count($savedPayments) - 1)) as $slot)
-                            @php($savedPayment = is_array(old('payments.'.$slot)) ? old('payments.'.$slot) : ($savedPayments[$slot] ?? []))
-                            <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <select class="form-select" name="payments[{{ $slot }}][method]">
-                                        @foreach (['cash' => 'Cash', 'upi' => 'UPI', 'card' => 'Card', 'bank' => 'Bank', 'cheque' => 'Cheque'] as $payMethod => $payLabel)
-                                            <option value="{{ $payMethod }}" @selected(($savedPayment['method'] ?? ($slot === 0 ? 'cash' : '')) === $payMethod)>{{ $payLabel }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-4"><input class="form-control bill-pay counter-num" name="payments[{{ $slot }}][amount]" value="{{ $savedPayment['amount'] ?? '' }}" placeholder="Amount"></div>
-                                <div class="col-4"><input class="form-control" name="payments[{{ $slot }}][reference]" value="{{ $savedPayment['reference'] ?? '' }}" placeholder="Reference"></div>
-                            </div>
-                        @endforeach
-                        <p class="small d-none mb-0" id="pay-extra-note"></p>
+                        @php
+                            $savedPayments = ($draft ?? [])['payments'] ?? [];
+                            $paymentSlots = [];
+                            $oldPayments = old('payments');
+                            if (is_array($oldPayments) && $oldPayments !== []) {
+                                foreach ($oldPayments as $slot => $row) {
+                                    if (is_array($row)) {
+                                        $paymentSlots[(int) $slot] = $row;
+                                    }
+                                }
+                            } else {
+                                foreach ($savedPayments as $slot => $row) {
+                                    if (is_array($row)) {
+                                        $paymentSlots[(int) $slot] = $row;
+                                    }
+                                }
+                            }
+                            if ($paymentSlots === []) {
+                                $paymentSlots[0] = [];
+                            }
+                            ksort($paymentSlots);
+                            $paymentNextIndex = max(array_keys($paymentSlots)) + 1;
+                        @endphp
+                        <div id="bill-payments" data-next-index="{{ $paymentNextIndex }}">
+                            @foreach ($paymentSlots as $slot => $savedPayment)
+                                @include('commerce.sales.partials.payment-row', ['slot' => $slot, 'savedPayment' => $savedPayment, 'first' => $loop->first])
+                            @endforeach
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm mt-1" type="button" id="bill-payment-add"><i class="bi bi-plus-lg"></i> Add payment</button>
+                        <template id="bill-payment-row-template">
+                            @include('commerce.sales.partials.payment-row', ['slot' => '__INDEX__', 'savedPayment' => [], 'first' => false])
+                        </template>
+                        <p class="small d-none mb-0 mt-2" id="pay-extra-note"></p>
                     </div>
                 </div>
                 <button class="btn btn-outline-primary w-100 mb-2" type="button" id="bill-preview"><i class="bi bi-eye"></i> Preview bill</button>
@@ -391,7 +440,10 @@
                 </div>
                 <div class="modal-body bill-preview-body" id="bill-preview-body"></div>
                 <div class="modal-footer">
-                    <span class="small text-secondary me-auto">Nothing is saved until you press {{ $sale ? 'Update' : 'Save invoice' }}.</span>
+                    <span class="small text-secondary me-auto d-inline-flex align-items-center gap-1">
+                        Preview only
+                        <button type="button" class="btn btn-link p-0 border-0 text-secondary lh-1" data-bs-toggle="tooltip" data-bs-placement="top" title="Nothing is saved until you press {{ $sale ? 'Update' : 'Save invoice' }}." aria-label="About saving"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+                    </span>
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back to bill</button>
                     <button type="button" class="btn btn-primary" id="bill-preview-save">{{ $sale ? 'Update '.$sale->number : 'Save invoice' }}</button>
                 </div>
@@ -413,6 +465,13 @@
             'metal_type_id' => $order->metal_type_id,
             'purity_id' => $order->purity_id,
             'rate' => (string) $order->rate_per_gram,
+            'lines' => $order->lines->isNotEmpty()
+                ? $order->lines->map(fn ($line) => [
+                    'metal_type_id' => $line->metal_type_id,
+                    'purity_id' => $line->purity_id,
+                    'rate' => (string) $line->rate_per_gram,
+                ])->values()->all()
+                : null,
             'advance' => (float) $order->advanceHeld(),
         ] : null,
         'customers' => $customers->map(function ($customer) use ($credits, $openDues, $ledgerDues, $money) {
@@ -455,6 +514,7 @@
         'editing' => $draft ? ['stock' => $draft['stock'], 'fresh' => $draft['fresh'], 'retail' => $draft['retail'] ?? []] : null,
         'fixedPrevious' => ($draft ?? [])['fixedPrevious'] ?? null,
         'retailEnabled' => $retailEnabled ?? false,
+        'timezone' => config('app.timezone'),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
 
@@ -539,7 +599,12 @@
         }
 
         function currentRate(metalId, purityId, branchId) {
-            if (bill.order && String(bill.order.metal_type_id) === String(metalId) && String(bill.order.purity_id) === String(purityId)) {
+            if (bill.order?.lines?.length) {
+                const line = bill.order.lines.find((row) => String(row.metal_type_id) === String(metalId) && String(row.purity_id) === String(purityId));
+                if (line) {
+                    return { rate_per_gram: line.rate };
+                }
+            } else if (bill.order && String(bill.order.metal_type_id) === String(metalId) && String(bill.order.purity_id) === String(purityId)) {
                 return { rate_per_gram: bill.order.rate };
             }
             const locked = (bill.lockedRates || []).find((rate) => String(rate.metal_type_id) === String(metalId) && String(rate.purity_id) === String(purityId));
@@ -1032,7 +1097,7 @@
                     if (line.kind === 'stock') {
                         stockLines.splice(stockLines.indexOf(line.row), 1);
                         clearScanMessage(line.row.uuid);
-                        setTimeout(() => scanInput.focus(), 0);
+                        setTimeout(() => focusScan(), 0);
                     } else if (line.kind === 'retail') {
                         retailLines.splice(line.index, 1);
                     } else {
@@ -1336,6 +1401,47 @@
         }
 
         const scanInput = document.getElementById('scan-code');
+        const billWorkspace = document.getElementById('bill-workspace');
+        const openBillPanel = (name) => {
+            if (!billWorkspace) {
+                return;
+            }
+            billWorkspace.querySelectorAll('.bill-panel').forEach((panel) => {
+                panel.classList.toggle('d-none', panel.id !== `bill-panel-${name}`);
+            });
+            billWorkspace.querySelectorAll('[data-bill-panel]').forEach((button) => {
+                const active = button.dataset.billPanel === name;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            if (name === 'scan') {
+                scanInput?.focus();
+            } else if (name === 'weigh') {
+                document.getElementById('weigh-gross')?.focus();
+            } else if (name === 'retail') {
+                document.getElementById('retail-name')?.focus();
+            }
+        };
+        if (billWorkspace) {
+            billWorkspace.querySelectorAll('[data-bill-panel]').forEach((button) => {
+                button.addEventListener('click', () => openBillPanel(button.dataset.billPanel));
+            });
+            let initial = billWorkspace.dataset.defaultPanel || 'weigh';
+            if (initial === 'retail' && !document.getElementById('bill-panel-retail')) {
+                initial = 'weigh';
+            }
+            if (!document.getElementById(`bill-panel-${initial}`)) {
+                initial = 'weigh';
+            }
+            openBillPanel(initial);
+        }
+        const focusScan = () => {
+            if (billWorkspace) {
+                openBillPanel('scan');
+            } else {
+                scanInput?.focus();
+            }
+        };
         const scanQueue = [];
         let scanRunning = false;
 
@@ -1433,7 +1539,7 @@
         if (scanAdd && scanInput) {
             scanAdd.addEventListener('click', () => {
                 queueScan();
-                scanInput.focus();
+                focusScan();
             });
         }
         document.getElementById('bill-form').addEventListener('keydown', (event) => {
@@ -1499,13 +1605,74 @@
             document.getElementById('weigh-gross').focus();
             previewWeigh();
         });
+        const soldAtInput = document.getElementById('sold-at');
+        const billPayments = document.getElementById('bill-payments');
+        const paymentAdd = document.getElementById('bill-payment-add');
+        const paymentTemplate = document.getElementById('bill-payment-row-template');
+        const shopDay = (date = new Date()) => date.toLocaleDateString('en-CA', { timeZone: bill.timezone });
+        let lastBillPayDefault = '';
+        const isOldBilling = () => {
+            const value = soldAtInput?.value || '';
+            return value !== '' && value.slice(0, 10) !== shopDay();
+        };
+        const billPayDefault = () => {
+            const value = soldAtInput?.value || '';
+            return value.length >= 10 ? `${value.slice(0, 10)}T12:00` : '';
+        };
+        const syncOldBillingPayments = () => {
+            const old = isOldBilling();
+            document.querySelectorAll('.bill-pay-date-wrap').forEach((wrap) => wrap.classList.toggle('d-none', !old));
+            if (old && soldAtInput?.value) {
+                soldAtInput.value = `${soldAtInput.value.slice(0, 10)}T12:00`;
+                const def = billPayDefault();
+                document.querySelectorAll('.bill-pay-date').forEach((field) => {
+                    if (!field.value || field.dataset.billDefault === '1' || field.value === lastBillPayDefault) {
+                        field.value = def;
+                        field.dataset.billDefault = '1';
+                    }
+                });
+                lastBillPayDefault = def;
+            }
+        };
+        soldAtInput?.addEventListener('change', syncOldBillingPayments);
+        soldAtInput?.addEventListener('input', syncOldBillingPayments);
+        billPayments?.addEventListener('change', (event) => {
+            if (event.target.classList.contains('bill-pay-date')) {
+                event.target.dataset.billDefault = '0';
+            }
+        });
+        paymentAdd?.addEventListener('click', () => {
+            if (!billPayments || !paymentTemplate) {
+                return;
+            }
+            const index = Number(billPayments.dataset.nextIndex || 1);
+            const wrap = document.createElement('div');
+            wrap.innerHTML = paymentTemplate.innerHTML.replaceAll('__INDEX__', String(index)).trim();
+            const row = wrap.firstElementChild;
+            billPayments.appendChild(row);
+            billPayments.dataset.nextIndex = String(index + 1);
+            syncOldBillingPayments();
+            renderPayExtra();
+        });
+        billPayments?.addEventListener('click', (event) => {
+            if (!event.target.closest('.bill-payment-remove')) {
+                return;
+            }
+            event.target.closest('[data-payment-row]')?.remove();
+            renderPayExtra();
+        });
+        billPayments?.addEventListener('input', (event) => {
+            if (event.target.classList.contains('bill-pay')) {
+                renderPayExtra();
+            }
+        });
+        syncOldBillingPayments();
         document.getElementById('use-total').addEventListener('click', () => {
             const field = document.querySelector('.bill-pay');
             const pay = Number(document.getElementById('bill-form').dataset.pay || 0);
             if (field) field.value = pay > 0 ? pay.toFixed(2) : '';
             renderPayExtra();
         });
-        document.querySelectorAll('.bill-pay').forEach((field) => field.addEventListener('input', renderPayExtra));
         document.getElementById('weigh-add').addEventListener('click', () => {
             const error = document.getElementById('weigh-error');
             const quote = previewWeigh();
@@ -1575,13 +1742,13 @@
             }
             if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
                 event.preventDefault();
-                scanInput.focus();
+                focusScan();
             }
         });
         document.getElementById('bill-preview').addEventListener('click', async () => {
             if (!picker.ensure()) return;
             if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
-                scanInput.focus();
+                focusScan();
                 return;
             }
             const button = document.getElementById('bill-preview');
@@ -1645,8 +1812,17 @@
             (bill.editing.retail || []).forEach((row) => retailLines.push(row));
             if (bill.fixedPrevious) document.getElementById('include-previous').checked = false;
         }
+        const initBillTooltips = (root = document) => {
+            root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => bootstrap.Tooltip.getOrCreateInstance(node));
+        };
+        document.getElementById('bill-preview-modal')?.addEventListener('shown.bs.modal', () => {
+            initBillTooltips(document.getElementById('bill-preview-modal'));
+        });
         renderBill();
         previewWeigh();
-        if (scanInput && (document.activeElement === document.body || document.activeElement === null)) scanInput.focus();
+        initBillTooltips();
+        if (!billWorkspace && scanInput && (document.activeElement === document.body || document.activeElement === null)) {
+            scanInput.focus();
+        }
     </script>
 @endpush

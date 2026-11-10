@@ -4,9 +4,11 @@ namespace App\Services\Commerce;
 
 use App\Models\Company;
 use App\Models\Item;
+use App\Models\RetailProduct;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
+use Brick\Math\BigDecimal;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -101,6 +103,16 @@ class JewelleryLabelZplService
     /**
      * @param  array<string, mixed>  $settings
      */
+    public function generateRetail(RetailProduct $product, array $settings = []): string
+    {
+        $resolved = $this->resolve($settings);
+
+        return $this->render($this->layout($this->retailProductFields($product)), $resolved);
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
     public function generateTest(array $settings = []): string
     {
         $resolved = $this->resolve($settings);
@@ -117,7 +129,25 @@ class JewelleryLabelZplService
         $resolved = $this->resolve($settings);
         $fields = $item ? $this->itemFields($item, $resolved) : $this->testFields();
 
-        return $this->layout($fields) + ['settings' => $resolved];
+        return $this->layout($fields) + [
+            'settings' => $resolved,
+            'tag_mode' => $fields['tag_mode'] ?? 'weight',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public function previewRetail(RetailProduct $product, array $settings = []): array
+    {
+        $resolved = $this->resolve($settings);
+        $fields = $this->retailProductFields($product);
+
+        return $this->layout($fields) + [
+            'settings' => $resolved,
+            'tag_mode' => $fields['tag_mode'],
+        ];
     }
 
     /**
@@ -175,8 +205,18 @@ class JewelleryLabelZplService
             ? $barcode
             : trim((string) $item->item_code);
 
+        return $this->assertPayload($payload, 'This piece has no code to print.');
+    }
+
+    public function payloadForRetail(RetailProduct $product): string
+    {
+        return $this->assertPayload(trim((string) $product->code), 'This other item has no code to print.');
+    }
+
+    private function assertPayload(string $payload, string $emptyMessage): string
+    {
         if ($payload === '') {
-            throw ValidationException::withMessages(['payload' => 'This piece has no code to print.']);
+            throw ValidationException::withMessages(['payload' => $emptyMessage]);
         }
 
         if (! preg_match(self::PAYLOAD_PATTERN, $payload)) {
@@ -428,23 +468,54 @@ class JewelleryLabelZplService
 
     /**
      * @param  array<string, mixed>  $settings
-     * @return array{payload: string, code: string, type: ?string, shop: ?string, weights: list<string>}
+     * @return array{payload: string, code: string, type: ?string, shop: ?string, weights: list<string>, tag_mode: string}
      */
+    /**
+     * @return array{payload: string, code: string, type: ?string, shop: ?string, weights: list<string>, tag_mode: string}
+     */
+    private function retailProductFields(RetailProduct $product): array
+    {
+        $price = BigDecimal::of((string) ($product->default_unit_price ?? '0'));
+
+        if (! $price->isPositive()) {
+            throw ValidationException::withMessages([
+                'price' => 'Set a default price on this other item before printing a tag.',
+            ]);
+        }
+
+        $name = trim((string) $product->name);
+        $code = trim((string) $product->code);
+
+        return [
+            'payload' => $this->payloadForRetail($product),
+            'code' => $code,
+            'type' => $name !== '' ? mb_convert_case($name, MB_CASE_TITLE) : null,
+            'shop' => $this->shopName(),
+            'tag_mode' => 'mrp',
+            'weights' => ['MRP : '.$this->mrpOnTag((string) $product->default_unit_price)],
+        ];
+    }
+
     private function itemFields(Item $item, array $settings): array
     {
         $item->loadMissing(['purity', 'category']);
         $purity = trim((string) ($item->purity?->code ?: $item->purity?->name));
         $type = trim((string) ($item->category?->name ?: $item->name));
+        $mrp = BigDecimal::of((string) ($item->mrp ?? '0'));
+        $mrpTag = $mrp->isPositive();
 
         return [
             'payload' => $this->payloadFor($item, $settings),
             'code' => trim($item->item_code.($purity !== '' ? '  '.$purity : '')),
             'type' => $type !== '' ? mb_convert_case($type, MB_CASE_TITLE) : null,
             'shop' => $this->shopName(),
-            'weights' => [
-                'G. Wt : '.$this->weight((string) ($item->gross_weight ?? '0')),
-                'N. Wt. : '.$this->weight((string) ($item->net_weight ?? '0')),
-            ],
+            'tag_mode' => $mrpTag ? 'mrp' : 'weight',
+            'weights' => $mrpTag
+                ? ['MRP : '.$this->mrpOnTag((string) $item->mrp)]
+                : [
+                    'G. Wt : '.$this->weight((string) ($item->gross_weight ?? '0')),
+                    'N. Wt. : '.$this->weight((string) ($item->net_weight ?? '0')),
+                ],
         ];
     }
 
@@ -458,8 +529,18 @@ class JewelleryLabelZplService
             'code' => self::TEST_CODE.'  22K',
             'type' => 'Test',
             'shop' => $this->shopName(),
+            'tag_mode' => 'weight',
             'weights' => ['G. Wt : '.$this->weight('1.234'), 'N. Wt. : '.$this->weight('1.234')],
         ];
+    }
+
+    /** Clear MRP line for fixed-price tags (same 56 x 13 mm layout, no weight lines). */
+    private function mrpOnTag(string $amount): string
+    {
+        $formatted = trim($this->format->money($amount, $this->context->company()));
+        $formatted = preg_replace('/([.,]00)(?=\D*$)/', '', $formatted) ?? $formatted;
+
+        return $formatted;
     }
 
     private function shopName(): ?string
