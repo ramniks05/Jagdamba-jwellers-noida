@@ -100,7 +100,7 @@ class WhatsappBillTest extends TestCase
             'services.whatsapp.provider' => 'crm',
             'services.whatsapp.crm_url' => 'https://whatsapp.digitalcreatorss.com/api/vendor/contact/send-template-message',
             'services.whatsapp.crm_token' => 'crm-token',
-            'services.whatsapp.bill_template' => 'jagdamba_jwellery_bill_ready_template',
+            'services.whatsapp.bill_template' => 'jagdamba_bill_ready_v2',
             'services.whatsapp.bill_template_button' => true,
         ]);
         Http::fake(['whatsapp.digitalcreatorss.com/*' => Http::response(['result' => 'success', 'message_id' => 'crm.MSG1'])]);
@@ -116,7 +116,7 @@ class WhatsappBillTest extends TestCase
             return str_starts_with($request->url(), 'https://whatsapp.digitalcreatorss.com/api/vendor/contact/send-template-message')
                 && str_contains($request->url(), 'token=crm-token')
                 && $body['phone_number'] === '919876500000'
-                && $body['template_name'] === 'jagdamba_jwellery_bill_ready_template'
+                && $body['template_name'] === 'jagdamba_bill_ready_v2'
                 && $body['template_language'] === 'en'
                 && $body['field_1'] === 'Meera Shah'
                 && $body['field_2'] === $sale->number

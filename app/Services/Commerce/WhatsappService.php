@@ -138,6 +138,8 @@ class WhatsappService
     private function sendViaCrm(Sale $sale, Company $company, string $recipient, string $template): Response
     {
         $values = $this->bodyValues($sale, $company);
+        // Dynamic URL button {{1}} — same signed suffix as the invoice QR after /bill/.
+        // Always send button_0: Meta error 131008 if the approved template has a URL button and this is missing.
         $payload = [
             'phone_number' => $recipient,
             'template_name' => $template,
@@ -145,15 +147,14 @@ class WhatsappService
             'field_1' => $values[0],
             'field_2' => $values[1],
             'field_3' => $values[2],
+            'button_0' => $this->billQrSuffix($sale),
             'contact' => [
                 'first_name' => $values[0],
             ],
         ];
 
-        if (config('services.whatsapp.bill_template_button')) {
-            // Same signed /bill/{uuid}?signature=… path that the invoice QR uses.
-            $payload['button_0'] = $this->billQrSuffix($sale);
-        } elseif (isset($values[3])) {
+        if (! config('services.whatsapp.bill_template_button') && isset($values[3])) {
+            unset($payload['button_0']);
             $payload['field_4'] = $values[3];
         }
 
@@ -162,7 +163,7 @@ class WhatsappService
 
         return Http::withToken($token)
             ->acceptJson()
-            ->asForm()
+            ->asJson()
             ->timeout(20)
             ->post($url.(str_contains($url, '?') ? '&' : '?').'token='.urlencode($token), $payload);
     }

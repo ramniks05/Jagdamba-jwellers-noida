@@ -41,7 +41,7 @@ return [
         'crm_token' => env('WHATSAPP_CRM_TOKEN'),
         'bill_template' => env('WHATSAPP_BILL_TEMPLATE', 'bill_ready'),
         'bill_template_language' => env('WHATSAPP_BILL_TEMPLATE_LANGUAGE', 'en'),
-        'bill_template_button' => (bool) env('WHATSAPP_BILL_TEMPLATE_BUTTON', true),
+        'bill_template_button' => filter_var(env('WHATSAPP_BILL_TEMPLATE_BUTTON', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'slack' => [
