@@ -25,7 +25,6 @@ use App\Models\SaleRetailLine;
 use App\Models\SaleReturnLine;
 use App\Models\StockLocation;
 use App\Models\StockTray;
-use App\Models\WhatsappMessage;
 use App\Services\Commerce\InvoiceSheet;
 use App\Services\Commerce\LedgerService;
 use App\Services\Commerce\PaymentService;
@@ -431,20 +430,34 @@ class SaleController extends Controller
             'shareUrl' => CustomerShare::whatsapp($sale->customer?->mobile, 'Your bill '.$sale->number.' from '.$data['company']->displayName().': '.$data['billLink']),
             'whatsappReady' => $whatsapp->configured(),
             'whatsappNumber' => CustomerShare::number($sale->customer?->mobile),
-            'whatsappMessages' => WhatsappMessage::query()->with('user')->where('sale_id', $sale->id)->latest('id')->limit(5)->get(),
         ]);
     }
 
     public function whatsapp(Request $request, Sale $sale, WhatsappService $whatsapp, CompanyContext $context): RedirectResponse
     {
         $this->authorize('view', $sale);
+
+        $request->validate([
+            'whatsapp_checked' => ['accepted'],
+        ], [
+            'whatsapp_checked.accepted' => 'Check that this number is on WhatsApp before sending the bill.',
+        ]);
+
         $message = $whatsapp->sendBill($sale, $context->company(), $request->user()?->id);
 
         if ($message->status === 'failed') {
-            return redirect()->route('sales.show', $sale)->withErrors(['whatsapp' => 'WhatsApp did not send the bill: '.$message->error]);
+            $error = (string) $message->error;
+            if (str_contains($error, '131026') || str_contains(strtolower($error), 'not a whatsapp')) {
+                $error = 'This mobile number is not on WhatsApp (or cannot receive the bill). Check the number and try again.';
+            }
+
+            return redirect()->route('sales.show', $sale)->withErrors(['whatsapp' => 'WhatsApp did not send the bill: '.$error]);
         }
 
-        return redirect()->route('sales.show', $sale)->with('status', 'Bill '.$sale->number.' sent on WhatsApp to +'.$message->recipient.'.');
+        return redirect()->route('sales.show', $sale)->with(
+            'status',
+            'Invoice sent successfully on the customer\'s WhatsApp number +'.$message->recipient.'.'
+        );
     }
 
     public function payment(ReceiptRequest $request, Sale $sale, PaymentService $payments): RedirectResponse

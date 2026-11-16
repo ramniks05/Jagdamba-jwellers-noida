@@ -41,10 +41,14 @@ class WhatsappBillTest extends TestCase
         [$owner, $sale] = $this->sale('9876500000');
         $shop = $owner->company->displayName();
 
-        $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertSee('Send on WhatsApp');
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+        $this->actingAs($owner)->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Send on WhatsApp')
+            ->assertSee('Check number on WhatsApp')
+            ->assertSee('I checked — this number is on WhatsApp');
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])
             ->assertRedirect(route('sales.show', $sale))
-            ->assertSessionHas('status', 'Bill '.$sale->number.' sent on WhatsApp to +919876500000.');
+            ->assertSessionHas('status', 'Invoice sent successfully on the customer\'s WhatsApp number +919876500000.');
 
         Http::assertSent(function (Request $request) use ($sale, $shop): bool {
             $body = $request->data();
@@ -68,8 +72,8 @@ class WhatsappBillTest extends TestCase
 
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
-            ->assertSee('Send again on WhatsApp')
-            ->assertSee('+919876500000');
+            ->assertSee('Send on WhatsApp')
+            ->assertDontSee('class="card mb-3 no-print wa-log"', false);
     }
 
     public function test_without_a_button_the_link_goes_in_the_message_body(): void
@@ -78,7 +82,7 @@ class WhatsappBillTest extends TestCase
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TEST2']]])]);
         [$owner, $sale] = $this->sale('9876500000');
 
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))->assertSessionHasNoErrors();
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])->assertSessionHasNoErrors();
 
         Http::assertSent(function (Request $request) use ($sale, $owner): bool {
             $components = $request->data()['template']['components'];
@@ -102,9 +106,9 @@ class WhatsappBillTest extends TestCase
         Http::fake(['whatsapp.digitalcreatorss.com/*' => Http::response(['result' => 'success', 'message_id' => 'crm.MSG1'])]);
         [$owner, $sale] = $this->sale('9876500000');
 
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])
             ->assertRedirect(route('sales.show', $sale))
-            ->assertSessionHas('status', 'Bill '.$sale->number.' sent on WhatsApp to +919876500000.');
+            ->assertSessionHas('status', 'Invoice sent successfully on the customer\'s WhatsApp number +919876500000.');
 
         Http::assertSent(function (Request $request) use ($sale, $owner): bool {
             $body = $request->data();
@@ -124,6 +128,17 @@ class WhatsappBillTest extends TestCase
         $this->assertSame('crm.MSG1', WhatsappMessage::query()->sole()->provider_id);
     }
 
+    public function test_send_requires_confirming_the_number_is_on_whatsapp(): void
+    {
+        Http::fake();
+        [$owner, $sale] = $this->sale('9876500000');
+
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+            ->assertSessionHasErrors('whatsapp_checked');
+
+        Http::assertNothingSent();
+    }
+
     public function test_a_rejected_send_is_logged_and_shown_to_staff(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response([
@@ -131,12 +146,11 @@ class WhatsappBillTest extends TestCase
         ], 400)]);
         [$owner, $sale] = $this->sale('9876500000');
 
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])
             ->assertSessionHasErrors(['whatsapp' => 'WhatsApp did not send the bill: (131030) Recipient phone number not in allowed list']);
 
         app(CompanyContext::class)->set($owner->company);
         $this->assertSame('failed', WhatsappMessage::query()->sole()->status);
-        $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertSee('Recipient phone number not in allowed list');
     }
 
     public function test_it_refuses_when_not_set_up_or_the_mobile_is_unusable(): void
@@ -145,12 +159,12 @@ class WhatsappBillTest extends TestCase
         [$owner, $sale] = $this->sale('9876500000');
         $sale->customer->forceFill(['mobile' => '12345'])->saveQuietly();
 
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])
             ->assertSessionHasErrors(['whatsapp' => 'This customer has no valid mobile number for WhatsApp.']);
 
         config(['services.whatsapp.token' => null]);
         $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertSee('https://wa.me/', false);
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1'])
             ->assertSessionHasErrors(['whatsapp' => 'WhatsApp is not set up yet. Add the WhatsApp details to the .env file.']);
 
         Http::assertNothingSent();
@@ -160,7 +174,7 @@ class WhatsappBillTest extends TestCase
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TEST3']]])]);
         [$owner, $sale] = $this->sale('9876500000');
-        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale));
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale), ['whatsapp_checked' => '1']);
 
         $this->get('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=42')
             ->assertOk()

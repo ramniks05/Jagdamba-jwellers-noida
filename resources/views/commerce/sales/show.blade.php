@@ -7,12 +7,9 @@
         <a href="{{ route('sales.create') }}">New bill</a>
         <div class="d-flex flex-wrap gap-2">
             @if ($whatsappReady)
-                <form method="POST" action="{{ route('sales.whatsapp.store', $sale) }}" onsubmit="this.querySelector('button').disabled = true">
-                    @csrf
-                    <button class="btn btn-outline-success" type="submit" @disabled($whatsappNumber === null) @if ($whatsappNumber === null) title="Add the customer's mobile number first" @endif>
-                        <i class="bi bi-whatsapp"></i> {{ $whatsappMessages->isEmpty() ? 'Send on WhatsApp' : 'Send again on WhatsApp' }}
-                    </button>
-                </form>
+                <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#whatsapp-send-modal" @disabled($whatsappNumber === null) @if ($whatsappNumber === null) title="Add the customer's mobile number first" @endif>
+                    <i class="bi bi-whatsapp"></i> Send on WhatsApp
+                </button>
                 <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener" title="Open WhatsApp on this device instead"><i class="bi bi-box-arrow-up-right"></i></a>
             @else
                 <a class="btn btn-outline-success" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send on WhatsApp</a>
@@ -40,23 +37,6 @@
             @if ($sale->cancel_reason)
                 <span class="d-block small mt-1"><strong>Reason:</strong> {{ $sale->cancel_reason }}</span>
             @endif
-        </div>
-    @endif
-    @if ($whatsappMessages->isNotEmpty())
-        <div class="card mb-3 no-print wa-log">
-            <div class="card-body py-2">
-                <div class="stat-label mb-1"><i class="bi bi-whatsapp"></i> WhatsApp</div>
-                @foreach ($whatsappMessages as $message)
-                    <div class="wa-log-row">
-                        <span class="badge wa-status-{{ $message->status }}">{{ $message->statusLabel() }}</span>
-                        <span>+{{ $message->recipient }}</span>
-                        <span class="text-secondary">{{ ($message->status_at ?? $message->created_at)->format('d-m-Y h:i A') }}{{ $message->user ? ' · '.$message->user->name : '' }}</span>
-                        @if ($message->status === 'failed' && $message->error)
-                            <span class="text-danger small">{{ $message->error }}</span>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
         </div>
     @endif
     @php($due = $sale->balanceDue())
@@ -172,4 +152,58 @@
             @endif
         @endif
     @endcan
+
+    @if ($whatsappReady && $whatsappNumber)
+        <div class="modal fade" id="whatsapp-send-modal" tabindex="-1" aria-labelledby="whatsapp-send-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('sales.whatsapp.store', $sale) }}" id="whatsapp-send-form">
+                        @csrf
+                        <div class="modal-header">
+                            <h2 class="modal-title h5" id="whatsapp-send-title"><i class="bi bi-whatsapp text-success"></i> Send bill on WhatsApp</h2>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-2">Send <strong>{{ $sale->number }}</strong> to:</p>
+                            <p class="fs-5 mb-3"><strong>+{{ $whatsappNumber }}</strong></p>
+                            <p class="text-secondary small mb-3">First check that this number is on WhatsApp. If it is not, the bill will not be delivered.</p>
+                            <a class="btn btn-outline-success w-100 mb-3" href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener" id="whatsapp-check-link">
+                                <i class="bi bi-box-arrow-up-right"></i> Check number on WhatsApp
+                            </a>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" id="whatsapp-checked" name="whatsapp_checked" required>
+                                <label class="form-check-label" for="whatsapp-checked">I checked — this number is on WhatsApp</label>
+                            </div>
+                            @error('whatsapp')
+                                <div class="text-danger small mt-2">{{ $message }}</div>
+                            @enderror
+                            @error('whatsapp_checked')
+                                <div class="text-danger small mt-2">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                            <button class="btn btn-success" type="submit" id="whatsapp-send-confirm" disabled>
+                                <i class="bi bi-whatsapp"></i> Send bill
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const box = document.getElementById('whatsapp-checked');
+                const send = document.getElementById('whatsapp-send-confirm');
+                const form = document.getElementById('whatsapp-send-form');
+                const modal = document.getElementById('whatsapp-send-modal');
+                const sync = () => { send.disabled = ! box.checked; };
+                box?.addEventListener('change', sync);
+                form?.addEventListener('submit', () => { send.disabled = true; send.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending…'; });
+                @if ($errors->has('whatsapp') || $errors->has('whatsapp_checked'))
+                    bootstrap.Modal.getOrCreateInstance(modal).show();
+                @endif
+            });
+        </script>
+    @endif
 @endsection
