@@ -26,7 +26,7 @@
                     <p>Phone {{ $phones }}@if ($company->email) · {{ $company->email }}@endif</p>
                 @endif
                 @if (filled($company->website))
-                    <p><a href="{{ $company->website }}">{{ preg_replace('#^https?://#i', '', rtrim($company->website, '/')) }}</a></p>
+                    <p><a href="{{ $company->website }}" target="_blank" rel="noopener noreferrer">{{ preg_replace('#^https?://#i', '', rtrim($company->website, '/')) }}</a></p>
                 @endif
             </div>
         </div>
