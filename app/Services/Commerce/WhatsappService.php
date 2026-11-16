@@ -5,10 +5,10 @@ namespace App\Services\Commerce;
 use App\Models\Company;
 use App\Models\Sale;
 use App\Models\WhatsappMessage;
-use App\Services\Foundation\NumberFormatService;
 use App\Support\CompanyContext;
 use App\Support\CustomerShare;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -18,17 +18,20 @@ class WhatsappService
 {
     public function __construct(
         private readonly InvoiceSheet $invoice,
-        private readonly NumberFormatService $format,
         private readonly CompanyContext $context,
     ) {}
 
     public function configured(): bool
     {
+        if ($this->usesCrm()) {
+            return filled(config('services.whatsapp.crm_url')) && filled(config('services.whatsapp.crm_token'));
+        }
+
         return filled(config('services.whatsapp.token')) && filled(config('services.whatsapp.phone_number_id'));
     }
 
     /**
-     * Sends the approved bill template through the WhatsApp Cloud API and logs the attempt.
+     * Sends the approved bill template (CRM or Meta Cloud API) and logs the attempt.
      */
     public function sendBill(Sale $sale, Company $company, ?int $userId): WhatsappMessage
     {
@@ -53,35 +56,29 @@ class WhatsappService
         ]);
 
         try {
-            $response = Http::withToken((string) config('services.whatsapp.token'))
-                ->acceptJson()
-                ->timeout(20)
-                ->post($this->endpoint(), [
-                    'messaging_product' => 'whatsapp',
-                    'recipient_type' => 'individual',
-                    'to' => $recipient,
-                    'type' => 'template',
-                    'template' => [
-                        'name' => $template,
-                        'language' => ['code' => (string) config('services.whatsapp.bill_template_language')],
-                        'components' => $this->components($sale, $company),
-                    ],
-                ]);
+            $response = $this->usesCrm()
+                ? $this->sendViaCrm($sale, $company, $recipient, $template)
+                : $this->sendViaMeta($sale, $company, $recipient, $template);
         } catch (ConnectionException) {
             $message->update(['error' => 'Could not reach WhatsApp. Check the internet connection and try again.', 'status_at' => now()]);
 
             return $message;
         }
 
-        $providerId = $response->json('messages.0.id');
+        $providerId = $this->providerId($response);
 
-        if ($response->successful() && is_string($providerId)) {
-            $message->update(['provider_id' => $providerId, 'status' => 'sent', 'status_at' => now()]);
+        if ($this->sendSucceeded($response, $providerId)) {
+            $message->update([
+                'provider_id' => $providerId ?: 'crm-'.Str::lower(Str::random(16)),
+                'status' => 'sent',
+                'status_at' => now(),
+                'error' => null,
+            ]);
 
             return $message;
         }
 
-        $detail = $response->json('error.error_data.details') ?: $response->json('error.message') ?: 'HTTP '.$response->status();
+        $detail = $this->errorDetail($response);
         $code = $response->json('error.code');
         $message->update([
             'error' => Str::limit(($code ? '('.$code.') ' : '').$detail, 480),
@@ -133,21 +130,100 @@ class WhatsappService
         });
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function components(Sale $sale, Company $company): array
+    private function usesCrm(): bool
     {
-        $link = $this->invoice->link($sale);
-        $body = [
-            ['type' => 'text', 'text' => trim((string) $sale->customer?->name) ?: 'Customer'],
-            ['type' => 'text', 'text' => $sale->number],
-            ['type' => 'text', 'text' => $this->format->money((string) $sale->total, $company)],
+        return strtolower((string) config('services.whatsapp.provider', 'meta')) === 'crm';
+    }
+
+    private function sendViaCrm(Sale $sale, Company $company, string $recipient, string $template): Response
+    {
+        $values = $this->bodyValues($sale, $company);
+        $payload = [
+            'phone_number' => $recipient,
+            'template_name' => $template,
+            'template_language' => (string) config('services.whatsapp.bill_template_language'),
+            'field_1' => $values[0],
+            'field_2' => $values[1],
+            'field_3' => $values[2],
+            'contact' => [
+                'first_name' => $values[0],
+            ],
+        ];
+
+        if (config('services.whatsapp.bill_template_button')) {
+            // Same signed /bill/{uuid}?signature=… path that the invoice QR uses.
+            $payload['button_0'] = $this->billQrSuffix($sale);
+        } elseif (isset($values[3])) {
+            $payload['field_4'] = $values[3];
+        }
+
+        $url = (string) config('services.whatsapp.crm_url');
+        $token = (string) config('services.whatsapp.crm_token');
+
+        return Http::withToken($token)
+            ->acceptJson()
+            ->asForm()
+            ->timeout(20)
+            ->post($url.(str_contains($url, '?') ? '&' : '?').'token='.urlencode($token), $payload);
+    }
+
+    private function sendViaMeta(Sale $sale, Company $company, string $recipient, string $template): Response
+    {
+        return Http::withToken((string) config('services.whatsapp.token'))
+            ->acceptJson()
+            ->timeout(20)
+            ->post($this->endpoint(), [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $recipient,
+                'type' => 'template',
+                'template' => [
+                    'name' => $template,
+                    'language' => ['code' => (string) config('services.whatsapp.bill_template_language')],
+                    'components' => $this->metaComponents($sale, $company),
+                ],
+            ]);
+    }
+
+    /**
+     * Body variables: customer name, bill number, shop name, optional full link (no-button mode).
+     *
+     * @return list<string>
+     */
+    private function bodyValues(Sale $sale, Company $company): array
+    {
+        $values = [
+            trim((string) $sale->customer?->name) ?: 'Customer',
+            $sale->number,
+            $company->displayName(),
         ];
 
         if (! config('services.whatsapp.bill_template_button')) {
-            $body[] = ['type' => 'text', 'text' => $link];
+            $values[] = $this->invoice->link($sale);
+        }
 
+        return $values;
+    }
+
+    /**
+     * Dynamic end of the public bill URL — identical to the invoice QR target after /bill/.
+     */
+    private function billQrSuffix(Sale $sale): string
+    {
+        return Str::after($this->invoice->link($sale), '/bill/');
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function metaComponents(Sale $sale, Company $company): array
+    {
+        $body = array_map(
+            fn (string $text) => ['type' => 'text', 'text' => $text],
+            $this->bodyValues($sale, $company),
+        );
+
+        if (! config('services.whatsapp.bill_template_button')) {
             return [['type' => 'body', 'parameters' => $body]];
         }
 
@@ -157,9 +233,61 @@ class WhatsappService
                 'type' => 'button',
                 'sub_type' => 'url',
                 'index' => '0',
-                'parameters' => [['type' => 'text', 'text' => Str::after($link, '/bill/')]],
+                'parameters' => [['type' => 'text', 'text' => $this->billQrSuffix($sale)]],
             ],
         ];
+    }
+
+    private function sendSucceeded(Response $response, ?string $providerId): bool
+    {
+        if (! $response->successful()) {
+            return false;
+        }
+
+        $result = strtolower((string) ($response->json('result') ?? $response->json('status') ?? ''));
+
+        if (in_array($result, ['failed', 'error', 'false'], true)) {
+            return false;
+        }
+
+        if (in_array($result, ['success', 'ok', 'sent', 'true'], true)) {
+            return true;
+        }
+
+        return is_string($providerId) && $providerId !== '';
+    }
+
+    private function providerId(Response $response): ?string
+    {
+        foreach ([
+            'id',
+            'message_id',
+            'data.id',
+            'data.message_id',
+            'messages.0.id',
+        ] as $path) {
+            $value = data_get($response->json(), $path);
+
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function errorDetail(Response $response): string
+    {
+        $detail = $response->json('message')
+            ?: $response->json('error.error_data.details')
+            ?: $response->json('error.message')
+            ?: $response->json('error');
+
+        if (is_array($detail)) {
+            $detail = json_encode($detail);
+        }
+
+        return is_string($detail) && $detail !== '' ? $detail : 'HTTP '.$response->status();
     }
 
     private function endpoint(): string

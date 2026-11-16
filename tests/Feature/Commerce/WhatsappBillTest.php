@@ -24,6 +24,7 @@ class WhatsappBillTest extends TestCase
         parent::setUp();
 
         config([
+            'services.whatsapp.provider' => 'meta',
             'services.whatsapp.token' => 'test-token',
             'services.whatsapp.phone_number_id' => '1234567890',
             'services.whatsapp.app_secret' => 'app-secret',
@@ -38,13 +39,14 @@ class WhatsappBillTest extends TestCase
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.TEST1']]])]);
         [$owner, $sale] = $this->sale('9876500000');
+        $shop = $owner->company->displayName();
 
         $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk()->assertSee('Send on WhatsApp');
         $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
             ->assertRedirect(route('sales.show', $sale))
             ->assertSessionHas('status', 'Bill '.$sale->number.' sent on WhatsApp to +919876500000.');
 
-        Http::assertSent(function (Request $request) use ($sale): bool {
+        Http::assertSent(function (Request $request) use ($sale, $shop): bool {
             $body = $request->data();
             $button = $body['template']['components'][1]['parameters'][0]['text'];
 
@@ -54,6 +56,7 @@ class WhatsappBillTest extends TestCase
                 && $body['template']['name'] === 'bill_ready'
                 && $body['template']['components'][0]['parameters'][0]['text'] === 'Meera Shah'
                 && $body['template']['components'][0]['parameters'][1]['text'] === $sale->number
+                && $body['template']['components'][0]['parameters'][2]['text'] === $shop
                 && str_starts_with($button, $sale->uuid.'?signature=');
         });
 
@@ -77,11 +80,48 @@ class WhatsappBillTest extends TestCase
 
         $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))->assertSessionHasNoErrors();
 
-        Http::assertSent(function (Request $request) use ($sale): bool {
+        Http::assertSent(function (Request $request) use ($sale, $owner): bool {
             $components = $request->data()['template']['components'];
+            $params = $components[0]['parameters'];
 
-            return count($components) === 1 && str_contains($components[0]['parameters'][3]['text'], '/bill/'.$sale->uuid.'?signature=');
+            return count($components) === 1
+                && $params[2]['text'] === $owner->company->displayName()
+                && str_contains($params[3]['text'], '/bill/'.$sale->uuid.'?signature=');
         });
+    }
+
+    public function test_the_bill_is_sent_through_the_crm_api_with_the_invoice_qr_link(): void
+    {
+        config([
+            'services.whatsapp.provider' => 'crm',
+            'services.whatsapp.crm_url' => 'https://whatsapp.digitalcreatorss.com/api/vendor/contact/send-template-message',
+            'services.whatsapp.crm_token' => 'crm-token',
+            'services.whatsapp.bill_template' => 'jagdamba_jwellery_bill_ready_template',
+            'services.whatsapp.bill_template_button' => true,
+        ]);
+        Http::fake(['whatsapp.digitalcreatorss.com/*' => Http::response(['result' => 'success', 'message_id' => 'crm.MSG1'])]);
+        [$owner, $sale] = $this->sale('9876500000');
+
+        $this->actingAs($owner)->post(route('sales.whatsapp.store', $sale))
+            ->assertRedirect(route('sales.show', $sale))
+            ->assertSessionHas('status', 'Bill '.$sale->number.' sent on WhatsApp to +919876500000.');
+
+        Http::assertSent(function (Request $request) use ($sale, $owner): bool {
+            $body = $request->data();
+
+            return str_starts_with($request->url(), 'https://whatsapp.digitalcreatorss.com/api/vendor/contact/send-template-message')
+                && str_contains($request->url(), 'token=crm-token')
+                && $body['phone_number'] === '919876500000'
+                && $body['template_name'] === 'jagdamba_jwellery_bill_ready_template'
+                && $body['template_language'] === 'en'
+                && $body['field_1'] === 'Meera Shah'
+                && $body['field_2'] === $sale->number
+                && $body['field_3'] === $owner->company->displayName()
+                && str_starts_with($body['button_0'], $sale->uuid.'?signature=');
+        });
+
+        app(CompanyContext::class)->set($owner->company);
+        $this->assertSame('crm.MSG1', WhatsappMessage::query()->sole()->provider_id);
     }
 
     public function test_a_rejected_send_is_logged_and_shown_to_staff(): void
