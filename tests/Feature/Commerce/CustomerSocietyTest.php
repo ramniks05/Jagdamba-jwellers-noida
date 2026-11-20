@@ -47,25 +47,15 @@ class CustomerSocietyTest extends TestCase
         $this->assertTrue($premium->is_premium);
         $this->assertSame($society->id, $premium->society_id);
 
-        $total = Customer::query()->count();
-
-        $this->actingAs($owner)
-            ->get(route('customers.index'))
-            ->assertOk()
-            ->assertSee('Customers ('.$total.')', false)
-            ->assertSee('All customers ('.$total.')', false);
-
         $this->actingAs($owner)
             ->get(route('customers.index', ['society' => $society->uuid]))
             ->assertOk()
-            ->assertSee('Customers (1)', false)
             ->assertSee('Ravi Kumar')
             ->assertDontSee('Plain Customer');
 
         $this->actingAs($owner)
             ->get(route('customers.index', ['premium' => 'yes']))
             ->assertOk()
-            ->assertSee('Customers (1)', false)
             ->assertSee('Ravi Kumar')
             ->assertDontSee('Plain Customer');
     }

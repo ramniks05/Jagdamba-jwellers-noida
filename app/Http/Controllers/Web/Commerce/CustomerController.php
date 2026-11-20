@@ -32,26 +32,23 @@ class CustomerController extends Controller
         $societyUuid = trim((string) $request->query('society', ''));
         $premium = (string) $request->query('premium', '');
 
-        $customers = Customer::query()
-            ->with('society')
-            ->when($search !== '', function ($query) use ($search) {
-                $like = '%'.addcslashes($search, '%_\\').'%';
-                $query->where(fn ($query) => $query->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('mobile', 'like', $like));
-            })
-            ->when($societyUuid !== '', fn ($query) => $query->whereHas('society', fn ($query) => $query->where('uuid', $societyUuid)))
-            ->when($premium === 'yes', fn ($query) => $query->where('is_premium', true))
-            ->when($premium === 'no', fn ($query) => $query->where('is_premium', false))
-            ->orderBy('name')
-            ->paginate(20)
-            ->withQueryString();
-
         return view('commerce.customers.index', [
             'search' => $search,
             'societyUuid' => $societyUuid,
             'premium' => $premium,
-            'customerTotal' => Customer::query()->count(),
             'societies' => Society::query()->orderBy('sort_order')->orderBy('name')->get(['uuid', 'name']),
-            'customers' => $customers,
+            'customers' => Customer::query()
+                ->with('society')
+                ->when($search !== '', function ($query) use ($search) {
+                    $like = '%'.addcslashes($search, '%_\\').'%';
+                    $query->where(fn ($query) => $query->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('mobile', 'like', $like));
+                })
+                ->when($societyUuid !== '', fn ($query) => $query->whereHas('society', fn ($query) => $query->where('uuid', $societyUuid)))
+                ->when($premium === 'yes', fn ($query) => $query->where('is_premium', true))
+                ->when($premium === 'no', fn ($query) => $query->where('is_premium', false))
+                ->orderBy('name')
+                ->paginate(20)
+                ->withQueryString(),
         ]);
     }
 

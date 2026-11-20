@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h1 class="page-title h3 mb-0">Customers ({{ $customers->total() }})</h1>
+        <h1 class="page-title h3 mb-0">Customers</h1>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="{{ route('customers.qr') }}">Customer QR</a>
             <a class="btn btn-outline-secondary" href="{{ route('customer-intakes.index') }}">Waiting approval</a>
@@ -25,7 +25,7 @@
         </div>
         <div class="col-md-2">
             <select class="form-select" name="premium">
-                <option value="" @selected($premium === '')>All customers ({{ $customerTotal }})</option>
+                <option value="" @selected($premium === '')>All customers</option>
                 <option value="yes" @selected($premium === 'yes')>Premium only</option>
                 <option value="no" @selected($premium === 'no')>Not premium</option>
             </select>

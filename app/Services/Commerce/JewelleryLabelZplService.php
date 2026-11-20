@@ -308,40 +308,16 @@ class JewelleryLabelZplService
     {
         $warnings = [];
 
-        // Larger type fills each flap; step keeps lines clear without sparse blank bands.
-        $codeH = 30;
-        $codeW = 28;
-        $weightH = 28;
-        $weightW = 26;
-        $leftStep = 30;
-        $typeH = 26;
-        $typeW = 24;
-        $shopH = 28;
-        $shopW = 26;
-        $rightStep = 30;
-
         $leftX = self::LEFT_PANEL[0] + self::LEFT_TEXT_X;
         $leftRoom = self::LEFT_PANEL[1] + 1 - self::FOLD_SIDE - $leftX - self::BOLD;
         $weights = array_values($fields['weights']);
-        $leftBlock = $weights === []
-            ? $codeH
-            : $leftStep + (count($weights) - 1) * $leftStep + $weightH;
-        $leftY = self::centred($leftBlock);
+        $leftY = self::centred($weights === [] ? 24 : 28 + (count($weights) - 1) * 26 + 22);
         $texts = [
-            $this->line($fields['code'], $leftX, $leftY, $codeH, $codeW, $leftRoom, null, true),
+            $this->line($fields['code'], $leftX, $leftY, 24, 22, $leftRoom, null, true),
         ];
 
         foreach ($weights as $index => $weight) {
-            $texts[] = ['bold' => false] + $this->line(
-                $weight,
-                $leftX,
-                $leftY + $leftStep + $index * $leftStep,
-                $weightH,
-                $weightW,
-                $leftRoom,
-                null,
-                true,
-            );
+            $texts[] = ['bold' => false] + $this->line($weight, $leftX, $leftY + 28 + $index * 26, 22, 21, $leftRoom, null, true);
         }
 
         $modules = self::qrModules($fields['payload']);
@@ -360,19 +336,18 @@ class JewelleryLabelZplService
         $columnX = self::RIGHT_PANEL[0] + self::FOLD_SIDE;
         $columnWidth = $codeX - self::CODE_GAP - $columnX;
         $shop = array_values($fields['shop'] !== null ? self::splitInTwo($fields['shop']) : []);
-        $rightBlock = $shop === []
-            ? ($fields['type'] !== null ? $typeH : 0)
-            : ($fields['type'] !== null ? $rightStep : 0) + (count($shop) - 1) * $rightStep + $shopH;
-        $rightY = self::centred($rightBlock);
+        $rightY = self::centred($shop === []
+            ? ($fields['type'] !== null ? 20 : 0)
+            : ($fields['type'] !== null ? 26 : 0) + (count($shop) - 1) * 26 + 24);
 
         if ($fields['type'] !== null) {
-            $type = $this->fitWords($fields['type'], $typeW, $columnWidth, $warnings);
-            $texts[] = $this->line($type, $columnX, $rightY, $typeH, $typeW, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
-            $rightY += $rightStep;
+            $type = $this->fitWords($fields['type'], 16, $columnWidth, $warnings);
+            $texts[] = $this->line($type, $columnX, $rightY, 20, 20, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
+            $rightY += 26;
         }
 
         foreach ($shop as $index => $part) {
-            $texts[] = $this->line($part, $columnX, $rightY + $index * $rightStep, $shopH, $shopW, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
+            $texts[] = $this->line($part, $columnX, $rightY + $index * 26, 24, 22, $columnWidth - self::BOLD, $columnWidth, false, $warnings);
         }
 
         return [

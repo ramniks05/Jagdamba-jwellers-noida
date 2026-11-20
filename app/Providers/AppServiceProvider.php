@@ -57,7 +57,6 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -148,16 +147,6 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by((string) ($request->user()?->id ?: $request->ip()));
-        });
-
-        View::composer('layouts.app', function ($view): void {
-            $count = null;
-
-            if (auth()->check() && auth()->user()->can('customers.view')) {
-                $count = Customer::query()->count();
-            }
-
-            $view->with('navCustomerCount', $count);
         });
     }
 }

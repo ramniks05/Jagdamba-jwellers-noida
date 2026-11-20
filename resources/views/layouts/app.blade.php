@@ -69,7 +69,7 @@
                         <div class="menu-label">Accounts</div>
                     @endif
                     @can('customers.view')
-                        <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}"><i class="bi bi-people"></i><span>Customers{{ isset($navCustomerCount) ? ' ('.$navCustomerCount.')' : '' }}</span></a>
+                        <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}"><i class="bi bi-people"></i><span>Customers</span></a>
                     @endcan
                     @can('suppliers.view')
                         <a class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}" href="{{ route('suppliers.index') }}"><i class="bi bi-truck"></i><span>Suppliers</span></a>
