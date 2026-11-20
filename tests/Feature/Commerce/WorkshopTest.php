@@ -386,15 +386,28 @@ class WorkshopTest extends TestCase
             ->assertSee('Add a member')
             ->assertSee('Open to join')
             ->assertSee('No members yet.');
+        $startedOn = now()->subMonths(2)->toDateString();
+        $this->actingAs($owner)->get(route('schemes.show', $scheme))
+            ->assertOk()
+            ->assertSee('name="started_on"', false)
+            ->assertSee('Start date', false);
         $this->actingAs($owner)->post(route('schemes.enroll', $scheme), [
             'customer_uuid' => $customer->uuid,
+            'started_on' => $startedOn,
         ])->assertRedirect();
 
         $this->seeShop($owner);
         $enrollment = $scheme->enrollments()->firstOrFail();
+        $this->assertSame($startedOn, $enrollment->started_on->toDateString());
+        $this->assertSame($startedOn, $enrollment->installments()->orderBy('due_on')->firstOrFail()->due_on->toDateString());
         $this->actingAs($owner)->get(route('enrollments.show', $enrollment))
             ->assertOk()
-            ->assertSee('Collect month 1 of 2');
+            ->assertSee('Collect month 1 of 2')
+            ->assertSee('Make the bill', false)
+            ->assertSee(route('sales.create', ['customer' => $customer->uuid]), false);
+        $this->actingAs($owner)->get(route('schemes.show', $scheme))
+            ->assertOk()
+            ->assertSee('>Bill</a>', false);
         $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
             'amount' => '5000',
             'method' => 'cash',

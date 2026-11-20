@@ -94,8 +94,11 @@ class SchemeController extends Controller
 
     public function enroll(SchemeEnrollRequest $request, GoldScheme $scheme, SchemeService $schemes): RedirectResponse
     {
-        $customer = Customer::query()->where('uuid', $request->validated('customer_uuid'))->firstOrFail();
-        $enrollment = $schemes->enroll($scheme, $customer);
+        $data = $request->validated();
+        $customer = Customer::query()->where('uuid', $data['customer_uuid'])->firstOrFail();
+        $enrollment = $schemes->enroll($scheme, $customer, [
+            'started_on' => $data['started_on'] ?? null,
+        ]);
 
         return redirect()->route('enrollments.show', $enrollment)->with('status', 'Customer enrolled.');
     }

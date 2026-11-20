@@ -41,6 +41,11 @@
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="{{ $shareUrl }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Send to customer</a>
             <button class="btn btn-outline-primary" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print passbook</button>
+            @can('create', App\Models\Sale::class)
+                @if ($enrollment->customer)
+                    <a class="btn {{ $enrollment->status === 'matured' ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('sales.create', ['customer' => $enrollment->customer->uuid]) }}"><i class="bi bi-receipt"></i> Make the bill</a>
+                @endif
+            @endcan
         </div>
     </div>
 
@@ -123,7 +128,7 @@
                     <div class="due-pay-head mb-0">
                         <div>
                             <div class="stat-label">Every month is paid</div>
-                            <div class="text-secondary small">Maturing credits this amount to the customer’s account. They can use it on a bill.</div>
+                            <div class="text-secondary small">Maturing credits this amount to the customer’s account. Then use Make the bill to take jewellery against that credit.</div>
                         </div>
                         <div class="d-flex align-items-center gap-3">
                             <div class="due-pay-amount">{{ $money($closing ?? $collected) }}</div>
@@ -135,6 +140,22 @@
                     @enderror
                 </div>
             </form>
+        @endcan
+    @endif
+
+    @if ($enrollment->status === 'matured' && $enrollment->customer)
+        @can('create', App\Models\Sale::class)
+            <div class="card due-pay mb-3 no-print">
+                <div class="card-body">
+                    <div class="due-pay-head mb-0">
+                        <div>
+                            <div class="stat-label">Credit is on the customer’s account</div>
+                            <div class="text-secondary small">Open a bill for {{ $enrollment->customer->name }}. Scheme maturity credit can be used on that bill.</div>
+                        </div>
+                        <a class="btn btn-primary" href="{{ route('sales.create', ['customer' => $enrollment->customer->uuid]) }}"><i class="bi bi-receipt"></i> Make the bill</a>
+                    </div>
+                </div>
+            </div>
         @endcan
     @endif
 

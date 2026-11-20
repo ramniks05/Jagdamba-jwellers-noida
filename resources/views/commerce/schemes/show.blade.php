@@ -56,10 +56,21 @@
             <div class="col-lg-5">
                 <div class="card due-pay h-100">
                     <div class="card-body d-flex flex-column">
-                        <div class="stat-label">Joining today</div>
+                        <div class="stat-label">Join date</div>
+                        <div class="mb-2">
+                            <label class="form-label" for="started-on">Start date</label>
+                            <input class="form-control @error('started_on') is-invalid @enderror" id="started-on" name="started_on" type="date" value="{{ old('started_on', now()->toDateString()) }}" max="{{ now()->toDateString() }}" required>
+                            @error('started_on')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Use an older date for a member who already started. Month dues follow this date.</div>
+                        </div>
+                        @php
+                            $enrollStart = \Illuminate\Support\Carbon::parse(old('started_on', now()->toDateString()));
+                        @endphp
                         <div class="bill-sums">
-                            <div class="bill-row"><span>Month 1 due</span><span>{{ now()->format('d-m-Y') }}</span></div>
-                            <div class="bill-row"><span>Last month due</span><span>{{ now()->addMonths(max(0, $scheme->duration_months - 1))->format('d-m-Y') }}</span></div>
+                            <div class="bill-row"><span>Month 1 due</span><span id="enroll-month-1">{{ $enrollStart->format('d-m-Y') }}</span></div>
+                            <div class="bill-row"><span>Last month due</span><span id="enroll-month-last">{{ $enrollStart->copy()->addMonths(max(0, $scheme->duration_months - 1))->format('d-m-Y') }}</span></div>
                             <div class="bill-row"><span>Each month</span><span>{{ $scheme->monthly_amount !== null ? $money((string) $scheme->monthly_amount) : 'Any amount' }}</span></div>
                         </div>
                         <p class="small text-secondary mb-3">The passbook opens after enrolling. Collect month 1 there.</p>
@@ -116,7 +127,14 @@
                                     <span class="order-status is-active">Paying</span>
                                 @endif
                             </td>
-                            <td class="text-end"><a href="{{ route('enrollments.show', $enrollment) }}">Passbook</a></td>
+                            <td class="text-end text-nowrap">
+                                <a href="{{ route('enrollments.show', $enrollment) }}">Passbook</a>
+                                @can('create', App\Models\Sale::class)
+                                    @if ($enrollment->customer)
+                                        · <a href="{{ route('sales.create', ['customer' => $enrollment->customer->uuid]) }}">Bill</a>
+                                    @endif
+                                @endcan
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="8">No members yet.</td></tr>
@@ -180,6 +198,7 @@
             'csrf' => csrf_token(),
             'customerUrl' => route('customers.store'),
             'customerShowUrl' => auth()->user()?->can('viewAny', App\Models\Customer::class) ? route('customers.show', '__customer__') : null,
+            'months' => (int) $scheme->duration_months,
             'customers' => $customers->map(fn ($customer) => [
                 'uuid' => $customer->uuid,
                 'name' => $customer->name,
@@ -203,9 +222,30 @@
                 addLabel: 'Choose',
                 chipLabel: 'New member',
             });
+            function formatDay(iso) {
+                const [y, m, d] = iso.split('-');
+                return d + '-' + m + '-' + y;
+            }
+            function addMonths(iso, count) {
+                const date = new Date(iso + 'T12:00:00');
+                date.setMonth(date.getMonth() + count);
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return y + '-' + m + '-' + d;
+            }
+            function syncEnrollDates() {
+                const start = document.getElementById('started-on')?.value;
+                if (!start) return;
+                document.getElementById('enroll-month-1').textContent = formatDay(start);
+                document.getElementById('enroll-month-last').textContent = formatDay(addMonths(start, Math.max(0, enroll.months - 1)));
+            }
+            document.getElementById('started-on')?.addEventListener('change', syncEnrollDates);
+            document.getElementById('started-on')?.addEventListener('input', syncEnrollDates);
             document.getElementById('enroll-form').addEventListener('submit', (event) => {
                 if (!picker.ensure()) event.preventDefault();
             });
+            syncEnrollDates();
         </script>
     @endif
 @endpush

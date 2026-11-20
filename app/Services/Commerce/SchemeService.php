@@ -64,9 +64,12 @@ class SchemeService
         ]);
     }
 
-    public function enroll(GoldScheme $scheme, Customer $customer): SchemeEnrollment
+    /**
+     * @param  array{started_on?: string|null}  $attributes
+     */
+    public function enroll(GoldScheme $scheme, Customer $customer, array $attributes = []): SchemeEnrollment
     {
-        return DB::transaction(function () use ($scheme, $customer) {
+        return DB::transaction(function () use ($scheme, $customer, $attributes) {
             $this->context->ensureId((int) $scheme->company_id);
 
             if (! $scheme->is_active) {
@@ -81,6 +84,17 @@ class SchemeService
                 ]);
             }
 
+            $startedOn = trim((string) ($attributes['started_on'] ?? ''));
+            $start = $startedOn !== ''
+                ? Carbon::parse($startedOn, config('app.timezone'))->startOfDay()
+                : now(config('app.timezone'))->startOfDay();
+
+            if ($start->gt(now(config('app.timezone'))->startOfDay())) {
+                throw ValidationException::withMessages([
+                    'started_on' => 'Start date cannot be in the future.',
+                ]);
+            }
+
             $branch = Branch::query()->where('is_head_office', true)->first()
                 ?? Branch::query()->orderBy('id')->first();
             $number = $this->numbers->issue($this->numbers->for(DocumentType::Scheme, $branch));
@@ -89,10 +103,9 @@ class SchemeService
                 'gold_scheme_id' => $scheme->id,
                 'customer_id' => $customer->id,
                 'number' => $number->number,
-                'started_on' => now()->toDateString(),
+                'started_on' => $start->toDateString(),
                 'status' => 'active',
             ]);
-            $start = Carbon::parse($enrollment->started_on);
 
             for ($month = 0; $month < $scheme->duration_months; $month++) {
                 SchemeInstallment::query()->create([
