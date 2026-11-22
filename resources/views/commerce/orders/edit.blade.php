@@ -33,7 +33,7 @@
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, order date, or delivery date. Edit the advance amount on the order page.</p>
+            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, advance received, order date, or delivery date.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">
@@ -137,8 +137,27 @@
                                 <div class="bill-row d-none" id="sum-round-row"><span>Round off</span><span id="sum-round">0.00</span></div>
                             </div>
                             <div class="bill-grand"><span>Estimated bill</span><strong id="sum-total">0.00</strong></div>
-                            <div class="bill-row"><span>Advance held</span><span id="sum-advance">− {{ $money($order->advanceHeld()) }}</span></div>
+                            <div class="bill-row"><span>Advance held</span><span id="sum-advance">− 0.00</span></div>
                             <div class="bill-grand"><span>Balance at delivery (about)</span><strong id="sum-balance">0.00</strong></div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label" for="advance_held">Advance received ₹</label>
+                            <input class="form-control @error('advance_held') is-invalid @enderror" id="advance_held" name="advance_held" value="{{ old('advance_held', $order->advanceHeld()) }}" inputmode="decimal" required>
+                            @error('advance_held')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Change this if the advance taken was wrong. Extra cash is taken or refunded when you save.</div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label" for="advance_method">Paid by (if advance changes)</label>
+                            <select class="form-select @error('method') is-invalid @enderror" id="advance_method" name="method">
+                                @foreach (\App\Enums\PaymentMethod::cases() as $method)
+                                    <option value="{{ $method->value }}" @selected(old('method', 'cash') === $method->value)>{{ $method->label() }}</option>
+                                @endforeach
+                            </select>
+                            @error('method')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
                         <p class="text-secondary small mb-0 mt-2">Reprint the booking slip after you save if the customer needs an updated copy.</p>
                     </div>
@@ -240,7 +259,7 @@
             const exact = round2(subtotal + (order.taxExclusive ? tax + makingTax : 0));
             const total = order.roundRupee ? Math.round(exact) : exact;
             const roundOff = round2(total - exact);
-            const advance = order.advanceHeld;
+            const advance = Number($('advance_held')?.value || order.advanceHeld || 0);
 
             $('sum-weight').textContent = weight.toFixed(3) + ' g';
             $('sum-rate').textContent = totals.rateLabels.length === 1 ? totals.rateLabels[0].split(' @ ')[1] : totals.rateLabels.length + ' locked rates';
@@ -261,6 +280,7 @@
             $('sum-making-tax').textContent = money.format(makingTax);
             showRow('sum-round', roundOff, roundOff !== 0);
             $('sum-total').textContent = money.format(total);
+            $('sum-advance').textContent = '− ' + money.format(advance);
             $('sum-balance').textContent = money.format(round2(Math.max(total - advance, 0)));
         }
 
@@ -283,6 +303,7 @@
             makingEdited = true;
             metalLines.render();
         });
+        $('advance_held')?.addEventListener('input', () => metalLines.render());
         $('order-form').addEventListener('input', (event) => {
             if (!event.target.closest('#order-lines')) {
                 metalLines.render();

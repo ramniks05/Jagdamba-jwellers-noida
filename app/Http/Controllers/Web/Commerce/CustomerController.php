@@ -7,6 +7,7 @@ use App\Enums\KycStatus;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Commerce\CustomerAddressRequest;
 use App\Http\Requests\Commerce\CustomerRequest;
 use App\Http\Requests\Commerce\ReceiptRequest;
 use App\Models\Customer;
@@ -115,6 +116,14 @@ class CustomerController extends Controller
                     $customer->address_line2,
                     collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', '),
                 ])->filter()->values(),
+                'address_fields' => [
+                    'address_line1' => $customer->address_line1,
+                    'address_line2' => $customer->address_line2,
+                    'city' => $customer->city,
+                    'state' => $customer->state,
+                    'postal_code' => $customer->postal_code,
+                    'country' => $customer->country,
+                ],
                 'notes' => $customer->notes,
                 'walkin' => (bool) $customer->is_system,
                 'society' => $customer->society?->name,
@@ -131,6 +140,7 @@ class CustomerController extends Controller
                 ]),
                 'url' => route('customers.show', $customer),
                 'edit_url' => $request->user()?->can('update', $customer) ? route('customers.edit', $customer) : null,
+                'address_url' => $request->user()?->can('update', $customer) ? route('customers.address', $customer) : null,
             ]);
         }
 
@@ -164,6 +174,29 @@ class CustomerController extends Controller
         $customers->update($customer, $request->validated());
 
         return redirect()->route('customers.show', $customer)->with('status', 'Customer saved.');
+    }
+
+    public function updateAddress(CustomerAddressRequest $request, Customer $customer): JsonResponse
+    {
+        $customer->fill($request->validated());
+        $customer->save();
+
+        return response()->json([
+            'ok' => true,
+            'address' => collect([
+                $customer->address_line1,
+                $customer->address_line2,
+                collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', '),
+            ])->filter()->values(),
+            'address_fields' => [
+                'address_line1' => $customer->address_line1,
+                'address_line2' => $customer->address_line2,
+                'city' => $customer->city,
+                'state' => $customer->state,
+                'postal_code' => $customer->postal_code,
+                'country' => $customer->country,
+            ],
+        ]);
     }
 
     public function destroy(Customer $customer, CustomerService $customers): RedirectResponse

@@ -201,6 +201,7 @@ function customerPicker(options) {
         ].forEach(([label, value]) => grid.appendChild(detailItem(label, value)));
         const address = detailItem('Address', data.address);
         address.className = 'customer-detail-wide';
+        address.id = 'customer-detail-address';
         grid.appendChild(address);
         if (data.notes) {
             const notes = detailItem('Notes', data.notes);
@@ -232,14 +233,119 @@ function customerPicker(options) {
             recent.appendChild(link);
         });
         body.append(stats, grid, recentTitle, recent);
+        if (data.address_url) {
+            body.appendChild(addressEditor(row, data));
+        }
         const open = $('customer-details-open');
         open.href = data.url;
+        open.target = '_blank';
+        open.rel = 'noopener';
         open.classList.remove('d-none');
+        open.onclick = () => {
+            if (typeof settings.onLeave === 'function') settings.onLeave();
+        };
         const edit = $('customer-details-edit');
         if (data.edit_url) {
             edit.href = data.edit_url;
+            edit.target = '_blank';
+            edit.rel = 'noopener';
             edit.classList.remove('d-none');
+            edit.onclick = () => {
+                if (typeof settings.onLeave === 'function') settings.onLeave();
+            };
+        } else {
+            edit.classList.add('d-none');
+            edit.onclick = null;
         }
+    }
+
+    function addressEditor(row, data) {
+        const wrap = document.createElement('div');
+        wrap.className = 'customer-address-edit mt-3';
+        const title = document.createElement('div');
+        title.className = 'weigh-section-title mb-2';
+        title.textContent = 'Update address';
+        const help = document.createElement('p');
+        help.className = 'text-secondary small';
+        help.textContent = 'Save here so the bill on this page is not cleared.';
+        const fields = data.address_fields || {};
+        const form = document.createElement('div');
+        form.className = 'row g-2';
+        const inputs = {};
+        [
+            ['address_line1', 'Address line 1', 'col-12'],
+            ['address_line2', 'Address line 2', 'col-12'],
+            ['city', 'City', 'col-md-4'],
+            ['state', 'State', 'col-md-4'],
+            ['postal_code', 'PIN', 'col-md-4'],
+        ].forEach(([name, label, col]) => {
+            const box = document.createElement('div');
+            box.className = col;
+            const lab = document.createElement('label');
+            lab.className = 'form-label';
+            lab.textContent = label;
+            const input = document.createElement('input');
+            input.className = 'form-control';
+            input.value = fields[name] || '';
+            input.autocomplete = 'off';
+            inputs[name] = input;
+            box.append(lab, input);
+            form.appendChild(box);
+        });
+        const error = document.createElement('div');
+        error.className = 'text-danger small d-none mt-2';
+        const status = document.createElement('div');
+        status.className = 'text-success small d-none mt-2';
+        const save = document.createElement('button');
+        save.type = 'button';
+        save.className = 'btn btn-outline-primary btn-sm mt-2';
+        save.innerHTML = '<i class="bi bi-geo-alt"></i> Save address';
+        save.addEventListener('click', async () => {
+            error.classList.add('d-none');
+            status.classList.add('d-none');
+            save.disabled = true;
+            try {
+                const response = await fetch(data.address_url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': settings.csrf,
+                    },
+                    body: JSON.stringify({
+                        address_line1: inputs.address_line1.value,
+                        address_line2: inputs.address_line2.value,
+                        city: inputs.city.value,
+                        state: inputs.state.value,
+                        postal_code: inputs.postal_code.value,
+                        country: fields.country || null,
+                    }),
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    error.textContent = Object.values(payload.errors || {}).flat().join(' ') || 'Address could not be saved.';
+                    error.classList.remove('d-none');
+                    return;
+                }
+                const shown = $('customer-detail-address');
+                if (shown) {
+                    const next = detailItem('Address', payload.address || []);
+                    next.className = 'customer-detail-wide';
+                    next.id = 'customer-detail-address';
+                    shown.replaceWith(next);
+                }
+                status.textContent = 'Address saved. Your bill on this page is unchanged.';
+                status.classList.remove('d-none');
+                if (typeof settings.onAddressSaved === 'function') settings.onAddressSaved(row, payload);
+            } catch (err) {
+                error.textContent = 'Address could not be saved.';
+                error.classList.remove('d-none');
+            } finally {
+                save.disabled = false;
+            }
+        });
+        wrap.append(title, help, form, save, error, status);
+        return wrap;
     }
 
     async function saveNew() {

@@ -167,11 +167,14 @@
                 <div class="bill-panel card mb-0 d-none" id="bill-panel-weigh" role="tabpanel">
                     <div class="card-header bg-white">Weigh and bill</div>
                     <div class="card-body">
-                        <div class="weigh-section-title">Category</div>
-                        <div class="bill-products" id="weigh-products">
-                            @foreach ($categories as $category)
-                                <button type="button" data-uuid="{{ $category->uuid }}" data-name="{{ $category->name }}">{{ $category->name }}</button>
-                            @endforeach
+                        <div class="mt-0">
+                            <label class="form-label" for="weigh-category">Category</label>
+                            <select class="form-select" id="weigh-category" @if ($categories->isNotEmpty()) required @endif>
+                                <option value="">Choose category</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->uuid }}" data-name="{{ $category->name }}">{{ $category->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mt-2">
                             <label class="form-label" for="weigh-name">Piece name</label>
@@ -456,6 +459,7 @@
         'previewUrl' => $sale ? route('sales.preview.edit', $sale) : route('sales.preview'),
         'customerUrl' => route('customers.store'),
         'customerShowUrl' => auth()->user()?->can('viewAny', App\Models\Customer::class) ? route('customers.show', '__customer__') : null,
+        'draftKey' => $sale ? null : 'jagdamba.bill.draft',
         'gst' => (float) $gstPercent,
         'makingGst' => (float) $makingGstPercent,
         'hallmarkOutside' => ! $sale || $sale->hallmark_amount !== null,
@@ -531,6 +535,49 @@
         let rateEdited = false;
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
         let payState = { total: 0, advance: 0, oldDue: 0, creditUsed: 0 };
+        const draftKey = bill.draftKey || null;
+        function saveBillDraft() {
+            if (!draftKey) return;
+            try {
+                const payload = {
+                    customer_uuid: document.getElementById('customer-uuid')?.value || '',
+                    stock: stockLines.map((row) => row.uuid).filter(Boolean),
+                    fresh: freshLines,
+                    retail: retailLines,
+                    weigh: weighState(),
+                    saved_at: Date.now(),
+                };
+                sessionStorage.setItem(draftKey, JSON.stringify(payload));
+            } catch (error) {
+                // Ignore quota / private mode.
+            }
+        }
+        function clearBillDraft() {
+            if (!draftKey) return;
+            try { sessionStorage.removeItem(draftKey); } catch (error) {}
+        }
+        function restoreBillDraft() {
+            if (!draftKey || bill.editing || bill.orderUuid) return false;
+            let payload;
+            try {
+                payload = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+            } catch (error) {
+                return false;
+            }
+            if (!payload || (!payload.fresh?.length && !payload.stock?.length && !payload.retail?.length)) return false;
+            (payload.stock || []).forEach((uuid) => {
+                const row = bill.pieces.find((piece) => piece.uuid === uuid);
+                if (row && !stockLines.some((line) => line.uuid === uuid)) stockLines.push(row);
+            });
+            (payload.fresh || []).forEach((row) => freshLines.push(row));
+            (payload.retail || []).forEach((row) => retailLines.push(row));
+            if (payload.customer_uuid) {
+                const row = bill.customers.find((customerRow) => customerRow.uuid === payload.customer_uuid);
+                if (row) picker.choose(row);
+            }
+            if (payload.weigh) applyWeigh(payload.weigh, true);
+            return true;
+        }
         const picker = customerPicker({
             customers: bill.customers,
             createUrl: bill.customerUrl,
@@ -538,8 +585,10 @@
             csrf: bill.csrf,
             addLabel: 'Add to bill',
             chipLabel: 'Bill to',
+            onLeave: saveBillDraft,
             onChange: (row) => {
                 customer = row;
+                saveBillDraft();
                 if (!bill.fixedPrevious) {
                     const oldDueBox = document.getElementById('include-previous');
                     if (oldDueBox) oldDueBox.checked = !!(row && Number(row.due_amount) > 0);
@@ -776,13 +825,30 @@
             return { line, gross, net, metal: metalAmount, making: round2(makingAmount), wastage: round2(wastageAmount), stone: round2(stone), parts, stones };
         }
 
+        function categoryOption() {
+            const field = document.getElementById('weigh-category');
+            if (!field || !field.value) return null;
+            const selected = field.options[field.selectedIndex];
+
+            return {
+                uuid: field.value,
+                name: selected?.dataset.name || selected?.textContent?.trim() || '',
+            };
+        }
+
+        function categoryNames() {
+            return Array.from(document.querySelectorAll('#weigh-category option'))
+                .map((row) => row.dataset.name || row.textContent.trim())
+                .filter((name) => name && name !== 'Choose category');
+        }
+
         function weighState() {
             const field = (id) => document.getElementById(id).value;
-            const product = document.querySelector('#weigh-products button.active');
+            const product = categoryOption();
             return {
                 name: field('weigh-name'),
                 huid: field('weigh-huid'),
-                product: product ? product.dataset.uuid : '',
+                product: product ? product.uuid : '',
                 metal: field('weigh-metal'),
                 purity: field('weigh-purity'),
                 location: field('weigh-location'),
@@ -804,7 +870,7 @@
             const set = (id, value) => { document.getElementById(id).value = value; };
             set('weigh-name', state.name);
             set('weigh-huid', state.huid || '');
-            document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.toggle('active', !!state.product && row.dataset.uuid === state.product));
+            document.getElementById('weigh-category').value = state.product || '';
             set('weigh-metal', state.metal);
             set('weigh-purity', state.purity);
             set('weigh-location', state.location);
@@ -1594,14 +1660,12 @@
                 previewWeigh();
             });
         });
-        document.getElementById('weigh-products').addEventListener('click', (event) => {
-            const button = event.target.closest('button');
-            if (!button) return;
+        document.getElementById('weigh-category').addEventListener('change', () => {
+            const selected = categoryOption();
             const nameField = document.getElementById('weigh-name');
-            const categoryNames = Array.from(document.querySelectorAll('#weigh-products button')).map((row) => row.dataset.name);
-            document.querySelectorAll('#weigh-products button').forEach((row) => row.classList.remove('active'));
-            button.classList.add('active');
-            if (nameField.value.trim() === '' || categoryNames.includes(nameField.value.trim())) nameField.value = button.dataset.name;
+            if (selected && (nameField.value.trim() === '' || categoryNames().includes(nameField.value.trim()))) {
+                nameField.value = selected.name;
+            }
             document.getElementById('weigh-gross').focus();
             previewWeigh();
         });
@@ -1679,8 +1743,9 @@
             const name = document.getElementById('weigh-name').value.trim();
             const stones = collectStones();
             const keptStones = stones.length ? stones : (editingIndex !== null ? (freshLines[editingIndex].stones || []) : []);
-            const category = document.querySelector('#weigh-products button.active');
-            const needsCategory = document.querySelectorAll('#weigh-products button').length > 0 && !category;
+            const category = categoryOption();
+            const hasCategories = document.querySelectorAll('#weigh-category option[value]:not([value=""])').length > 0;
+            const needsCategory = hasCategories && !category;
             if (needsCategory || name === '' || quote === null) {
                 error.textContent = needsCategory ? 'Choose a category.' : (name === '' ? 'Type the piece name.' : document.getElementById('weigh-price').textContent);
                 error.classList.remove('d-none');
@@ -1694,7 +1759,7 @@
             const stoneValueTotal = keptStones.reduce((sum, stone) => sum + Number(stone.value || 0), 0);
             const entry = {
                 name,
-                category: category ? category.dataset.name : '',
+                category: category ? category.name : '',
                 form: weighState(),
                 metal: metal.text + ' ' + purity.text,
                 line: quote.line,
@@ -1707,7 +1772,7 @@
                 stones: keptStones,
                 fields: {
                     name,
-                    category_uuid: category ? category.dataset.uuid : '',
+                    category_uuid: category ? category.uuid : '',
                     huid: document.getElementById('weigh-huid').value.trim().toUpperCase(),
                     metal_uuid: metal.value,
                     purity_uuid: purity.value,
@@ -1729,6 +1794,7 @@
             } else {
                 freshLines.push(entry);
             }
+            saveBillDraft();
             resetWeigh();
             renderBill();
         });
@@ -1744,7 +1810,9 @@
                 event.preventDefault();
                 focusScan();
             }
+            if (!event.defaultPrevented) clearBillDraft();
         });
+        window.addEventListener('pagehide', saveBillDraft);
         document.getElementById('bill-preview').addEventListener('click', async () => {
             if (!picker.ensure()) return;
             if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
@@ -1811,6 +1879,8 @@
             bill.editing.fresh.forEach((row) => freshLines.push(row));
             (bill.editing.retail || []).forEach((row) => retailLines.push(row));
             if (bill.fixedPrevious) document.getElementById('include-previous').checked = false;
+        } else {
+            restoreBillDraft();
         }
         const initBillTooltips = (root = document) => {
             root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((node) => bootstrap.Tooltip.getOrCreateInstance(node));
@@ -1820,6 +1890,7 @@
         });
         renderBill();
         previewWeigh();
+        saveBillDraft();
         initBillTooltips();
         if (!billWorkspace && scanInput && (document.activeElement === document.body || document.activeElement === null)) {
             scanInput.focus();

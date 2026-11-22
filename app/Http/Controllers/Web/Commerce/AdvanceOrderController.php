@@ -105,7 +105,13 @@ class AdvanceOrderController extends Controller
 
     public function update(AdvanceOrderUpdateRequest $request, AdvanceOrder $order, AdvanceOrderService $orders): RedirectResponse
     {
-        $order = $orders->revise($order, $request->validated());
+        $data = $request->validated();
+        $order = $orders->revise($order, $data);
+        $orders->setAdvanceHeld($order, [
+            'advance_held' => $data['advance_held'],
+            'method' => $data['method'],
+            'reference' => $data['reference'] ?? null,
+        ], $request->user()?->id);
 
         return redirect()->route('orders.show', $order)->with('status', 'Order '.$order->number.' updated.');
     }

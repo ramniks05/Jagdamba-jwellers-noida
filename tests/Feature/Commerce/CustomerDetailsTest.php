@@ -66,8 +66,20 @@ class CustomerDetailsTest extends TestCase
             ->assertJsonPath('bills_count', 1)
             ->assertJsonPath('balance_sign', 1)
             ->assertJsonPath('recent.0.number', $sale->number)
-            ->assertJsonPath('url', route('customers.show', $record));
+            ->assertJsonPath('url', route('customers.show', $record))
+            ->assertJsonPath('address_url', route('customers.address', $record));
 
+        $this->actingAs($owner)->putJson(route('customers.address', $record), [
+            'address_line1' => '12 Market Road',
+            'address_line2' => 'Near temple',
+            'city' => 'Mumbai',
+            'state' => 'Maharashtra',
+            'postal_code' => '400001',
+        ])->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('address_fields.city', 'Mumbai');
+
+        $this->assertSame('12 Market Road', $record->refresh()->address_line1);
         $this->actingAs($owner)->get(route('sales.create'))->assertOk()->assertSee('customer-details-modal', false);
     }
 }

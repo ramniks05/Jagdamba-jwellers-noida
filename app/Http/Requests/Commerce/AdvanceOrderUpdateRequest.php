@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Commerce;
 
+use App\Enums\PaymentMethod;
 use App\Models\AdvanceOrder;
 use App\Support\Limits;
 use Illuminate\Foundation\Http\FormRequest;
@@ -90,6 +91,9 @@ class AdvanceOrderUpdateRequest extends FormRequest
             'booked_at' => ['required', 'date'],
             'due_on' => ['nullable', 'date', 'after_or_equal:'.$bookedDay],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'advance_held' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'method' => ['required', Rule::enum(PaymentMethod::class)],
+            'reference' => ['nullable', 'string', 'max:80'],
         ];
     }
 

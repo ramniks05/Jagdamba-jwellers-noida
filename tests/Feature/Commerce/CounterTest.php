@@ -374,6 +374,8 @@ class CounterTest extends TestCase
         $this->seeShop($owner);
         $item = Item::query()->where('item_code', 'BD001')->firstOrFail();
         $back = now(config('app.timezone'))->subDays(3)->setTime(11, 30, 0);
+        // Older bill dates keep the day but store noon (same as the bill form).
+        $stored = $back->copy()->setTime(12, 0, 0);
 
         $this->actingAs($owner)->post(route('sales.store'), [
             'customer_uuid' => $buyer->uuid,
@@ -385,12 +387,12 @@ class CounterTest extends TestCase
 
         $this->seeShop($owner);
         $sale = Sale::query()->latest('id')->firstOrFail();
-        $this->assertTrue($sale->sold_at->equalTo($back));
+        $this->assertTrue($sale->sold_at->equalTo($stored));
 
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
-            ->assertSee($back->format('d-m-Y'))
-            ->assertSee($back->format('h:i A'));
+            ->assertSee($stored->format('d-m-Y'))
+            ->assertSee($stored->format('h:i A'));
     }
 
     public function test_the_bill_preview_shows_the_invoice_and_saves_nothing(): void
@@ -474,8 +476,8 @@ class CounterTest extends TestCase
             ->assertDontSee('id="weigh-own" checked', false)
             ->assertSee('id="weigh-huid"', false)
             ->assertDontSee('for="weigh-hsn"', false)
-            ->assertSee('bill-products', false)
-            ->assertSee('>Ring<', false)
+            ->assertSee('id="weigh-category"', false)
+            ->assertSee('>Ring</option>', false)
             ->assertSee('Type the hallmark ID if this piece is not in stock');
 
         $this->actingAs($owner)->post(route('sales.store'), [

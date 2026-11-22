@@ -143,6 +143,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');
     Route::post('customer-intakes/{intake}/reject', [CustomerIntakeController::class, 'reject'])->name('customer-intakes.reject');
     Route::resource('customers', ShopCustomerController::class);
+    Route::put('customers/{customer}/address', [ShopCustomerController::class, 'updateAddress'])->name('customers.address');
     Route::post('customers/{customer}/payments', [ShopCustomerController::class, 'payment'])->name('customers.payments.store');
     Route::resource('suppliers', SupplierController::class);
     Route::post('suppliers/{supplier}/payments', [SupplierController::class, 'payment'])->name('suppliers.payments.store');

@@ -245,7 +245,11 @@ class AdvanceOrderTest extends TestCase
         $customer = $this->customer($owner);
         $order = $this->book($owner, $customer, $gold, $purity, '10000');
 
-        $this->actingAs($owner)->get(route('orders.edit', $order))->assertOk()->assertSee('Edit order');
+        $this->actingAs($owner)->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('Edit order')
+            ->assertSee('name="advance_held"', false)
+            ->assertSee('Advance received', false);
 
         $this->actingAs($owner)->put(route('orders.update', $order), [
             'description' => 'Updated necklace',
@@ -261,6 +265,9 @@ class AdvanceOrderTest extends TestCase
             'booked_at' => '2026-09-15 18:00:00',
             'due_on' => now()->addDays(20)->toDateString(),
             'notes' => 'Rush',
+            'advance_held' => '12500',
+            'method' => 'upi',
+            'reference' => 'ADVFIX1',
         ])->assertRedirect(route('orders.show', $order));
 
         $order->refresh();
@@ -272,7 +279,8 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame('Rush', $order->notes);
         $this->assertSame('2026-09-15', $order->booked_at->timezone(config('app.timezone'))->format('Y-m-d'));
         $this->assertSame('12:00', $order->booked_at->timezone(config('app.timezone'))->format('H:i'));
-        $this->assertSame('10000.00', (string) $order->advance_paid);
+        $this->assertSame('12500.00', (string) $order->advance_paid);
+        $this->assertSame('12500.00', $order->advanceHeld());
 
         $this->actingAs($owner)->get(route('orders.show', $order))->assertOk()->assertSee('Updated necklace');
 
@@ -293,6 +301,8 @@ class AdvanceOrderTest extends TestCase
                 'estimated_making' => '0',
             ]],
             'estimated_making' => '0',
+            'advance_held' => '10000',
+            'method' => 'cash',
         ])->assertSessionHasErrors('description');
     }
 
