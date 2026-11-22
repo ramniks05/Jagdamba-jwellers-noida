@@ -33,7 +33,7 @@
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, order date, or delivery date. Advance is changed from the order page.</p>
+            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, order date, or delivery date. Edit the advance amount on the order page.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">

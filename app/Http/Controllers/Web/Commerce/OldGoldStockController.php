@@ -34,7 +34,11 @@ class OldGoldStockController extends Controller
     public function store(OldGoldSendRequest $request, OldGoldStockService $stock, CompanyContext $context): RedirectResponse
     {
         $movement = $stock->send($context->company(), $request->validated(), $request->user()?->id);
+        $status = 'Sent out '.$movement->gross_weight.' g of '.$movement->metalType?->name.' '.$movement->purity?->name.'.';
+        if ($movement->amount_received !== null && (float) $movement->amount_received > 0) {
+            $status .= ' Cash received is on today’s overview.';
+        }
 
-        return redirect()->route('old-gold.stock')->with('status', 'Sent out '.$movement->gross_weight.' g of '.$movement->metalType?->name.' '.$movement->purity?->name.'.');
+        return redirect()->route('old-gold.stock')->with('status', $status);
     }
 }

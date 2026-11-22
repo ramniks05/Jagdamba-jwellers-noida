@@ -54,6 +54,22 @@
                 </a>
             </div>
         @endif
+        @if ($netSell !== null)
+            <div class="col-6 col-lg-3">
+                <div class="home-stat">
+                    <span><i class="bi bi-graph-up-arrow"></i> Net sell today</span>
+                    <strong>{{ $netSell }}</strong>
+                    <em class="cash-lines">
+                        @foreach ($netSellParts as $part)
+                            <span>{{ $part }}</span>
+                        @endforeach
+                        @if ($oldGoldCashIn)
+                            <span>Old gold recovered {{ $oldGoldCashIn }}</span>
+                        @endif
+                    </em>
+                </div>
+            </div>
+        @endif
         @if ($cashOut !== null)
             <div class="col-6 col-lg-3">
                 <div class="home-stat">

@@ -74,15 +74,30 @@ class AdvanceOrderTest extends TestCase
         $order = $this->book($owner, $customer, $gold, $purity, '10000');
 
         $this->actingAs($owner)->post(route('orders.advance', $order), [
-            'amount' => '5000',
+            'advance_held' => '15000',
             'method' => 'upi',
             'reference' => 'UPI123',
         ])->assertRedirect();
         $this->seeShop($owner);
         $this->assertSame('15000.00', (string) $order->refresh()->advance_paid);
+        $this->assertSame('15000.00', $order->advanceHeld());
+
+        $this->actingAs($owner)->post(route('orders.advance', $order), [
+            'advance_held' => '12000',
+            'method' => 'cash',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+        $order->refresh();
+        $this->assertSame('12000.00', $order->advanceHeld());
+        $this->assertSame('3000.00', (string) $order->advance_refunded);
+
+        $this->actingAs($owner)->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Edit advance amount', false)
+            ->assertSee('name="advance_held"', false);
 
         $this->actingAs($owner)->post(route('orders.cancel', $order), [
-            'refund' => '15001',
+            'refund' => '12001',
             'method' => 'cash',
         ])->assertSessionHasErrors('refund');
 
@@ -93,13 +108,13 @@ class AdvanceOrderTest extends TestCase
         $this->seeShop($owner);
         $order->refresh();
         $this->assertSame('cancelled', $order->status);
-        $this->assertSame('9000.00', (string) $order->advance_refunded);
-        $this->assertSame('-6000.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
+        $this->assertSame('12000.00', (string) $order->advance_refunded);
+        $this->assertSame('-3000.00', app(LedgerService::class)->balance(PartyType::Customer, (int) $customer->id));
 
         $this->actingAs($owner)->post(route('orders.advance', $order), [
-            'amount' => '100',
+            'advance_held' => '100',
             'method' => 'cash',
-        ])->assertSessionHasErrors('amount');
+        ])->assertSessionHasErrors('advance_held');
     }
 
     public function test_new_bill_lists_open_orders_for_the_customer(): void

@@ -93,8 +93,8 @@
                         <div class="card-body">
                             <div class="due-pay-head">
                                 <div>
-                                    <div class="stat-label">Take more advance</div>
-                                    <div class="text-secondary small">Saved on the order and taken off the final bill.</div>
+                                    <div class="stat-label">Edit advance amount</div>
+                                    <div class="text-secondary small">Change the total advance held. If you raise it, take the extra cash. If you lower it, the difference is refunded. The held amount comes off the final bill.</div>
                                 </div>
                             </div>
                             <div class="due-pay-row">
@@ -107,9 +107,9 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="form-label" for="amount">Amount ₹</label>
-                                    <input class="form-control @error('amount') is-invalid @enderror" id="amount" name="amount" value="{{ old('amount') }}" inputmode="decimal" placeholder="Amount" required>
-                                    @error('amount')
+                                    <label class="form-label" for="advance_held">Advance held ₹</label>
+                                    <input class="form-control @error('advance_held') is-invalid @enderror" id="advance_held" name="advance_held" value="{{ old('advance_held', $held) }}" inputmode="decimal" placeholder="0" required>
+                                    @error('advance_held')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
                                 </div>

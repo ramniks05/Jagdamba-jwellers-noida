@@ -12,8 +12,10 @@ use App\Models\GirviPledge;
 use App\Models\GoldScheme;
 use App\Models\Item;
 use App\Models\MetalType;
+use App\Models\MetalStockMovement;
 use App\Models\OldGoldExchange;
 use App\Models\OldGoldMovement;
+use App\Models\Payment;
 use App\Models\Purity;
 use App\Models\RepairOrder;
 use App\Models\Sale;
@@ -291,18 +293,36 @@ class WorkshopTest extends TestCase
             'fine_weight' => '13',
         ])->assertSessionHasErrors('gross_weight');
 
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $customer->uuid,
+            'item_ids' => [$item->uuid],
+            'use_credit' => '60000',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+        $this->assertSame(0, MetalStockMovement::query()->where('kind', 'sale')->count());
+
         $this->actingAs($owner)->post(route('old-gold.stock.send'), [
             'purity_uuid' => $purity->uuid,
-            'kind' => 'refiner',
-            'party' => 'Shree Refinery',
+            'kind' => 'dealer',
+            'party' => 'Shree Bullion',
             'gross_weight' => '12',
             'fine_weight' => '12',
+            'amount_received' => '70000',
         ])->assertRedirect(route('old-gold.stock'))->assertSessionHasNoErrors();
 
         $this->seeShop($owner);
         $this->assertTrue($stock->balances()->isEmpty());
-        $this->assertSame('72000.00', (string) OldGoldMovement::query()->where('kind', 'refiner')->value('value'));
-        $this->actingAs($owner)->get(route('old-gold.stock'))->assertOk()->assertSee('Shree Refinery')->assertSee('OLD-1');
+        $movement = OldGoldMovement::query()->where('kind', 'dealer')->firstOrFail();
+        $this->assertSame('72000.00', (string) $movement->value);
+        $this->assertSame('70000.00', (string) $movement->amount_received);
+        $cashIn = Payment::query()->where('old_gold_movement_id', $movement->id)->where('direction', 'in')->firstOrFail();
+        $this->assertSame('70000.00', (string) $cashIn->amount);
+        $this->actingAs($owner)->get(route('old-gold.stock'))->assertOk()->assertSee('Shree Bullion')->assertSee('OLD-1');
+        $this->actingAs($owner)->get(route('overview'))
+            ->assertOk()
+            ->assertSee('Net sell today', false)
+            ->assertSee('Old gold recovered', false)
+            ->assertSee('70,000', false);
     }
 
     public function test_a_repair_is_charged_when_it_is_delivered(): void

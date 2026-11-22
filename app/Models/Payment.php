@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'company_id', 'branch_id', 'sale_id', 'customer_id', 'supplier_id', 'purchase_id',
-    'sale_return_id', 'old_gold_exchange_id', 'repair_order_id', 'girvi_pledge_id', 'advance_order_id', 'number',
+    'sale_return_id', 'old_gold_exchange_id', 'old_gold_movement_id', 'repair_order_id', 'girvi_pledge_id', 'advance_order_id', 'number',
     'direction', 'method', 'amount', 'reference', 'narration', 'received_at', 'user_id',
 ])]
 class Payment extends Model
@@ -30,6 +30,11 @@ class Payment extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function oldGoldMovement(): BelongsTo
+    {
+        return $this->belongsTo(OldGoldMovement::class);
     }
 
     public function customer(): BelongsTo

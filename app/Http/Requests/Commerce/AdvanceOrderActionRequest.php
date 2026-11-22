@@ -38,6 +38,14 @@ class AdvanceOrderActionRequest extends FormRequest
         }
 
         if ($this->routeIs('orders.advance')) {
+            if ($this->filled('advance_held') || ! $this->filled('amount')) {
+                return [
+                    'advance_held' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+                    'method' => ['required', Rule::enum(PaymentMethod::class)],
+                    'reference' => ['nullable', 'string', 'max:80'],
+                ];
+            }
+
             return [
                 'amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
                 'method' => ['required', Rule::enum(PaymentMethod::class)],

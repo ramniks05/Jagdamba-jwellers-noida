@@ -117,6 +117,46 @@ class AdvanceOrderService
     }
 
     /**
+     * Set the total advance held on an open order (take more cash or refund the difference).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function setAdvanceHeld(AdvanceOrder $order, array $attributes, ?int $userId = null): AdvanceOrder
+    {
+        return DB::transaction(function () use ($order, $attributes, $userId) {
+            $this->context->ensureId((int) $order->company_id);
+            $order = AdvanceOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $this->mustBeOpen($order, 'advance_held');
+
+            $target = BigDecimal::of((string) $attributes['advance_held'])->toScale(2, RoundingMode::HalfUp);
+
+            if ($target->isNegative()) {
+                throw ValidationException::withMessages([
+                    'advance_held' => 'Advance held cannot be less than zero.',
+                ]);
+            }
+
+            $current = BigDecimal::of($order->advanceHeld());
+            $diff = $target->minus($current);
+
+            if ($diff->isZero()) {
+                return $order;
+            }
+
+            $method = (string) $attributes['method'];
+            $reference = $attributes['reference'] ?? null;
+
+            if ($diff->isPositive()) {
+                $this->receive($order, (string) $diff, $method, $reference, $userId);
+            } else {
+                $this->refundAdvance($order, (string) $diff->negated(), $method, $reference, $userId);
+            }
+
+            return $order->refresh();
+        });
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public function revise(AdvanceOrder $order, array $attributes): AdvanceOrder
@@ -199,34 +239,15 @@ class AdvanceOrderService
             }
 
             if ($refund->isPositive()) {
-                $voucher = $this->numbers->issue($this->numbers->for(DocumentType::Payment, $order->branch));
-                $payment = Payment::query()->create([
-                    'company_id' => $order->company_id,
-                    'branch_id' => $order->branch_id,
-                    'advance_order_id' => $order->id,
-                    'customer_id' => $order->customer_id,
-                    'number' => $voucher->number,
-                    'direction' => 'out',
-                    'method' => PaymentMethod::from((string) ($attributes['method'] ?? 'cash')),
-                    'amount' => (string) $refund,
-                    'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
-                    'narration' => 'Advance refund '.$order->number,
-                    'received_at' => now(),
-                    'user_id' => $userId,
-                ]);
-                $this->ledger->post(
-                    (int) $order->company_id,
-                    PartyType::Customer,
-                    (int) $order->customer_id,
-                    LedgerDirection::Debit,
+                $this->refundAdvance(
+                    $order,
                     (string) $refund,
-                    'Advance refund '.$payment->number,
-                    $payment,
+                    (string) ($attributes['method'] ?? 'cash'),
+                    $attributes['reference'] ?? null,
                     $userId,
                 );
             }
 
-            $order->advance_refunded = (string) BigDecimal::of((string) $order->advance_refunded)->plus($refund)->toScale(2, RoundingMode::HalfUp);
             $order->status = 'cancelled';
             $order->cancelled_at = now();
             $order->save();
@@ -295,6 +316,59 @@ class AdvanceOrderService
             $userId,
         );
         $order->advance_paid = (string) BigDecimal::of((string) $order->advance_paid)->plus($amount)->toScale(2, RoundingMode::HalfUp);
+        $order->save();
+    }
+
+    private function refundAdvance(AdvanceOrder $order, string $amount, string $method, ?string $reference, ?int $userId): void
+    {
+        $refund = BigDecimal::of($amount)->toScale(2, RoundingMode::HalfUp);
+
+        if ($refund->isNegativeOrZero()) {
+            return;
+        }
+
+        if ($refund->isGreaterThan($order->advanceHeld())) {
+            throw ValidationException::withMessages([
+                'advance_held' => 'The refund cannot be more than the advance, '.$order->advanceHeld().'.',
+            ]);
+        }
+
+        $credit = BigDecimal::of($this->ledger->balance(PartyType::Customer, (int) $order->customer_id))->negated();
+        $credit = $credit->isNegative() ? BigDecimal::zero() : $credit;
+
+        if ($refund->isGreaterThan($credit)) {
+            throw ValidationException::withMessages([
+                'advance_held' => 'The customer owes money on other bills. Refund at most '.$credit->toScale(2).'.',
+            ]);
+        }
+
+        $voucher = $this->numbers->issue($this->numbers->for(DocumentType::Payment, $order->branch));
+        $payment = Payment::query()->create([
+            'company_id' => $order->company_id,
+            'branch_id' => $order->branch_id,
+            'advance_order_id' => $order->id,
+            'customer_id' => $order->customer_id,
+            'number' => $voucher->number,
+            'direction' => 'out',
+            'method' => PaymentMethod::from($method),
+            'amount' => (string) $refund,
+            'reference' => trim((string) $reference) ?: null,
+            'narration' => 'Advance refund '.$order->number,
+            'received_at' => now(),
+            'user_id' => $userId,
+        ]);
+        $this->ledger->post(
+            (int) $order->company_id,
+            PartyType::Customer,
+            (int) $order->customer_id,
+            LedgerDirection::Debit,
+            (string) $refund,
+            'Advance refund '.$payment->number,
+            $payment,
+            $userId,
+        );
+
+        $order->advance_refunded = (string) BigDecimal::of((string) $order->advance_refunded)->plus($refund)->toScale(2, RoundingMode::HalfUp);
         $order->save();
     }
 

@@ -14,7 +14,7 @@
     <div class="card mb-3">
         <div class="card-body">
             <h2 class="h6 mb-1">In hand</h2>
-            <p class="small text-secondary">Old gold bought from customers that is still with you. It comes in with every exchange and goes out when you send it to a refiner, karigar or dealer, or make it into a stock piece.</p>
+            <p class="small text-secondary">Old gold bought from customers that is still with you. It comes in with every exchange and goes out when you send it to a refiner, karigar or dealer, or make it into a stock piece. Pieces made from old gold stay on the pieces list; they do not change the metal grams stock report. Money received from a dealer or refiner is saved as cash in on Overview.</p>
             @if ($balances->isEmpty())
                 <p class="mb-0">No old gold in hand.</p>
             @else

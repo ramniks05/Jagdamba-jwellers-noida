@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Enums\DocumentType;
 use App\Enums\InventoryMovement;
+use App\Enums\ItemSource;
 use App\Enums\ItemStatus;
 use App\Enums\LedgerDirection;
 use App\Enums\PartyType;
@@ -467,7 +468,8 @@ class SaleService
                     'stone_amount' => $line['priced']['stone_amount'],
                     'line_amount' => $line['priced']['line_amount'],
                 ]);
-                if (! $piece->own_gold) {
+                // Own gold and remade old-gold pieces never entered gram stock — only the old-gold pool.
+                if (! $piece->own_gold && $piece->source !== ItemSource::OldGold) {
                     $this->metalStock->sell(
                         (int) $sale->branch_id,
                         (int) $piece->metal_type_id,

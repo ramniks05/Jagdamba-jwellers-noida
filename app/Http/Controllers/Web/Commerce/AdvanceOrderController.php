@@ -152,9 +152,23 @@ class AdvanceOrderController extends Controller
 
     public function advance(AdvanceOrderActionRequest $request, AdvanceOrder $order, AdvanceOrderService $orders): RedirectResponse
     {
-        $orders->addAdvance($order, $request->validated(), $request->user()?->id);
+        $data = $request->validated();
 
-        return redirect()->route('orders.show', $order)->with('status', 'Advance saved.');
+        if (array_key_exists('advance_held', $data)) {
+            $before = (float) $order->advanceHeld();
+            $orders->setAdvanceHeld($order, $data, $request->user()?->id);
+            $after = (float) $order->refresh()->advanceHeld();
+            $status = $after > $before
+                ? 'Advance updated. Extra cash saved on the order.'
+                : ($after < $before
+                    ? 'Advance updated. Difference refunded to the customer.'
+                    : 'Advance held is unchanged.');
+        } else {
+            $orders->addAdvance($order, $data, $request->user()?->id);
+            $status = 'Advance saved.';
+        }
+
+        return redirect()->route('orders.show', $order)->with('status', $status);
     }
 
     public function ready(AdvanceOrderActionRequest $request, AdvanceOrder $order, AdvanceOrderService $orders): RedirectResponse

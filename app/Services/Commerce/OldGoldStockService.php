@@ -2,13 +2,17 @@
 
 namespace App\Services\Commerce;
 
+use App\Enums\DocumentType;
+use App\Enums\PaymentMethod;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Item;
 use App\Models\MetalType;
 use App\Models\OldGoldExchange;
 use App\Models\OldGoldMovement;
+use App\Models\Payment;
 use App\Models\Purity;
+use App\Services\Foundation\DocumentNumberService;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -18,7 +22,10 @@ use Illuminate\Validation\ValidationException;
 
 class OldGoldStockService
 {
-    public function __construct(private readonly CompanyContext $context) {}
+    public function __construct(
+        private readonly CompanyContext $context,
+        private readonly DocumentNumberService $numbers,
+    ) {}
 
     public function receive(OldGoldExchange $exchange, ?int $userId = null): OldGoldMovement
     {
@@ -101,9 +108,16 @@ class OldGoldStockService
                 $notes = trim('Tested fine '.$fine.' g. '.$notes);
             }
 
-            return OldGoldMovement::query()->create([
+            $branchId = Branch::query()->where('is_head_office', true)->value('id')
+                ?? Branch::query()->orderBy('id')->value('id');
+            $amountReceived = $received === ''
+                ? null
+                : (string) BigDecimal::of($received)->toScale(2, RoundingMode::HalfUp);
+            $party = trim((string) ($attributes['party'] ?? '')) ?: null;
+
+            $movement = OldGoldMovement::query()->create([
                 'company_id' => $company->id,
-                'branch_id' => Branch::query()->where('is_head_office', true)->value('id'),
+                'branch_id' => $branchId,
                 'metal_type_id' => $metal->id,
                 'purity_id' => $purity->id,
                 'direction' => 'out',
@@ -111,12 +125,31 @@ class OldGoldStockService
                 'gross_weight' => (string) $gross,
                 'fine_weight' => (string) $out['fine'],
                 'value' => $out['value'],
-                'amount_received' => $received === '' ? null : (string) BigDecimal::of($received)->toScale(2, RoundingMode::HalfUp),
-                'party' => trim((string) ($attributes['party'] ?? '')) ?: null,
+                'amount_received' => $amountReceived,
+                'party' => $party,
                 'notes' => $notes ?: null,
                 'moved_at' => now(),
                 'user_id' => $userId,
             ]);
+
+            if ($amountReceived !== null && BigDecimal::of($amountReceived)->isPositive()) {
+                $voucher = $this->numbers->issue($this->numbers->for(DocumentType::Payment, Branch::query()->find($branchId)));
+                Payment::query()->create([
+                    'company_id' => $company->id,
+                    'branch_id' => $branchId,
+                    'old_gold_movement_id' => $movement->id,
+                    'number' => $voucher->number,
+                    'direction' => 'in',
+                    'method' => PaymentMethod::tryFrom((string) ($attributes['method'] ?? '')) ?? PaymentMethod::Cash,
+                    'amount' => $amountReceived,
+                    'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
+                    'narration' => trim('Old gold '.$movement->kindLabel().($party ? ' · '.$party : '')),
+                    'received_at' => now(),
+                    'user_id' => $userId,
+                ]);
+            }
+
+            return $movement;
         });
     }
 

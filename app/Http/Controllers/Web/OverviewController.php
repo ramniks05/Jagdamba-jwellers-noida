@@ -68,6 +68,7 @@ class OverviewController extends Controller
         $canRepairs = auth()->user()->can('viewAny', RepairOrder::class);
         $collect = $canSales ? $this->moneyToCollect($money) : null;
         $cashOut = ($canSales || $canPurchase) ? $this->cashOut($today, $canSales, $canPurchase, $money) : null;
+        $netSell = $canSales ? $this->netSell($today, $money) : null;
         $openGirvi = $canSales
             ? GirviPledge::query()->with('customer')->where('status', 'open')->orderByDesc('pledged_at')->limit(6)->get()
             : collect();
@@ -101,6 +102,9 @@ class OverviewController extends Controller
                 : 0,
             'cashOut' => $cashOut['total'] ?? null,
             'cashOutParts' => $cashOut['parts'] ?? [],
+            'netSell' => $netSell['total'] ?? null,
+            'netSellParts' => $netSell['parts'] ?? [],
+            'oldGoldCashIn' => $netSell['cash_in'] ?? null,
             'collectTotal' => $collect['total'] ?? null,
             'collectCount' => $collect['count'] ?? 0,
             'collectRows' => $collect['rows'] ?? collect(),
@@ -195,6 +199,42 @@ class OverviewController extends Controller
             ->whereNotNull($column)
             ->whereDate('received_at', $today)
             ->sum('amount') ?: 0);
+    }
+
+    /**
+     * Today's bill totals after money already paid out for old gold (cash refund) or taken as bill credit.
+     *
+     * @param  callable(string): string  $money
+     * @return array{total: string, parts: array<int, string>, cash_in: ?string}
+     */
+    private function netSell(string $today, callable $money): array
+    {
+        $sales = (string) (Sale::query()->whereDate('sold_at', $today)->sum('total') ?: 0);
+        $creditUsed = (string) (Sale::query()->whereDate('sold_at', $today)->sum('credit_amount') ?: 0);
+        $oldGoldRefunds = $this->paidOut('old_gold_exchange_id', $today);
+        $oldGoldCashIn = (string) (Payment::query()
+            ->where('direction', 'in')
+            ->whereNotNull('old_gold_movement_id')
+            ->whereDate('received_at', $today)
+            ->sum('amount') ?: 0);
+
+        $net = BigDecimal::of($sales)
+            ->minus($oldGoldRefunds)
+            ->minus($creditUsed);
+
+        $parts = [
+            'Bills '.$money($sales),
+            'Old gold paid '.$money($oldGoldRefunds),
+            'Credit used '.$money($creditUsed),
+        ];
+
+        return [
+            'total' => $money((string) $net),
+            'parts' => $parts,
+            'cash_in' => BigDecimal::of($oldGoldCashIn)->isPositive()
+                ? $money($oldGoldCashIn)
+                : null,
+        ];
     }
 
     /**
