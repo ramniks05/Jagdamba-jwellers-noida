@@ -57,6 +57,16 @@
         </tr>
     </table>
 
+    @php
+        $showMakingOnLines = $sale->making_mode === 'inside';
+        $untaxedHallmark = $sale->untaxedHallmark();
+        $piecesValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($untaxedHallmark)->toScale(2);
+        $hasDiscount = (float) $sale->discount_amount !== 0.0;
+        $jewelleryValue = $showMakingOnLines
+            ? $piecesValue
+            : (string) Brick\Math\BigDecimal::of($piecesValue)->minus($makingLines)->toScale(2);
+    @endphp
+
     <table class="invoice-table">
         <thead>
             <tr>
@@ -67,7 +77,9 @@
                 <th class="num">Gross wt</th>
                 <th class="num">Net wt</th>
                 <th class="num">Rate / g</th>
-                <th class="num">{{ $sale->makingLabel() }}</th>
+                @if ($showMakingOnLines)
+                    <th class="num">{{ $sale->makingLabel() }}</th>
+                @endif
                 <th class="num">Amount</th>
             </tr>
         </thead>
@@ -98,7 +110,9 @@
                     <td class="num">{{ $weight((string) $line->gross_weight) }}</td>
                     <td class="num">{{ $weight((string) $line->net_weight) }}</td>
                     <td class="num">{{ $money((string) $line->rate_per_gram) }}</td>
-                    <td class="num">{{ $money((string) $line->making_amount) }}</td>
+                    @if ($showMakingOnLines)
+                        <td class="num">{{ $money((string) $line->making_amount) }}</td>
+                    @endif
                     <td class="num"><strong>{{ $money((string) $line->line_amount) }}</strong></td>
                 </tr>
             @endforeach
@@ -114,18 +128,14 @@
                     <td class="num">—</td>
                     <td class="num">—</td>
                     <td class="num">—</td>
-                    <td class="num">—</td>
+                    @if ($showMakingOnLines)
+                        <td class="num">—</td>
+                    @endif
                     <td class="num"><strong>{{ $money((string) $line->line_amount) }}</strong></td>
                 </tr>
             @endforeach
         </tbody>
     </table>
-
-    @php
-        $untaxedHallmark = $sale->untaxedHallmark();
-        $piecesValue = (string) Brick\Math\BigDecimal::of((string) $sale->lines_amount)->minus($untaxedHallmark)->toScale(2);
-        $hasDiscount = (float) $sale->discount_amount !== 0.0;
-    @endphp
 
     <div class="invoice-bottom">
         <div class="invoice-words">
@@ -145,7 +155,6 @@
                     <td>{{ $money($piecesValue) }}</td>
                 </tr>
             @else
-                @php($jewelleryValue = (string) Brick\Math\BigDecimal::of($piecesValue)->minus($makingLines)->toScale(2))
                 <tr>
                     <td>Jewellery value</td>
                     <td>{{ $money($jewelleryValue) }}</td>

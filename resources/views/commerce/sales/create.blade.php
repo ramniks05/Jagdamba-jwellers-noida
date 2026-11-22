@@ -1127,10 +1127,15 @@
                     : [line.row.category, line.row.metal, huid ? 'HUID ' + huid : '', (line.row.fields.own === '1' || line.row.fields.own === true) ? 'Own' : '', 'Gross ' + Number(line.row.fields.gross_weight || 0).toFixed(3) + ' g'].filter(Boolean).join(' · ');
                 nameCell.append(head, meta);
                 if (line.kind !== 'retail') {
-                    const split = document.createElement('div');
-                    split.className = 'piece-split bill-line-split';
-                    showSplit(split, lineParts(line).map((part) => ({ label: partLabel(part), value: money.format(part.amount) })));
-                    nameCell.appendChild(split);
+                    const mode = document.getElementById('making-mode').value;
+                    // Processing charge stays in the totals below, not on each piece row.
+                    const parts = lineParts(line).filter((part) => part.kind !== 'making' || mode === 'inside');
+                    if (parts.length) {
+                        const split = document.createElement('div');
+                        split.className = 'piece-split bill-line-split';
+                        showSplit(split, parts.map((part) => ({ label: partLabel(part), value: money.format(part.amount) })));
+                        nameCell.appendChild(split);
+                    }
                 }
                 const action = document.createElement('td');
                 action.className = 'text-end bill-line-cell';

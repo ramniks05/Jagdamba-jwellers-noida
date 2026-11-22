@@ -35,6 +35,8 @@ class MakingChargeTest extends TestCase
         $this->actingAs($owner)->get(route('sales.show', $sale))
             ->assertOk()
             ->assertSee('Processing charge')
+            ->assertSee('Jewellery value')
+            ->assertDontSee('>Processing charge</th>', false)
             ->assertSee('CGST 1.5%')
             ->assertDontSee('on jewellery')
             ->assertSee('10.000 g')
