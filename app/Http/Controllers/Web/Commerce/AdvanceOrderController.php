@@ -6,6 +6,7 @@ use App\Enums\ChargeAppliesTo;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commerce\AdvanceOrderActionRequest;
+use App\Http\Requests\Commerce\AdvanceOrderPaymentRequest;
 use App\Http\Requests\Commerce\AdvanceOrderRequest;
 use App\Http\Requests\Commerce\AdvanceOrderUpdateRequest;
 use App\Models\AdvanceOrder;
@@ -15,6 +16,7 @@ use App\Models\ChargeMethod;
 use App\Models\Customer;
 use App\Models\MetalRate;
 use App\Models\MetalType;
+use App\Models\Payment;
 use App\Services\Commerce\AdvanceOrderService;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
@@ -94,7 +96,7 @@ class AdvanceOrderController extends Controller
             return redirect()->route('orders.show', $order)->with('status', 'This order cannot be edited.');
         }
 
-        $order->load(['customer', 'metalType', 'purity', 'lines.metalType', 'lines.purity']);
+        $order->load(['customer', 'metalType', 'purity', 'lines.metalType', 'lines.purity', 'payments']);
 
         return view('commerce.orders.edit', $this->orderFormData($settings, $context) + [
             'order' => $order,
@@ -105,15 +107,16 @@ class AdvanceOrderController extends Controller
 
     public function update(AdvanceOrderUpdateRequest $request, AdvanceOrder $order, AdvanceOrderService $orders): RedirectResponse
     {
-        $data = $request->validated();
-        $order = $orders->revise($order, $data);
-        $orders->setAdvanceHeld($order, [
-            'advance_held' => $data['advance_held'],
-            'method' => $data['method'],
-            'reference' => $data['reference'] ?? null,
-        ], $request->user()?->id);
+        $order = $orders->revise($order, $request->validated());
 
         return redirect()->route('orders.show', $order)->with('status', 'Order '.$order->number.' updated.');
+    }
+
+    public function updatePayment(AdvanceOrderPaymentRequest $request, AdvanceOrder $order, Payment $payment, AdvanceOrderService $orders): RedirectResponse
+    {
+        $orders->updateAdvancePayment($order, $payment, $request->validated(), $request->user()?->id);
+
+        return redirect()->route('orders.show', $order)->with('status', 'Advance receipt '.$payment->number.' updated.');
     }
 
     public function show(AdvanceOrder $order, AdvanceOrderService $orders, NumberFormatService $format, CompanyContext $context, SettingService $settings): View

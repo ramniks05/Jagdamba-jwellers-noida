@@ -33,7 +33,7 @@
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Change the piece name, metal lines, locked rates, advance received, order date, or delivery date.</p>
+            <p class="text-secondary small mb-0">Change the category, piece name, metal lines, locked rates, order date, or delivery date. Edit each advance receipt on the order page.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">
@@ -55,10 +55,14 @@
                     <div class="card-header bg-white">What to make</div>
                     <div class="card-body">
                         <div class="weigh-section-title">Piece</div>
-                        <div class="bill-products" id="order-products">
-                            @foreach ($categories as $category)
-                                <button type="button" data-name="{{ $category->name }}" @class(['active' => old('description', $order->description) === $category->name])>{{ $category->name }}</button>
-                            @endforeach
+                        <div class="mt-2">
+                            <label class="form-label" for="order-category">Category</label>
+                            <select class="form-select" id="order-category">
+                                <option value="">Choose category</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->name }}" @selected(old('description', $order->description) === $category->name)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mt-2">
                             <label class="form-label" for="description">Name</label>
@@ -137,28 +141,24 @@
                                 <div class="bill-row d-none" id="sum-round-row"><span>Round off</span><span id="sum-round">0.00</span></div>
                             </div>
                             <div class="bill-grand"><span>Estimated bill</span><strong id="sum-total">0.00</strong></div>
-                            <div class="bill-row"><span>Advance held</span><span id="sum-advance">− 0.00</span></div>
+                            <div class="bill-row"><span>Advance held</span><span id="sum-advance">− {{ $money($order->advanceHeld()) }}</span></div>
                             <div class="bill-grand"><span>Balance at delivery (about)</span><strong id="sum-balance">0.00</strong></div>
                         </div>
-                        <div class="mt-3">
-                            <label class="form-label" for="advance_held">Advance received ₹</label>
-                            <input class="form-control @error('advance_held') is-invalid @enderror" id="advance_held" name="advance_held" value="{{ old('advance_held', $order->advanceHeld()) }}" inputmode="decimal" required>
-                            @error('advance_held')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                            <div class="form-text">Change this if the advance taken was wrong. Extra cash is taken or refunded when you save.</div>
-                        </div>
-                        <div class="mt-2">
-                            <label class="form-label" for="advance_method">Paid by (if advance changes)</label>
-                            <select class="form-select @error('method') is-invalid @enderror" id="advance_method" name="method">
-                                @foreach (\App\Enums\PaymentMethod::cases() as $method)
-                                    <option value="{{ $method->value }}" @selected(old('method', 'cash') === $method->value)>{{ $method->label() }}</option>
+                        @php($advanceIns = $order->payments->where('direction', 'in')->sortBy('received_at')->values())
+                        @if ($advanceIns->isNotEmpty())
+                            <div class="mt-3">
+                                <div class="weigh-section-title">Advance receipts</div>
+                                @foreach ($advanceIns as $payment)
+                                    <div class="small text-secondary">
+                                        {{ $payment->received_at?->timezone(config('app.timezone'))->format('d-m-Y') }}
+                                        · {{ $money((string) $payment->amount) }}
+                                        · {{ $payment->method->label() }}
+                                        @if ($payment->reference) · {{ $payment->reference }}@endif
+                                    </div>
                                 @endforeach
-                            </select>
-                            @error('method')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                                <div class="form-text"><a href="{{ route('orders.show', $order) }}">Open the order</a> to edit date, amount, or reference on each receipt.</div>
+                            </div>
+                        @endif
                         <p class="text-secondary small mb-0 mt-2">Reprint the booking slip after you save if the customer needs an updated copy.</p>
                     </div>
                 </div>
@@ -259,7 +259,7 @@
             const exact = round2(subtotal + (order.taxExclusive ? tax + makingTax : 0));
             const total = order.roundRupee ? Math.round(exact) : exact;
             const roundOff = round2(total - exact);
-            const advance = Number($('advance_held')?.value || order.advanceHeld || 0);
+            const advance = Number(order.advanceHeld || 0);
 
             $('sum-weight').textContent = weight.toFixed(3) + ' g';
             $('sum-rate').textContent = totals.rateLabels.length === 1 ? totals.rateLabels[0].split(' @ ')[1] : totals.rateLabels.length + ' locked rates';
@@ -286,12 +286,15 @@
 
         const metalLines = initOrderMetalLines(order, { onTotals: renderOrderSummary });
 
-        $('order-products').addEventListener('click', (event) => {
-            const button = event.target.closest('button');
-            if (!button) return;
-            document.querySelectorAll('#order-products button').forEach((row) => row.classList.remove('active'));
-            button.classList.add('active');
-            $('description').value = button.dataset.name;
+        const categoryNames = () => Array.from(document.querySelectorAll('#order-category option'))
+            .map((option) => option.value.trim())
+            .filter((name) => name !== '');
+        $('order-category')?.addEventListener('change', () => {
+            const selected = $('order-category').value.trim();
+            const nameField = $('description');
+            if (selected && (nameField.value.trim() === '' || categoryNames().includes(nameField.value.trim()))) {
+                nameField.value = selected;
+            }
             document.querySelector('#order-lines .order-line-weight')?.focus();
         });
         $('making-method').addEventListener('change', () => {
@@ -303,7 +306,6 @@
             makingEdited = true;
             metalLines.render();
         });
-        $('advance_held')?.addEventListener('input', () => metalLines.render());
         $('order-form').addEventListener('input', (event) => {
             if (!event.target.closest('#order-lines')) {
                 metalLines.render();

@@ -93,8 +93,9 @@ class AdvanceOrderTest extends TestCase
 
         $this->actingAs($owner)->get(route('orders.show', $order))
             ->assertOk()
-            ->assertSee('Edit advance amount', false)
-            ->assertSee('name="advance_held"', false);
+            ->assertSee('Advance receipts', false)
+            ->assertSee('Add another advance', false)
+            ->assertSee('name="amount"', false);
 
         $this->actingAs($owner)->post(route('orders.cancel', $order), [
             'refund' => '12001',
@@ -248,8 +249,8 @@ class AdvanceOrderTest extends TestCase
         $this->actingAs($owner)->get(route('orders.edit', $order))
             ->assertOk()
             ->assertSee('Edit order')
-            ->assertSee('name="advance_held"', false)
-            ->assertSee('Advance received', false);
+            ->assertSee('id="order-category"', false)
+            ->assertSee('Advance receipts', false);
 
         $this->actingAs($owner)->put(route('orders.update', $order), [
             'description' => 'Updated necklace',
@@ -265,9 +266,6 @@ class AdvanceOrderTest extends TestCase
             'booked_at' => '2026-09-15 18:00:00',
             'due_on' => now()->addDays(20)->toDateString(),
             'notes' => 'Rush',
-            'advance_held' => '12500',
-            'method' => 'upi',
-            'reference' => 'ADVFIX1',
         ])->assertRedirect(route('orders.show', $order));
 
         $order->refresh();
@@ -279,8 +277,8 @@ class AdvanceOrderTest extends TestCase
         $this->assertSame('Rush', $order->notes);
         $this->assertSame('2026-09-15', $order->booked_at->timezone(config('app.timezone'))->format('Y-m-d'));
         $this->assertSame('12:00', $order->booked_at->timezone(config('app.timezone'))->format('H:i'));
-        $this->assertSame('12500.00', (string) $order->advance_paid);
-        $this->assertSame('12500.00', $order->advanceHeld());
+        $this->assertSame('10000.00', (string) $order->advance_paid);
+        $this->assertSame('10000.00', $order->advanceHeld());
 
         $this->actingAs($owner)->get(route('orders.show', $order))->assertOk()->assertSee('Updated necklace');
 
@@ -301,9 +299,53 @@ class AdvanceOrderTest extends TestCase
                 'estimated_making' => '0',
             ]],
             'estimated_making' => '0',
-            'advance_held' => '10000',
-            'method' => 'cash',
         ])->assertSessionHasErrors('description');
+    }
+
+    public function test_advance_can_be_taken_in_parts_and_each_receipt_edited(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+        $order = $this->book($owner, $customer, $gold, $purity, '5000');
+        $tz = config('app.timezone');
+
+        $this->actingAs($owner)->post(route('orders.advance', $order), [
+            'amount' => '3000',
+            'method' => 'upi',
+            'reference' => 'PART2',
+            'received_at' => '2026-10-04 16:00:00',
+        ])->assertRedirect(route('orders.show', $order));
+
+        $this->actingAs($owner)->post(route('orders.advance', $order), [
+            'amount' => '2000',
+            'method' => 'cash',
+            'reference' => 'PART3',
+            'received_at' => '2026-10-06 09:00:00',
+        ])->assertRedirect(route('orders.show', $order));
+
+        $order->refresh();
+        $this->assertSame('10000.00', $order->advanceHeld());
+        $this->assertSame(3, $order->payments()->where('direction', 'in')->count());
+
+        $second = $order->payments()->where('direction', 'in')->where('reference', 'PART2')->firstOrFail();
+        $this->actingAs($owner)->put(route('orders.payments.update', [$order, $second]), [
+            'amount' => '3500',
+            'method' => 'upi',
+            'reference' => 'PART2-FIX',
+            'received_at' => '2026-10-04 16:00:00',
+        ])->assertRedirect(route('orders.show', $order));
+
+        $second->refresh();
+        $order->refresh();
+        $this->assertSame('3500.00', (string) $second->amount);
+        $this->assertSame('PART2-FIX', $second->reference);
+        $this->assertSame('2026-10-04', $second->received_at?->timezone($tz)->format('Y-m-d'));
+        $this->assertSame('10500.00', $order->advanceHeld());
+
+        $this->actingAs($owner)->get(route('orders.create'))
+            ->assertOk()
+            ->assertSee('id="order-category"', false)
+            ->assertDontSee('id="order-products"', false);
     }
 
     public function test_one_order_can_have_two_purities_and_bill_each_at_its_locked_rate(): void

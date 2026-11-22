@@ -7,7 +7,7 @@ use App\Enums\KycStatus;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Commerce\CustomerAddressRequest;
+use App\Http\Requests\Commerce\CustomerDetailsRequest;
 use App\Http\Requests\Commerce\CustomerRequest;
 use App\Http\Requests\Commerce\ReceiptRequest;
 use App\Models\Customer;
@@ -95,53 +95,7 @@ class CustomerController extends Controller
         $this->authorize('view', $customer);
 
         if ($request->expectsJson()) {
-            $company = $context->company();
-            $balance = $ledger->balance(PartyType::Customer, (int) $customer->id);
-            $totals = $customer->sales()->pluck('total');
-            $billed = $totals->reduce(fn (BigDecimal $sum, $total): BigDecimal => $sum->plus((string) $total), BigDecimal::zero());
-
-            return response()->json([
-                'name' => $customer->name,
-                'code' => $customer->code,
-                'mobile' => $customer->mobile,
-                'email' => $customer->email,
-                'type' => $customer->customer_type?->label(),
-                'kyc' => $customer->kyc_status?->label(),
-                'pan' => $customer->pan,
-                'gstin' => $customer->gstin,
-                'dob' => $customer->dob?->format('d M Y'),
-                'anniversary' => $customer->anniversary?->format('d M Y'),
-                'address' => collect([
-                    $customer->address_line1,
-                    $customer->address_line2,
-                    collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', '),
-                ])->filter()->values(),
-                'address_fields' => [
-                    'address_line1' => $customer->address_line1,
-                    'address_line2' => $customer->address_line2,
-                    'city' => $customer->city,
-                    'state' => $customer->state,
-                    'postal_code' => $customer->postal_code,
-                    'country' => $customer->country,
-                ],
-                'notes' => $customer->notes,
-                'walkin' => (bool) $customer->is_system,
-                'society' => $customer->society?->name,
-                'is_premium' => (bool) $customer->is_premium,
-                'balance' => $format->money((string) BigDecimal::of($balance)->abs(), $company),
-                'balance_sign' => BigDecimal::of($balance)->getSign(),
-                'bills_count' => $totals->count(),
-                'bills_total' => $format->money((string) $billed->toScale(2), $company),
-                'recent' => $customer->sales()->orderByDesc('sold_at')->limit(5)->get()->map(fn ($sale): array => [
-                    'number' => $sale->number,
-                    'when' => $sale->sold_at->timezone(config('app.timezone'))->format('d M Y'),
-                    'total' => $format->money((string) $sale->total, $company),
-                    'url' => route('sales.show', $sale),
-                ]),
-                'url' => route('customers.show', $customer),
-                'edit_url' => $request->user()?->can('update', $customer) ? route('customers.edit', $customer) : null,
-                'address_url' => $request->user()?->can('update', $customer) ? route('customers.address', $customer) : null,
-            ]);
+            return response()->json($this->detailsPayload($request, $customer, $ledger, $format, $context));
         }
 
         $customer->loadMissing('society');
@@ -176,27 +130,116 @@ class CustomerController extends Controller
         return redirect()->route('customers.show', $customer)->with('status', 'Customer saved.');
     }
 
-    public function updateAddress(CustomerAddressRequest $request, Customer $customer): JsonResponse
-    {
-        $customer->fill($request->validated());
-        $customer->save();
+    public function updateDetails(
+        CustomerDetailsRequest $request,
+        Customer $customer,
+        CustomerService $customers,
+        LedgerService $ledger,
+        NumberFormatService $format,
+        CompanyContext $context,
+    ): JsonResponse {
+        $customers->update($customer, $request->validated());
 
         return response()->json([
             'ok' => true,
+            'customer' => [
+                'uuid' => $customer->uuid,
+                'name' => $customer->name,
+                'code' => $customer->code,
+                'mobile' => $customer->mobile,
+                'walkin' => (bool) $customer->is_system,
+                'is_premium' => (bool) $customer->is_premium,
+            ],
+            'details' => $this->detailsPayload($request, $customer->refresh()->loadMissing('society'), $ledger, $format, $context),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function detailsPayload(
+        Request $request,
+        Customer $customer,
+        LedgerService $ledger,
+        NumberFormatService $format,
+        CompanyContext $context,
+    ): array {
+        $company = $context->company();
+        $balance = $ledger->balance(PartyType::Customer, (int) $customer->id);
+        $totals = $customer->sales()->pluck('total');
+        $billed = $totals->reduce(fn (BigDecimal $sum, $total): BigDecimal => $sum->plus((string) $total), BigDecimal::zero());
+        $canUpdate = (bool) $request->user()?->can('update', $customer);
+
+        return [
+            'name' => $customer->name,
+            'code' => $customer->code,
+            'mobile' => $customer->mobile,
+            'email' => $customer->email,
+            'type' => $customer->customer_type?->label(),
+            'kyc' => $customer->kyc_status?->label(),
+            'pan' => $customer->pan,
+            'gstin' => $customer->gstin,
+            'dob' => $customer->dob?->format('d M Y'),
+            'anniversary' => $customer->anniversary?->format('d M Y'),
             'address' => collect([
                 $customer->address_line1,
                 $customer->address_line2,
                 collect([$customer->city, $customer->state, $customer->postal_code])->filter()->join(', '),
             ])->filter()->values(),
-            'address_fields' => [
+            'notes' => $customer->notes,
+            'walkin' => (bool) $customer->is_system,
+            'society' => $customer->society?->name,
+            'is_premium' => (bool) $customer->is_premium,
+            'balance' => $format->money((string) BigDecimal::of($balance)->abs(), $company),
+            'balance_sign' => BigDecimal::of($balance)->getSign(),
+            'bills_count' => $totals->count(),
+            'bills_total' => $format->money((string) $billed->toScale(2), $company),
+            'recent' => $customer->sales()->orderByDesc('sold_at')->limit(5)->get()->map(fn ($sale): array => [
+                'number' => $sale->number,
+                'when' => $sale->sold_at->timezone(config('app.timezone'))->format('d M Y'),
+                'total' => $format->money((string) $sale->total, $company),
+                'url' => route('sales.show', $sale),
+            ]),
+            'url' => route('customers.show', $customer),
+            'details_url' => $canUpdate ? route('customers.details', $customer) : null,
+            'fields' => [
+                'name' => $customer->name,
+                'mobile' => $customer->mobile,
+                'email' => $customer->email,
+                'customer_type' => $customer->customer_type?->value,
+                'kyc_status' => $customer->kyc_status?->value,
+                'society_id' => $customer->society?->uuid,
                 'address_line1' => $customer->address_line1,
                 'address_line2' => $customer->address_line2,
                 'city' => $customer->city,
                 'state' => $customer->state,
                 'postal_code' => $customer->postal_code,
-                'country' => $customer->country,
+                'country' => $customer->country ?: 'India',
+                'pan' => $customer->pan,
+                'gstin' => $customer->gstin,
+                'dob' => $customer->dob?->format('Y-m-d'),
+                'anniversary' => $customer->anniversary?->format('Y-m-d'),
+                'id_proof_type' => $customer->id_proof_type,
+                'id_proof_number' => $customer->id_proof_number,
+                'notes' => $customer->notes,
+                'is_premium' => (bool) $customer->is_premium,
+                'is_active' => (bool) $customer->is_active,
             ],
-        ]);
+            'options' => [
+                'types' => collect(CustomerType::cases())->map(fn (CustomerType $type) => [
+                    'value' => $type->value,
+                    'label' => $type->label(),
+                ])->values(),
+                'kyc' => collect(KycStatus::cases())->map(fn (KycStatus $status) => [
+                    'value' => $status->value,
+                    'label' => $status->label(),
+                ])->values(),
+                'societies' => $this->societyChoices()->map(fn (Society $society) => [
+                    'value' => $society->uuid,
+                    'label' => $society->name,
+                ])->values(),
+            ],
+        ];
     }
 
     public function destroy(Customer $customer, CustomerService $customers): RedirectResponse

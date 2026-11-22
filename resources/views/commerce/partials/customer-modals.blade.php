@@ -40,7 +40,7 @@
             <div class="modal-body" id="customer-details-body"></div>
             <div class="modal-footer">
                 <a class="btn btn-outline-secondary d-none" id="customer-details-edit" href="#" target="_blank" rel="noopener"><i class="bi bi-pencil"></i> Edit</a>
-                <a class="btn btn-outline-secondary d-none" id="customer-details-open" href="#" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Full page</a>
+                <a class="btn btn-outline-secondary d-none" id="customer-details-open" href="#" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Customer page</a>
                 <button class="btn btn-primary" type="button" data-bs-dismiss="modal">Back to {{ $document }}</button>
             </div>
         </div>

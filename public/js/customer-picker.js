@@ -187,36 +187,15 @@ function customerPicker(options) {
             box.className = 'customer-stat ' + tone;
             stats.appendChild(box);
         });
-        const grid = document.createElement('div');
-        grid.className = 'customer-detail-grid';
-        [
-            ['Mobile', data.mobile],
-            ['Email', data.email],
-            ['Type', data.type],
-            ['KYC', data.kyc],
-            ['PAN', data.pan],
-            ['GSTIN', data.gstin],
-            ['Date of birth', data.dob],
-            ['Anniversary', data.anniversary],
-        ].forEach(([label, value]) => grid.appendChild(detailItem(label, value)));
-        const address = detailItem('Address', data.address);
-        address.className = 'customer-detail-wide';
-        address.id = 'customer-detail-address';
-        grid.appendChild(address);
-        if (data.notes) {
-            const notes = detailItem('Notes', data.notes);
-            notes.className = 'customer-detail-wide';
-            grid.appendChild(notes);
-        }
         const recentTitle = document.createElement('div');
         recentTitle.className = 'weigh-section-title mt-3 mb-1';
         recentTitle.textContent = 'Recent bills';
         const recent = document.createElement('div');
         recent.className = 'customer-recent';
-        if (data.recent.length === 0) {
+        if ((data.recent || []).length === 0) {
             recent.innerHTML = '<div class="text-secondary small">No bills yet.</div>';
         }
-        data.recent.forEach((sale) => {
+        (data.recent || []).forEach((sale) => {
             const link = document.createElement('a');
             link.href = sale.url;
             link.target = '_blank';
@@ -232,9 +211,9 @@ function customerPicker(options) {
             link.append(left, total);
             recent.appendChild(link);
         });
-        body.append(stats, grid, recentTitle, recent);
-        if (data.address_url) {
-            body.appendChild(addressEditor(row, data));
+        body.append(stats, recentTitle, recent);
+        if (data.details_url) {
+            body.appendChild(detailsEditor(row, data));
         }
         const open = $('customer-details-open');
         open.href = data.url;
@@ -244,68 +223,146 @@ function customerPicker(options) {
         open.onclick = () => {
             if (typeof settings.onLeave === 'function') settings.onLeave();
         };
-        const edit = $('customer-details-edit');
-        if (data.edit_url) {
-            edit.href = data.edit_url;
-            edit.target = '_blank';
-            edit.rel = 'noopener';
-            edit.classList.remove('d-none');
-            edit.onclick = () => {
-                if (typeof settings.onLeave === 'function') settings.onLeave();
-            };
-        } else {
-            edit.classList.add('d-none');
-            edit.onclick = null;
-        }
+        // Edit happens in this modal — no separate edit page needed.
+        $('customer-details-edit').classList.add('d-none');
+        $('customer-details-edit').onclick = null;
     }
 
-    function addressEditor(row, data) {
+    function fieldBox(col, label, control) {
+        const box = document.createElement('div');
+        box.className = col;
+        const lab = document.createElement('label');
+        lab.className = 'form-label';
+        lab.textContent = label;
+        box.append(lab, control);
+        return box;
+    }
+
+    function textInput(value, opts = {}) {
+        const input = document.createElement('input');
+        input.className = 'form-control';
+        input.value = value || '';
+        input.autocomplete = 'off';
+        if (opts.type) input.type = opts.type;
+        if (opts.placeholder) input.placeholder = opts.placeholder;
+        if (opts.maxLength) input.maxLength = opts.maxLength;
+        return input;
+    }
+
+    function selectInput(options, value) {
+        const select = document.createElement('select');
+        select.className = 'form-select';
+        (options || []).forEach((option) => {
+            const row = document.createElement('option');
+            row.value = option.value;
+            row.textContent = option.label;
+            if (String(option.value) === String(value || '')) row.selected = true;
+            select.appendChild(row);
+        });
+        return select;
+    }
+
+    function detailsEditor(row, data) {
         const wrap = document.createElement('div');
-        wrap.className = 'customer-address-edit mt-3';
+        wrap.className = 'customer-details-edit mt-3';
         const title = document.createElement('div');
         title.className = 'weigh-section-title mb-2';
-        title.textContent = 'Update address';
+        title.textContent = 'Edit customer';
         const help = document.createElement('p');
         help.className = 'text-secondary small';
         help.textContent = 'Save here so the bill on this page is not cleared.';
-        const fields = data.address_fields || {};
+        const fields = data.fields || {};
+        const options = data.options || {};
         const form = document.createElement('div');
         form.className = 'row g-2';
         const inputs = {};
-        [
-            ['address_line1', 'Address line 1', 'col-12'],
-            ['address_line2', 'Address line 2', 'col-12'],
-            ['city', 'City', 'col-md-4'],
-            ['state', 'State', 'col-md-4'],
-            ['postal_code', 'PIN', 'col-md-4'],
-        ].forEach(([name, label, col]) => {
-            const box = document.createElement('div');
-            box.className = col;
-            const lab = document.createElement('label');
-            lab.className = 'form-label';
-            lab.textContent = label;
-            const input = document.createElement('input');
-            input.className = 'form-control';
-            input.value = fields[name] || '';
-            input.autocomplete = 'off';
-            inputs[name] = input;
-            box.append(lab, input);
-            form.appendChild(box);
-        });
+        const name = textInput(fields.name, { maxLength: 160 });
+        name.required = true;
+        inputs.name = name;
+        inputs.mobile = textInput(fields.mobile, { maxLength: 20 });
+        inputs.email = textInput(fields.email, { type: 'email', maxLength: 160 });
+        inputs.customer_type = selectInput(options.types, fields.customer_type);
+        inputs.kyc_status = selectInput(options.kyc, fields.kyc_status);
+        const societies = [{ value: '', label: '— None —' }].concat(options.societies || []);
+        inputs.society_id = selectInput(societies, fields.society_id || '');
+        inputs.address_line1 = textInput(fields.address_line1, { maxLength: 200 });
+        inputs.address_line2 = textInput(fields.address_line2, { maxLength: 200 });
+        inputs.city = textInput(fields.city, { maxLength: 100 });
+        inputs.state = textInput(fields.state, { maxLength: 100 });
+        inputs.postal_code = textInput(fields.postal_code, { maxLength: 12 });
+        inputs.pan = textInput(fields.pan, { maxLength: 10 });
+        inputs.gstin = textInput(fields.gstin, { maxLength: 15 });
+        inputs.dob = textInput(fields.dob, { type: 'date' });
+        inputs.anniversary = textInput(fields.anniversary, { type: 'date' });
+        inputs.id_proof_type = textInput(fields.id_proof_type, { placeholder: 'Aadhaar', maxLength: 40 });
+        inputs.id_proof_number = textInput(fields.id_proof_number, { maxLength: 40 });
+        const notes = document.createElement('textarea');
+        notes.className = 'form-control';
+        notes.rows = 2;
+        notes.maxLength = 1000;
+        notes.value = fields.notes || '';
+        inputs.notes = notes;
+        inputs.is_premium = document.createElement('input');
+        inputs.is_premium.type = 'checkbox';
+        inputs.is_premium.className = 'form-check-input';
+        inputs.is_premium.checked = !!fields.is_premium;
+        inputs.is_active = document.createElement('input');
+        inputs.is_active.type = 'checkbox';
+        inputs.is_active.className = 'form-check-input';
+        inputs.is_active.checked = fields.is_active !== false;
+        if (data.walkin) inputs.is_active.disabled = true;
+
+        form.append(
+            fieldBox('col-md-6', 'Name', inputs.name),
+            fieldBox('col-md-3', 'Mobile', inputs.mobile),
+            fieldBox('col-md-3', 'Email', inputs.email),
+            fieldBox('col-md-4', 'Type', inputs.customer_type),
+            fieldBox('col-md-4', 'KYC', inputs.kyc_status),
+            fieldBox('col-md-4', 'Society', inputs.society_id),
+            fieldBox('col-md-6', 'Address line 1', inputs.address_line1),
+            fieldBox('col-md-6', 'Address line 2', inputs.address_line2),
+            fieldBox('col-md-4', 'City', inputs.city),
+            fieldBox('col-md-4', 'State', inputs.state),
+            fieldBox('col-md-4', 'PIN', inputs.postal_code),
+            fieldBox('col-md-3', 'PAN', inputs.pan),
+            fieldBox('col-md-3', 'GSTIN', inputs.gstin),
+            fieldBox('col-md-3', 'Date of birth', inputs.dob),
+            fieldBox('col-md-3', 'Anniversary', inputs.anniversary),
+            fieldBox('col-md-6', 'ID proof', inputs.id_proof_type),
+            fieldBox('col-md-6', 'ID number', inputs.id_proof_number),
+            fieldBox('col-12', 'Notes', inputs.notes),
+        );
+        const checks = document.createElement('div');
+        checks.className = 'col-12 d-flex flex-wrap gap-3 mt-1';
+        const premiumWrap = document.createElement('div');
+        premiumWrap.className = 'form-check';
+        const premiumLabel = document.createElement('label');
+        premiumLabel.className = 'form-check-label';
+        premiumLabel.textContent = 'Premium customer';
+        premiumWrap.append(inputs.is_premium, premiumLabel);
+        const activeWrap = document.createElement('div');
+        activeWrap.className = 'form-check';
+        const activeLabel = document.createElement('label');
+        activeLabel.className = 'form-check-label';
+        activeLabel.textContent = 'Active';
+        activeWrap.append(inputs.is_active, activeLabel);
+        checks.append(premiumWrap, activeWrap);
+        form.appendChild(checks);
+
         const error = document.createElement('div');
         error.className = 'text-danger small d-none mt-2';
         const status = document.createElement('div');
         status.className = 'text-success small d-none mt-2';
         const save = document.createElement('button');
         save.type = 'button';
-        save.className = 'btn btn-outline-primary btn-sm mt-2';
-        save.innerHTML = '<i class="bi bi-geo-alt"></i> Save address';
+        save.className = 'btn btn-primary btn-sm mt-2';
+        save.innerHTML = '<i class="bi bi-check2"></i> Save customer';
         save.addEventListener('click', async () => {
             error.classList.add('d-none');
             status.classList.add('d-none');
             save.disabled = true;
             try {
-                const response = await fetch(data.address_url, {
+                const response = await fetch(data.details_url, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -313,32 +370,58 @@ function customerPicker(options) {
                         'X-CSRF-TOKEN': settings.csrf,
                     },
                     body: JSON.stringify({
+                        name: inputs.name.value,
+                        mobile: inputs.mobile.value,
+                        email: inputs.email.value,
+                        customer_type: inputs.customer_type.value,
+                        kyc_status: inputs.kyc_status.value,
+                        society_id: inputs.society_id.value || null,
                         address_line1: inputs.address_line1.value,
                         address_line2: inputs.address_line2.value,
                         city: inputs.city.value,
                         state: inputs.state.value,
                         postal_code: inputs.postal_code.value,
-                        country: fields.country || null,
+                        country: fields.country || 'India',
+                        pan: inputs.pan.value,
+                        gstin: inputs.gstin.value,
+                        dob: inputs.dob.value,
+                        anniversary: inputs.anniversary.value,
+                        id_proof_type: inputs.id_proof_type.value,
+                        id_proof_number: inputs.id_proof_number.value,
+                        notes: inputs.notes.value,
+                        is_premium: inputs.is_premium.checked,
+                        is_active: inputs.is_active.checked,
                     }),
                 });
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    error.textContent = Object.values(payload.errors || {}).flat().join(' ') || 'Address could not be saved.';
+                    error.textContent = Object.values(payload.errors || {}).flat().join(' ') || 'Customer could not be saved.';
                     error.classList.remove('d-none');
                     return;
                 }
-                const shown = $('customer-detail-address');
-                if (shown) {
-                    const next = detailItem('Address', payload.address || []);
-                    next.className = 'customer-detail-wide';
-                    next.id = 'customer-detail-address';
-                    shown.replaceWith(next);
+                const saved = payload.customer || {};
+                const next = {
+                    ...row,
+                    name: saved.name || inputs.name.value,
+                    mobile: saved.mobile || inputs.mobile.value,
+                    code: saved.code || row.code,
+                    is_premium: !!saved.is_premium,
+                };
+                const listRow = settings.customers.find((item) => item.uuid === row.uuid);
+                if (listRow) {
+                    listRow.name = next.name;
+                    listRow.mobile = next.mobile;
+                    listRow.is_premium = next.is_premium;
                 }
-                status.textContent = 'Address saved. Your bill on this page is unchanged.';
+                choose(next);
+                $('customer-details-title').textContent = next.name;
+                $('customer-details-sub').textContent = [next.mobile, next.code].filter(Boolean).join(' · ');
+                status.textContent = 'Customer saved. Your bill on this page is unchanged.';
                 status.classList.remove('d-none');
-                if (typeof settings.onAddressSaved === 'function') settings.onAddressSaved(row, payload);
+                if (typeof settings.onDetailsSaved === 'function') settings.onDetailsSaved(next, payload);
+                if (typeof settings.onAddressSaved === 'function') settings.onAddressSaved(next, payload);
             } catch (err) {
-                error.textContent = 'Address could not be saved.';
+                error.textContent = 'Customer could not be saved.';
                 error.classList.remove('d-none');
             } finally {
                 save.disabled = false;

@@ -143,7 +143,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::post('customer-intakes/{intake}/approve', [CustomerIntakeController::class, 'approve'])->name('customer-intakes.approve');
     Route::post('customer-intakes/{intake}/reject', [CustomerIntakeController::class, 'reject'])->name('customer-intakes.reject');
     Route::resource('customers', ShopCustomerController::class);
-    Route::put('customers/{customer}/address', [ShopCustomerController::class, 'updateAddress'])->name('customers.address');
+    Route::put('customers/{customer}/details', [ShopCustomerController::class, 'updateDetails'])->name('customers.details');
     Route::post('customers/{customer}/payments', [ShopCustomerController::class, 'payment'])->name('customers.payments.store');
     Route::resource('suppliers', SupplierController::class);
     Route::post('suppliers/{supplier}/payments', [SupplierController::class, 'payment'])->name('suppliers.payments.store');
@@ -182,6 +182,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::put('orders/{order}', [AdvanceOrderController::class, 'update'])->name('orders.update');
     Route::get('orders/{order}', [AdvanceOrderController::class, 'show'])->name('orders.show');
     Route::post('orders/{order}/advance', [AdvanceOrderController::class, 'advance'])->name('orders.advance');
+    Route::put('orders/{order}/payments/{payment}', [AdvanceOrderController::class, 'updatePayment'])->name('orders.payments.update');
     Route::post('orders/{order}/ready', [AdvanceOrderController::class, 'ready'])->name('orders.ready');
     Route::post('orders/{order}/cancel', [AdvanceOrderController::class, 'cancel'])->name('orders.cancel');
     Route::post('schemes/{scheme}/enroll', [SchemeController::class, 'enroll'])->name('schemes.enroll');

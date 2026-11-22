@@ -1,0 +1,123 @@
+<?php
+
+namespace App\Http\Requests\Commerce;
+
+use App\Enums\CustomerType;
+use App\Enums\KycStatus;
+use App\Models\Customer;
+use App\Support\IdentityRules;
+use Closure;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+class CustomerDetailsRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        $customer = $this->route('customer');
+
+        return $customer instanceof Customer && (bool) $this->user()?->can('update', $customer);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $mobile = preg_replace('/[\s-]+/', '', trim((string) $this->input('mobile')));
+
+        if (trim((string) $this->input('name')) === '' && $mobile !== '') {
+            $this->merge(['name' => $mobile]);
+        }
+
+        $this->merge([
+            'mobile' => $mobile,
+            'pan' => Str::upper(trim((string) $this->input('pan'))),
+            'gstin' => Str::upper(trim((string) $this->input('gstin'))),
+        ]);
+
+        if (! $this->has('is_premium')) {
+            $this->merge(['is_premium' => false]);
+        }
+
+        if (! $this->has('is_active')) {
+            $this->merge(['is_active' => true]);
+        }
+
+        foreach ([
+            'mobile', 'email', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
+            'dob', 'anniversary', 'pan', 'gstin', 'id_proof_type', 'id_proof_number', 'notes', 'society_id',
+        ] as $field) {
+            if ($this->input($field) === '') {
+                $this->merge([$field => null]);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:160'],
+            'mobile' => ['nullable', 'string', 'max:20', 'regex:'.IdentityRules::MOBILE, $this->uniqueMobile()],
+            'email' => ['nullable', 'email', 'max:160'],
+            'address_line1' => ['nullable', 'string', 'max:200'],
+            'address_line2' => ['nullable', 'string', 'max:200'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:100'],
+            'postal_code' => ['nullable', 'string', 'max:12'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'dob' => ['nullable', 'date', 'before_or_equal:today'],
+            'anniversary' => ['nullable', 'date'],
+            'pan' => ['nullable', 'regex:'.IdentityRules::PAN],
+            'gstin' => ['nullable', 'regex:'.IdentityRules::GSTIN],
+            'id_proof_type' => ['nullable', 'string', 'max:40'],
+            'id_proof_number' => ['nullable', 'string', 'max:40'],
+            'kyc_status' => ['required', Rule::enum(KycStatus::class)],
+            'customer_type' => ['required', Rule::enum(CustomerType::class)],
+            'society_id' => [
+                'nullable',
+                Rule::exists('societies', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id)),
+            ],
+            'is_premium' => ['required', 'boolean'],
+            'is_active' => ['required', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return IdentityRules::messages() + [
+            'name.required' => 'Enter the customer\'s name or mobile number.',
+            'dob.before_or_equal' => 'Date of birth cannot be in the future.',
+        ];
+    }
+
+    private function uniqueMobile(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $key = IdentityRules::mobileKey((string) $value);
+
+            if (strlen($key) < 10) {
+                return;
+            }
+
+            $current = $this->route('customer');
+
+            $other = Customer::query()
+                ->where('company_id', $this->user()->company_id)
+                ->where('is_system', false)
+                ->where('mobile', 'like', '%'.$key)
+                ->when($current instanceof Customer, fn ($query) => $query->whereKeyNot($current->id))
+                ->get(['id', 'code', 'name', 'mobile'])
+                ->first(fn (Customer $customer) => IdentityRules::mobileKey($customer->mobile) === $key);
+
+            if ($other) {
+                $fail("This mobile already belongs to {$other->name} ({$other->code}).");
+            }
+        };
+    }
+}

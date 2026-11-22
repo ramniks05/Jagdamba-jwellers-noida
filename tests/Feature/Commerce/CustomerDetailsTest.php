@@ -67,19 +67,37 @@ class CustomerDetailsTest extends TestCase
             ->assertJsonPath('balance_sign', 1)
             ->assertJsonPath('recent.0.number', $sale->number)
             ->assertJsonPath('url', route('customers.show', $record))
-            ->assertJsonPath('address_url', route('customers.address', $record));
+            ->assertJsonPath('details_url', route('customers.details', $record))
+            ->assertJsonPath('fields.name', 'Meera Shah');
 
-        $this->actingAs($owner)->putJson(route('customers.address', $record), [
+        $this->actingAs($owner)->putJson(route('customers.details', $record), [
+            'name' => 'Meera Shah Updated',
+            'mobile' => '9876500000',
+            'email' => 'meera@example.com',
+            'customer_type' => 'retail',
+            'kyc_status' => 'pending',
             'address_line1' => '12 Market Road',
             'address_line2' => 'Near temple',
             'city' => 'Mumbai',
             'state' => 'Maharashtra',
             'postal_code' => '400001',
+            'pan' => 'ABCDE1234F',
+            'notes' => 'Prefers evening pickup',
+            'is_premium' => true,
+            'is_active' => true,
         ])->assertOk()
             ->assertJsonPath('ok', true)
-            ->assertJsonPath('address_fields.city', 'Mumbai');
+            ->assertJsonPath('customer.name', 'Meera Shah Updated')
+            ->assertJsonPath('details.fields.city', 'Mumbai')
+            ->assertJsonPath('details.fields.email', 'meera@example.com');
 
-        $this->assertSame('12 Market Road', $record->refresh()->address_line1);
+        $record->refresh();
+        $this->assertSame('Meera Shah Updated', $record->name);
+        $this->assertSame('12 Market Road', $record->address_line1);
+        $this->assertSame('meera@example.com', $record->email);
+        $this->assertSame('ABCDE1234F', $record->pan);
+        $this->assertTrue((bool) $record->is_premium);
+        $this->assertSame('Prefers evening pickup', $record->notes);
         $this->actingAs($owner)->get(route('sales.create'))->assertOk()->assertSee('customer-details-modal', false);
     }
 }

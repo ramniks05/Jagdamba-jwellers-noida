@@ -11,6 +11,7 @@ use App\Models\AdvanceOrderLine;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\LedgerEntry;
 use App\Models\MetalType;
 use App\Models\Payment;
 use App\Models\Purity;
@@ -110,7 +111,98 @@ class AdvanceOrderService
                 ]);
             }
 
-            $this->receive($order, (string) $amount, (string) $attributes['method'], $attributes['reference'] ?? null, $userId);
+            $receivedAt = $this->receivedAt($attributes);
+            $this->receive($order, (string) $amount, (string) $attributes['method'], $attributes['reference'] ?? null, $userId, $receivedAt);
+
+            return $order->refresh();
+        });
+    }
+
+    /**
+     * Edit one advance installment (amount, date, method, reference) on an open order.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function updateAdvancePayment(AdvanceOrder $order, Payment $payment, array $attributes, ?int $userId = null): AdvanceOrder
+    {
+        return DB::transaction(function () use ($order, $payment, $attributes, $userId) {
+            $this->context->ensureId((int) $order->company_id);
+            $order = AdvanceOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $this->mustBeOpen($order, 'amount');
+
+            $payment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
+
+            if ((int) $payment->advance_order_id !== (int) $order->id || $payment->direction !== 'in') {
+                throw ValidationException::withMessages([
+                    'amount' => 'That receipt is not an advance on this order.',
+                ]);
+            }
+
+            $amount = BigDecimal::of((string) $attributes['amount'])->toScale(2, RoundingMode::HalfUp);
+
+            if ($amount->isNegativeOrZero()) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter the amount received.',
+                ]);
+            }
+
+            $current = BigDecimal::of((string) $payment->amount)->toScale(2, RoundingMode::HalfUp);
+            $diff = $amount->minus($current);
+
+            if ($diff->isNegative()) {
+                $cut = $diff->negated();
+                $held = BigDecimal::of($order->advanceHeld());
+
+                if ($cut->isGreaterThan($held)) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'This receipt cannot go below the advance still held ('.$order->advanceHeld().').',
+                    ]);
+                }
+
+                $credit = BigDecimal::of($this->ledger->balance(PartyType::Customer, (int) $order->customer_id))->negated();
+                $credit = $credit->isNegative() ? BigDecimal::zero() : $credit;
+
+                if ($cut->isGreaterThan($credit)) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'The customer owes money on other bills. Lower this receipt by at most '.$credit->toScale(2).'.',
+                    ]);
+                }
+            }
+
+            $receivedAt = $this->receivedAt($attributes) ?? $payment->received_at ?? now();
+            $payment->amount = (string) $amount;
+            $payment->method = PaymentMethod::from((string) $attributes['method']);
+            $payment->reference = trim((string) ($attributes['reference'] ?? '')) ?: null;
+            $payment->received_at = $receivedAt;
+            $payment->save();
+
+            $entry = LedgerEntry::query()
+                ->where('reference_type', $payment->getMorphClass())
+                ->where('reference_id', $payment->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($entry) {
+                $entry->amount = (string) $amount;
+                $entry->occurred_at = $receivedAt;
+                $entry->save();
+            } elseif (! $diff->isZero()) {
+                $this->ledger->post(
+                    (int) $order->company_id,
+                    PartyType::Customer,
+                    (int) $order->customer_id,
+                    $diff->isPositive() ? LedgerDirection::Credit : LedgerDirection::Debit,
+                    (string) ($diff->isPositive() ? $diff : $diff->negated()),
+                    'Advance adjust '.$payment->number,
+                    $payment,
+                    $userId,
+                );
+            }
+
+            if (! $diff->isZero()) {
+                $order->advance_paid = (string) BigDecimal::of((string) $order->advance_paid)->plus($diff)->toScale(2, RoundingMode::HalfUp);
+                $order->save();
+            }
 
             return $order->refresh();
         });
@@ -385,6 +477,27 @@ class AdvanceOrderService
         }
 
         return Carbon::parse($raw, $timezone);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function receivedAt(array $attributes): ?Carbon
+    {
+        $timezone = config('app.timezone');
+        $raw = trim((string) ($attributes['received_at'] ?? ''));
+
+        if ($raw === '') {
+            return null;
+        }
+
+        $when = Carbon::parse($raw, $timezone);
+
+        if (! $when->isSameDay(now($timezone))) {
+            $when = $when->copy()->setTime(12, 0);
+        }
+
+        return $when;
     }
 
     private function mustBeOpen(AdvanceOrder $order, string $field): void

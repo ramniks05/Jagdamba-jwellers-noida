@@ -86,41 +86,94 @@
 
     @if ($order->isOpen())
         @can('update', $order)
+            @php
+                $tz = config('app.timezone');
+                $advanceIns = $order->payments->where('direction', 'in')->sortBy('received_at')->values();
+            @endphp
             <div class="row g-3 mb-3 no-print">
                 <div class="col-lg-7">
-                    <form class="card due-pay h-100" method="POST" action="{{ route('orders.advance', $order) }}">
-                        @csrf
+                    <div class="card h-100">
                         <div class="card-body">
-                            <div class="due-pay-head">
+                            <div class="due-pay-head mb-3">
                                 <div>
-                                    <div class="stat-label">Edit advance amount</div>
-                                    <div class="text-secondary small">Change the total advance held. If you raise it, take the extra cash. If you lower it, the difference is refunded. The held amount comes off the final bill.</div>
+                                    <div class="stat-label">Advance receipts</div>
+                                    <div class="text-secondary small">Each part of the advance has its own date, amount, and reference. Edit a row or add another payment.</div>
                                 </div>
                             </div>
-                            <div class="due-pay-row">
-                                <div>
-                                    <label class="form-label" for="method">Paid by</label>
-                                    <select class="form-select" id="method" name="method">
-                                        @foreach ($methods as $method)
-                                            <option value="{{ $method->value }}" @selected(old('method') === $method->value)>{{ $method->label() }}</option>
-                                        @endforeach
-                                    </select>
+                            @forelse ($advanceIns as $payment)
+                                <form method="POST" action="{{ route('orders.payments.update', [$order, $payment]) }}" class="border rounded p-3 mb-3">
+                                    @csrf
+                                    @method('PUT')
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                        <strong class="small">{{ $payment->number }}</strong>
+                                        <span class="text-secondary small">Part {{ $loop->iteration }} of {{ $advanceIns->count() }}</span>
+                                    </div>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label" for="received-at-{{ $payment->id }}">Date</label>
+                                            <input class="form-control @error('received_at') is-invalid @enderror" id="received-at-{{ $payment->id }}" name="received_at" type="datetime-local" step="60" value="{{ old('received_at', $payment->received_at?->timezone($tz)->format('Y-m-d\TH:i')) }}" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label" for="amount-{{ $payment->id }}">Amount ₹</label>
+                                            <input class="form-control @error('amount') is-invalid @enderror" id="amount-{{ $payment->id }}" name="amount" value="{{ old('amount', $payment->amount) }}" inputmode="decimal" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label" for="method-{{ $payment->id }}">Paid by</label>
+                                            <select class="form-select" id="method-{{ $payment->id }}" name="method">
+                                                @foreach ($methods as $method)
+                                                    <option value="{{ $method->value }}" @selected(old('method', $payment->method->value) === $method->value)>{{ $method->label() }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label" for="reference-{{ $payment->id }}">Reference</label>
+                                            <input class="form-control" id="reference-{{ $payment->id }}" name="reference" value="{{ old('reference', $payment->reference) }}" maxlength="80" placeholder="UPI ref, cheque no.">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-outline-primary w-100" type="submit">Save</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            @empty
+                                <p class="text-secondary small mb-3">No advance receipts yet.</p>
+                            @endforelse
+                            <form method="POST" action="{{ route('orders.advance', $order) }}" class="border rounded p-3 bg-light">
+                                @csrf
+                                <div class="stat-label mb-2">Add another advance</div>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label" for="new-received-at">Date</label>
+                                        <input class="form-control @error('received_at') is-invalid @enderror" id="new-received-at" name="received_at" type="datetime-local" step="60" value="{{ old('received_at', now()->timezone($tz)->format('Y-m-d\TH:i')) }}" required>
+                                        @error('received_at')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label" for="new-amount">Amount ₹</label>
+                                        <input class="form-control @error('amount') is-invalid @enderror" id="new-amount" name="amount" value="{{ old('amount') }}" inputmode="decimal" placeholder="0" required>
+                                        @error('amount')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label" for="new-method">Paid by</label>
+                                        <select class="form-select" id="new-method" name="method">
+                                            @foreach ($methods as $method)
+                                                <option value="{{ $method->value }}" @selected(old('method', 'cash') === $method->value)>{{ $method->label() }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label" for="new-reference">Reference</label>
+                                        <input class="form-control" id="new-reference" name="reference" value="{{ old('reference') }}" maxlength="80" placeholder="UPI ref, cheque no.">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-primary w-100" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="form-label" for="advance_held">Advance held ₹</label>
-                                    <input class="form-control @error('advance_held') is-invalid @enderror" id="advance_held" name="advance_held" value="{{ old('advance_held', $held) }}" inputmode="decimal" placeholder="0" required>
-                                    @error('advance_held')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                                <div>
-                                    <label class="form-label" for="reference">Reference</label>
-                                    <input class="form-control" id="reference" name="reference" value="{{ old('reference') }}" maxlength="80" placeholder="UPI ref, cheque no.">
-                                </div>
-                                <button class="btn btn-primary" type="submit"><i class="bi bi-cash-coin"></i> Save advance</button>
-                            </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
                 <div class="col-lg-5">
                     <div class="card h-100">

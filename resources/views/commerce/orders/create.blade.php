@@ -24,14 +24,18 @@
                     <div class="card-header bg-white">What to make</div>
                     <div class="card-body">
                         <div class="weigh-section-title">Piece</div>
-                        <div class="bill-products" id="order-products">
-                            @foreach ($categories as $category)
-                                <button type="button" data-name="{{ $category->name }}">{{ $category->name }}</button>
-                            @endforeach
+                        <div class="mt-2">
+                            <label class="form-label" for="order-category">Category</label>
+                            <select class="form-select" id="order-category">
+                                <option value="">Choose category</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->name }}" @selected(old('description') === $category->name)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mt-2">
                             <label class="form-label" for="description">Name</label>
-                            <input class="form-control" id="description" name="description" value="{{ old('description') }}" placeholder="Bridal necklace set" maxlength="160" required>
+                            <input class="form-control" id="description" name="description" value="{{ old('description') }}" placeholder="Choose a category, then type the name if it is different" maxlength="160" required>
                         </div>
                         @include('commerce.orders.partials.metal-lines', ['metals' => $metals])
                         <div class="weigh-section">
@@ -256,12 +260,15 @@
             addLabel: 'Add to order',
             chipLabel: 'Order for',
         });
-        $('order-products').addEventListener('click', (event) => {
-            const button = event.target.closest('button');
-            if (!button) return;
-            document.querySelectorAll('#order-products button').forEach((row) => row.classList.remove('active'));
-            button.classList.add('active');
-            $('description').value = button.dataset.name;
+        const categoryNames = () => Array.from(document.querySelectorAll('#order-category option'))
+            .map((option) => option.value.trim())
+            .filter((name) => name !== '');
+        $('order-category').addEventListener('change', () => {
+            const selected = $('order-category').value.trim();
+            const nameField = $('description');
+            if (selected && (nameField.value.trim() === '' || categoryNames().includes(nameField.value.trim()))) {
+                nameField.value = selected;
+            }
             document.querySelector('#order-lines .order-line-weight')?.focus();
         });
         $('making-method').addEventListener('change', () => {
