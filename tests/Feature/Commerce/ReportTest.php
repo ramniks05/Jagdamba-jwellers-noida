@@ -136,6 +136,51 @@ class ReportTest extends TestCase
             ->assertSee('Total · 2 bills');
     }
 
+    public function test_sales_report_and_sales_window_sort_by_date_then_bill_number_not_time(): void
+    {
+        $owner = $this->shopUser();
+        $this->rate($owner);
+        $this->addPiece($owner, 'RING01');
+        $this->addPiece($owner, 'RING02');
+        $meera = $this->customer($owner, 'Meera Shah', '9876500000');
+        $ravi = $this->customer($owner, 'Ravi Verma', '9876500001');
+
+        $this->sell($owner, $meera, 'RING01', '10000');
+        $this->sell($owner, $ravi, 'RING02', '70465');
+
+        $first = Sale::query()->orderBy('id')->firstOrFail();
+        $second = Sale::query()->orderByDesc('id')->firstOrFail();
+        $day = now()->startOfDay();
+
+        // Same calendar day with reversed clock times so a time sort would flip bill order.
+        $first->forceFill(['sold_at' => $day->copy()->setTime(18, 30)])->save();
+        $second->forceFill(['sold_at' => $day->copy()->setTime(9, 15)])->save();
+
+        $reportOrder = Sale::query()
+            ->where('status', 'posted')
+            ->orderByRaw('date(sold_at) asc')
+            ->orderBy('number')
+            ->pluck('number')
+            ->all();
+        $this->assertSame([$first->number, $second->number], $reportOrder);
+
+        $this->actingAs($owner)->get(route('reports.sales', [
+            'from' => $day->toDateString(),
+            'to' => $day->toDateString(),
+        ]))->assertOk()->assertSeeInOrder([$first->number, $second->number]);
+
+        $indexOrder = Sale::query()
+            ->orderByRaw('date(sold_at) desc')
+            ->orderByDesc('number')
+            ->pluck('number')
+            ->all();
+        $this->assertSame([$second->number, $first->number], $indexOrder);
+
+        $this->actingAs($owner)->get(route('sales.index'))
+            ->assertOk()
+            ->assertSeeInOrder([$second->number, $first->number]);
+    }
+
     public function test_the_outstanding_report_lists_dues_and_advances_and_stays_closed_to_a_cashier(): void
     {
         $owner = $this->shopUser();

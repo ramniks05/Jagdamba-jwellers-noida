@@ -231,7 +231,7 @@ class ReportController extends Controller
         $weightRows = $weights->sales(clone $query);
 
         return view('commerce.reports.sales', [
-            'sales' => $this->page($query->with('customer')->withSum('lines as net_weight', 'net_weight')->withSum('lines as gross_weight', 'gross_weight')->orderBy('sold_at')->orderBy('id'), $request, (int) $totals->bills),
+            'sales' => $this->page($query->with('customer')->withSum('lines as net_weight', 'net_weight')->withSum('lines as gross_weight', 'gross_weight')->orderByRaw('date(sold_at) asc')->orderBy('number'), $request, (int) $totals->bills),
             'weights' => $weightRows,
             'filters' => compact('search', 'from', 'to', 'payment'),
             'ranges' => [

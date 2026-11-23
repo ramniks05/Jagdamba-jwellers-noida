@@ -86,7 +86,7 @@ class SaleController extends Controller
         $weightRows = $weights->sales(clone $query);
 
         return view('commerce.sales.index', [
-            'sales' => $query->withSum('lines as net_weight', 'net_weight')->withSum('lines as gross_weight', 'gross_weight')->orderByDesc('sold_at')->orderByDesc('id')->paginate(20)->withQueryString(),
+            'sales' => $query->withSum('lines as net_weight', 'net_weight')->withSum('lines as gross_weight', 'gross_weight')->orderByRaw('date(sold_at) desc')->orderByDesc('number')->paginate(20)->withQueryString(),
             'weights' => $weightRows,
             'search' => $search,
             'from' => $from ?? '',
