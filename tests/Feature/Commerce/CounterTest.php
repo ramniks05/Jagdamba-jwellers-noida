@@ -477,6 +477,7 @@ class CounterTest extends TestCase
             ->assertSee('id="weigh-huid"', false)
             ->assertDontSee('for="weigh-hsn"', false)
             ->assertSee('id="weigh-category"', false)
+            ->assertDontSee('id="weigh-category" required', false)
             ->assertSee('>Ring</option>', false)
             ->assertSee('Type the hallmark ID if this piece is not in stock');
 

@@ -169,7 +169,7 @@
                     <div class="card-body">
                         <div class="mt-0">
                             <label class="form-label" for="weigh-category">Category</label>
-                            <select class="form-select" id="weigh-category" @if ($categories->isNotEmpty()) required @endif>
+                            <select class="form-select" id="weigh-category">
                                 <option value="">Choose category</option>
                                 @foreach ($categories as $category)
                                     <option value="{{ $category->uuid }}" data-name="{{ $category->name }}">{{ $category->name }}</option>
@@ -536,8 +536,9 @@
         let customer = bill.customers.find((row) => row.uuid === document.getElementById('customer-uuid').value) || null;
         let payState = { total: 0, advance: 0, oldDue: 0, creditUsed: 0 };
         const draftKey = bill.draftKey || null;
+        let allowDraftSave = true;
         function saveBillDraft() {
-            if (!draftKey) return;
+            if (!draftKey || !allowDraftSave) return;
             try {
                 const payload = {
                     customer_uuid: document.getElementById('customer-uuid')?.value || '',
@@ -547,12 +548,18 @@
                     weigh: weighState(),
                     saved_at: Date.now(),
                 };
+                // Empty draft is not useful and would reappear on the next new bill.
+                if (!payload.stock.length && !payload.fresh.length && !payload.retail.length) {
+                    sessionStorage.removeItem(draftKey);
+                    return;
+                }
                 sessionStorage.setItem(draftKey, JSON.stringify(payload));
             } catch (error) {
                 // Ignore quota / private mode.
             }
         }
         function clearBillDraft() {
+            allowDraftSave = false;
             if (!draftKey) return;
             try { sessionStorage.removeItem(draftKey); } catch (error) {}
         }
@@ -562,9 +569,21 @@
             try {
                 payload = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
             } catch (error) {
+                clearBillDraft();
+                allowDraftSave = true;
                 return false;
             }
-            if (!payload || (!payload.fresh?.length && !payload.stock?.length && !payload.retail?.length)) return false;
+            // Drop stale drafts (older than 6 hours) so yesterday's bill never returns.
+            if (payload?.saved_at && (Date.now() - Number(payload.saved_at)) > 6 * 60 * 60 * 1000) {
+                clearBillDraft();
+                allowDraftSave = true;
+                return false;
+            }
+            if (!payload || (!payload.fresh?.length && !payload.stock?.length && !payload.retail?.length)) {
+                clearBillDraft();
+                allowDraftSave = true;
+                return false;
+            }
             (payload.stock || []).forEach((uuid) => {
                 const row = bill.pieces.find((piece) => piece.uuid === uuid);
                 if (row && !stockLines.some((line) => line.uuid === uuid)) stockLines.push(row);
@@ -1815,9 +1834,14 @@
                 event.preventDefault();
                 focusScan();
             }
-            if (!event.defaultPrevented) clearBillDraft();
+            if (!event.defaultPrevented) {
+                // Stop pagehide from writing the just-saved bill back into the draft.
+                clearBillDraft();
+            }
         });
-        window.addEventListener('pagehide', saveBillDraft);
+        window.addEventListener('pagehide', () => {
+            if (allowDraftSave) saveBillDraft();
+        });
         document.getElementById('bill-preview').addEventListener('click', async () => {
             if (!picker.ensure()) return;
             if (stockLines.length === 0 && freshLines.length === 0 && retailLines.length === 0) {
@@ -1895,7 +1919,6 @@
         });
         renderBill();
         previewWeigh();
-        saveBillDraft();
         initBillTooltips();
         if (!billWorkspace && scanInput && (document.activeElement === document.body || document.activeElement === null)) {
             scanInput.focus();
