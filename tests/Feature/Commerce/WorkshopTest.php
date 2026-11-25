@@ -383,6 +383,97 @@ class WorkshopTest extends TestCase
         $this->actingAs($owner)->post(route('repairs.status', $repair), ['status' => 'cancelled'])->assertSessionHasErrors();
     }
 
+    public function test_a_supplier_payment_can_be_dated_back_but_not_into_the_future(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $supplier = $this->supplier($owner);
+
+        $this->actingAs($owner)->post(route('purchases.store'), $this->piece($supplier, $gold, $purity, 'CHAIN09'))->assertRedirect();
+        $this->seeShop($owner);
+
+        $this->actingAs($owner)->get(route('suppliers.show', $supplier))
+            ->assertOk()
+            ->assertSee('name="paid_on"', false);
+
+        $paidOn = now()->subDays(3)->toDateString();
+        $this->actingAs($owner)->post(route('suppliers.payments.store', $supplier), [
+            'method' => 'cash',
+            'amount' => '20000',
+            'paid_on' => $paidOn,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->seeShop($owner);
+        $payment = \App\Models\Payment::query()->where('supplier_id', $supplier->id)->latest('id')->firstOrFail();
+        $this->assertSame($paidOn, $payment->received_at->timezone(config('app.timezone'))->toDateString());
+
+        $this->actingAs($owner)->post(route('suppliers.payments.store', $supplier), [
+            'method' => 'cash',
+            'amount' => '1000',
+            'paid_on' => now()->addDay()->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        $this->seeShop($owner);
+        $this->assertSame(1, \App\Models\Payment::query()->where('supplier_id', $supplier->id)->count());
+    }
+
+    public function test_an_installment_can_be_dated_back_to_on_or_after_the_start_date(): void
+    {
+        [$owner] = $this->counter();
+        $customer = $this->customer($owner);
+
+        $this->actingAs($owner)->post(route('schemes.store'), [
+            'code' => 'GOLD12',
+            'name' => 'Twelve month gold',
+            'installment_mode' => 'fixed',
+            'monthly_amount' => '5000',
+            'duration_months' => '2',
+            'bonus_type' => 'extra_installment',
+            'bonus_value' => '0',
+            'is_active' => '1',
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $scheme = GoldScheme::query()->where('code', 'GOLD12')->firstOrFail();
+        $startedOn = now()->subMonths(2)->toDateString();
+        $this->actingAs($owner)->post(route('schemes.enroll', $scheme), [
+            'customer_uuid' => $customer->uuid,
+            'started_on' => $startedOn,
+        ])->assertRedirect();
+
+        $this->seeShop($owner);
+        $enrollment = $scheme->enrollments()->firstOrFail();
+        $this->actingAs($owner)->get(route('enrollments.show', $enrollment))
+            ->assertOk()
+            ->assertSee('name="paid_on"', false);
+
+        $paidOn = now()->subMonth()->toDateString();
+        $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
+            'amount' => '5000',
+            'method' => 'cash',
+            'paid_on' => $paidOn,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->seeShop($owner);
+        $first = $enrollment->installments()->orderBy('due_on')->firstOrFail();
+        $this->assertSame($paidOn, $first->paid_at->timezone(config('app.timezone'))->toDateString());
+        $this->assertSame($paidOn, \App\Models\Payment::query()->findOrFail($first->payment_id)->received_at->timezone(config('app.timezone'))->toDateString());
+
+        $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
+            'amount' => '5000',
+            'method' => 'cash',
+            'paid_on' => now()->subMonths(3)->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        $this->actingAs($owner)->post(route('enrollments.installments.store', $enrollment), [
+            'amount' => '5000',
+            'method' => 'cash',
+            'paid_on' => now()->addDay()->toDateString(),
+        ])->assertSessionHasErrors('paid_on');
+
+        $this->seeShop($owner);
+        $this->assertSame(1, $enrollment->installments()->whereNotNull('paid_at')->count());
+    }
+
     public function test_a_scheme_matures_only_after_every_installment(): void
     {
         [$owner] = $this->counter();

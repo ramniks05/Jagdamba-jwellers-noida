@@ -8,7 +8,7 @@ use App\Enums\MetalStockKind;
 use App\Enums\PartyType;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Commerce\ReceiptRequest;
+use App\Http\Requests\Commerce\SupplierPaymentRequest;
 use App\Http\Requests\Commerce\SupplierRequest;
 use App\Models\LedgerEntry;
 use App\Models\MetalStockMovement;
@@ -184,7 +184,7 @@ class SupplierController extends Controller
         return redirect()->route('suppliers.show', $supplier)->with('status', 'Supplier saved.');
     }
 
-    public function payment(ReceiptRequest $request, Supplier $supplier, PaymentService $payments): RedirectResponse
+    public function payment(SupplierPaymentRequest $request, Supplier $supplier, PaymentService $payments): RedirectResponse
     {
         $payments->paySupplier($supplier, $request->validated(), $request->user()?->id);
 

@@ -15,6 +15,7 @@ use App\Models\SchemeEnrollment;
 use App\Models\SchemeInstallment;
 use App\Services\Foundation\DocumentNumberService;
 use App\Support\CompanyContext;
+use App\Support\PaymentDate;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
@@ -157,6 +158,8 @@ class SchemeService
                 ]);
             }
 
+            $paidAt = PaymentDate::resolve($attributes['paid_on'] ?? null, $enrollment->started_on);
+
             $branch = Branch::query()->where('is_head_office', true)->first()
                 ?? Branch::query()->orderBy('id')->first();
             $receipt = $this->numbers->issue($this->numbers->for(DocumentType::Receipt, $branch));
@@ -170,12 +173,12 @@ class SchemeService
                 'amount' => (string) $amount,
                 'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
                 'narration' => 'Scheme '.$enrollment->number,
-                'received_at' => now(),
+                'received_at' => $paidAt,
                 'user_id' => $userId,
             ]);
             $installment->payment_id = $payment->id;
             $installment->amount = (string) $amount;
-            $installment->paid_at = now();
+            $installment->paid_at = $paidAt;
             $installment->save();
 
             return $installment;

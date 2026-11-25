@@ -176,6 +176,11 @@
                                     @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-6">
+                                    <label class="form-label" for="pay-paid-on">Paid on</label>
+                                    <input class="form-control @error('paid_on') is-invalid @enderror" id="pay-paid-on" name="paid_on" type="date" value="{{ old('paid_on', now()->toDateString()) }}" max="{{ now()->toDateString() }}">
+                                    @error('paid_on')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-6">
                                     <label class="form-label" for="pay-method">Paid by</label>
                                     <select class="form-select" id="pay-method" name="method">
                                         @foreach ($methods as $method)

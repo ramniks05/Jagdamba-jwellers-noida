@@ -95,6 +95,13 @@
                     </div>
                     <div class="due-pay-row">
                         <div>
+                            <label class="form-label" for="paid-on">Paid on</label>
+                            <input class="form-control @error('paid_on') is-invalid @enderror" id="paid-on" name="paid_on" type="date" value="{{ old('paid_on', now()->toDateString()) }}" min="{{ $enrollment->started_on?->toDateString() }}" max="{{ now()->toDateString() }}">
+                            @error('paid_on')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div>
                             <label class="form-label" for="amount">Amount ₹</label>
                             <input class="form-control @error('amount') is-invalid @enderror" id="amount" name="amount" value="{{ old('amount', $fixed ? $enrollment->scheme?->monthly_amount : null) }}" inputmode="decimal" placeholder="Amount" @readonly($fixed) required>
                             @error('amount')

@@ -14,6 +14,7 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Services\Foundation\DocumentNumberService;
 use App\Support\CompanyContext;
+use App\Support\PaymentDate;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\DB;
@@ -193,7 +194,7 @@ class PaymentService
                 'amount' => (string) $amount,
                 'reference' => trim((string) ($attributes['reference'] ?? '')) ?: null,
                 'narration' => 'Paid to supplier',
-                'received_at' => now(),
+                'received_at' => PaymentDate::resolve($attributes['paid_on'] ?? null),
                 'user_id' => $userId,
             ]);
             $this->ledger->post(
