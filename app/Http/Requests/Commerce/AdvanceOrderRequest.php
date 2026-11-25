@@ -78,9 +78,10 @@ class AdvanceOrderRequest extends FormRequest
 
         return [
             'customer_uuid' => ['required', 'uuid', Rule::exists('customers', 'uuid')->where(fn ($query) => $query->where('company_id', $companyId)->where('is_system', false))],
-            'description' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:160'],
             'design_notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1', 'max:8'],
+            'lines.*.item_name' => ['nullable', 'string', 'max:160'],
             'lines.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where($shop)],
             'lines.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where($shop)],
             'lines.*.expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],

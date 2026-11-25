@@ -248,7 +248,7 @@
         <table class="invoice-table">
             <thead>
                 <tr>
-                    <th>Piece</th>
+                    <th>{{ $order->lines->count() > 1 ? 'Items' : 'Piece' }}</th>
                     <th>Metal</th>
                     <th class="num">Expected weight</th>
                     <th class="num">Rate locked / g</th>
@@ -259,20 +259,18 @@
                 @if ($order->lines->isNotEmpty())
                     @foreach ($order->lines as $line)
                         <tr>
-                            @if ($loop->first)
-                                <td rowspan="{{ $order->lines->count() }}">
-                                    <strong>{{ $order->description }}</strong>
-                                    @if ($order->design_notes)
-                                        <div class="muted">{{ $order->design_notes }}</div>
-                                    @endif
-                                </td>
-                            @endif
+                            <td><strong>{{ $line->item_name ?: $order->description }}</strong></td>
                             <td>{{ trim($line->metalType?->name.' '.$line->purity?->name) }}</td>
                             <td class="num">{{ $weight((string) $line->expected_weight) }}</td>
                             <td class="num">{{ $money((string) $line->rate_per_gram) }}</td>
                             <td class="num"><strong>{{ $money($line->goldEstimate()) }}</strong></td>
                         </tr>
                     @endforeach
+                    @if ($order->design_notes)
+                        <tr>
+                            <td colspan="5"><span class="muted">Design and size:</span> {{ $order->design_notes }}</td>
+                        </tr>
+                    @endif
                 @else
                     <tr>
                         <td>
@@ -328,7 +326,7 @@
         </div>
         <footer class="invoice-foot">
             <div class="invoice-terms">
-                <p>The {{ $metal }} rate is locked at {{ $money((string) $order->rate_per_gram) }} per gram from {{ $booked }}. The final bill uses the actual weight of the finished piece at this rate, with {{ $estimate['mode'] === 'processing' ? 'the processing charge' : 'making' }} and GST. The advance is taken off the final bill. Please bring this slip at delivery.</p>
+                <p>@if ($order->lines->count() > 1)The rates shown above are locked from {{ $booked }}.@else The {{ $metal }} rate is locked at {{ $money((string) $order->rate_per_gram) }} per gram from {{ $booked }}.@endif The final bill uses the actual weight of the finished piece at this rate, with {{ $estimate['mode'] === 'processing' ? 'the processing charge' : 'making' }} and GST. The advance is taken off the final bill. Please bring this slip at delivery.</p>
                 @if ($order->status === 'cancelled')
                     <p>This order was cancelled on {{ $order->cancelled_at?->timezone(config('app.timezone'))->format('d-m-Y') }}.@if ((float) $held > 0) {{ $money($held) }} stays on the customer’s account.@endif</p>
                 @endif

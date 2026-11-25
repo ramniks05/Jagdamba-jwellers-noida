@@ -15,6 +15,7 @@
         $bookedValue = old('booked_at', $order->booked_at?->timezone(config('app.timezone'))->format('Y-m-d\TH:i'));
         $lineRows = $order->lines->isNotEmpty()
             ? $order->lines->map(fn ($line) => [
+                'item_name' => $line->item_name ?: $order->description,
                 'metal_uuid' => $line->metalType?->uuid,
                 'purity_uuid' => $line->purity?->uuid,
                 'expected_weight' => (string) $line->expected_weight,
@@ -22,6 +23,7 @@
                 'estimated_making' => (string) $line->estimated_making,
             ])->all()
             : [[
+                'item_name' => $order->description,
                 'metal_uuid' => $order->metalType?->uuid,
                 'purity_uuid' => $order->purity?->uuid,
                 'expected_weight' => (string) $order->expected_weight,
@@ -33,7 +35,7 @@
         <div>
             <a href="{{ route('orders.show', $order) }}"><i class="bi bi-arrow-left"></i> Order {{ $order->number }}</a>
             <h1 class="page-title h3 mb-0 mt-1">Edit order</h1>
-            <p class="text-secondary small mb-0">Change the category, piece name, metal lines, locked rates, order date, or delivery date. Edit each advance receipt on the order page.</p>
+            <p class="text-secondary small mb-0">Change the items (add, remove, rename), weights, locked rates, order date, or delivery date. Edit each advance receipt on the order page.</p>
         </div>
     </div>
     <form method="POST" action="{{ route('orders.update', $order) }}" id="order-form" autocomplete="off">
@@ -54,24 +56,10 @@
                 <div class="card mb-3">
                     <div class="card-header bg-white">What to make</div>
                     <div class="card-body">
-                        <div class="weigh-section-title">Piece</div>
-                        <div class="mt-2">
-                            <label class="form-label" for="order-category">Category</label>
-                            <select class="form-select" id="order-category">
-                                <option value="">Choose category</option>
-                                @foreach ($categories as $category)
-                                    <option value="{{ $category->name }}" @selected(old('description', $order->description) === $category->name)>{{ $category->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mt-2">
-                            <label class="form-label" for="description">Name</label>
-                            <input class="form-control @error('description') is-invalid @enderror" id="description" name="description" value="{{ old('description', $order->description) }}" maxlength="160" required>
-                            @error('description')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals, 'lineRows' => $lineRows])
+                        @error('description')
+                            <div class="text-danger small mb-2">{{ $message }}</div>
+                        @enderror
+                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals, 'categories' => $categories, 'lineRows' => $lineRows])
                         @error('lines')
                             <div class="text-danger small">{{ $message }}</div>
                         @enderror
@@ -286,17 +274,6 @@
 
         const metalLines = initOrderMetalLines(order, { onTotals: renderOrderSummary });
 
-        const categoryNames = () => Array.from(document.querySelectorAll('#order-category option'))
-            .map((option) => option.value.trim())
-            .filter((name) => name !== '');
-        $('order-category')?.addEventListener('change', () => {
-            const selected = $('order-category').value.trim();
-            const nameField = $('description');
-            if (selected && (nameField.value.trim() === '' || categoryNames().includes(nameField.value.trim()))) {
-                nameField.value = selected;
-            }
-            document.querySelector('#order-lines .order-line-weight')?.focus();
-        });
         $('making-method').addEventListener('change', () => {
             makingEdited = true;
             syncMaking();

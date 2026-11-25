@@ -1,18 +1,36 @@
 @php
     $idx = $index;
     $prefix = is_numeric($idx) ? "lines[{$idx}]" : 'lines[__INDEX__]';
+    $itemName = $line['item_name'] ?? '';
     $metalUuid = $line['metal_uuid'] ?? '';
     $purityUuid = $line['purity_uuid'] ?? '';
     $weight = $line['expected_weight'] ?? '';
     $rate = $line['rate_per_gram'] ?? '';
     $lineMaking = $line['estimated_making'] ?? '0';
+    $nameError = is_numeric($idx) ? $errors->first("lines.{$idx}.item_name") : '';
 @endphp
 <div class="stone-box mt-0 order-line" data-index="{{ $idx }}">
     <div class="d-flex justify-content-between align-items-center stone-box-head">
-        <span class="weigh-step-label order-line-label">Line {{ is_numeric($idx) ? ((int) $idx + 1) : '' }}</span>
-        @if ($canRemove)
-            <button type="button" class="btn btn-link btn-sm text-danger p-0 order-line-remove" aria-label="Remove line">Remove</button>
-        @endif
+        <span class="weigh-step-label order-line-label">Item {{ is_numeric($idx) ? ((int) $idx + 1) : '' }}</span>
+        <button type="button" class="btn btn-link btn-sm text-danger p-0 order-line-remove @if (! $canRemove) d-none @endif" aria-label="Remove item">Remove</button>
+    </div>
+    <div class="row g-2 mb-2">
+        <div class="col-md-4">
+            <label class="form-label">Category</label>
+            <select class="form-select order-line-category">
+                <option value="">Choose category</option>
+                @foreach ($categories as $category)
+                    <option value="{{ $category->name }}" @selected($itemName === $category->name)>{{ $category->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-8">
+            <label class="form-label">Item name</label>
+            <input class="form-control order-line-name @if ($nameError !== '') is-invalid @endif" name="{{ $prefix }}[item_name]" value="{{ $itemName }}" maxlength="160" placeholder="Choose a category, then type the name if it is different" @if(empty($template)) required @endif>
+            @if ($nameError !== '')
+                <div class="invalid-feedback">{{ $nameError }}</div>
+            @endif
+        </div>
     </div>
     <div class="metal-row">
         <div>

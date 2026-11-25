@@ -140,8 +140,9 @@ class AdvanceOrderTest extends TestCase
 
         $this->actingAs($owner)->get(route('orders.create'))
             ->assertOk()
-            ->assertSee('Add another purity', false)
+            ->assertSee('Add another item', false)
             ->assertSee('order-metal-lines.js', false)
+            ->assertSee('lines[0][item_name]', false)
             ->assertSee('lines[0][metal_uuid]', false);
     }
 
@@ -249,7 +250,7 @@ class AdvanceOrderTest extends TestCase
         $this->actingAs($owner)->get(route('orders.edit', $order))
             ->assertOk()
             ->assertSee('Edit order')
-            ->assertSee('id="order-category"', false)
+            ->assertSee('lines[0][item_name]', false)
             ->assertSee('Advance receipts', false);
 
         $this->actingAs($owner)->put(route('orders.update', $order), [
@@ -344,8 +345,75 @@ class AdvanceOrderTest extends TestCase
 
         $this->actingAs($owner)->get(route('orders.create'))
             ->assertOk()
-            ->assertSee('id="order-category"', false)
+            ->assertSee('order-line-category', false)
             ->assertDontSee('id="order-products"', false);
+    }
+
+    public function test_one_order_can_hold_several_named_items_and_they_can_be_edited(): void
+    {
+        [$owner, $gold] = $this->counter();
+        $purity22 = Purity::query()->where('code', '22K')->firstOrFail();
+        $purity18 = Purity::query()->where('code', '18K')->firstOrFail();
+        $this->rate($owner, $gold, $purity18, '4800');
+        $customer = $this->customer($owner);
+
+        $payload = $this->booking($customer, $gold, $purity22, '20000');
+        unset($payload['description'], $payload['metal_uuid'], $payload['purity_uuid'], $payload['expected_weight']);
+        $payload['lines'] = [
+            ['item_name' => 'Bridal necklace', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity22->uuid, 'expected_weight' => '20', 'rate_per_gram' => '5000'],
+            ['item_name' => 'Matching earrings', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity22->uuid, 'expected_weight' => '5', 'rate_per_gram' => '5000'],
+            ['item_name' => 'Nose pin', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity18->uuid, 'expected_weight' => '1', 'rate_per_gram' => '4800'],
+        ];
+
+        $this->actingAs($owner)->post(route('orders.store'), $payload)->assertRedirect()->assertSessionHasNoErrors();
+        $this->seeShop($owner);
+
+        $order = AdvanceOrder::query()->with('lines')->latest('id')->firstOrFail();
+        $this->assertCount(3, $order->lines);
+        $this->assertSame(['Bridal necklace', 'Matching earrings', 'Nose pin'], $order->lines->pluck('item_name')->all());
+        $this->assertSame('Bridal necklace, Matching earrings, Nose pin', $order->description);
+        $this->assertSame('26.000', (string) $order->expected_weight);
+
+        $this->actingAs($owner)->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Bridal necklace', false)
+            ->assertSee('Matching earrings', false)
+            ->assertSee('Nose pin', false);
+        $this->actingAs($owner)->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('lines[2][item_name]', false)
+            ->assertSee('Matching earrings', false);
+
+        $this->actingAs($owner)->put(route('orders.update', $order), [
+            'lines' => [
+                ['item_name' => 'Bridal necklace', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity22->uuid, 'expected_weight' => '22', 'rate_per_gram' => '5000'],
+                ['item_name' => 'Bangles pair', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity22->uuid, 'expected_weight' => '30', 'rate_per_gram' => '5000'],
+            ],
+            'estimated_making' => '0',
+        ])->assertRedirect(route('orders.show', $order))->assertSessionHasNoErrors();
+
+        $order->refresh()->load('lines');
+        $this->assertSame(['Bridal necklace', 'Bangles pair'], $order->lines->pluck('item_name')->all());
+        $this->assertSame('Bridal necklace, Bangles pair', $order->description);
+        $this->assertSame('52.000', (string) $order->expected_weight);
+    }
+
+    public function test_every_item_in_an_order_needs_a_name(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $customer = $this->customer($owner);
+
+        $payload = $this->booking($customer, $gold, $purity, '1000');
+        unset($payload['description'], $payload['metal_uuid'], $payload['purity_uuid'], $payload['expected_weight']);
+        $payload['lines'] = [
+            ['item_name' => 'Ring', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity->uuid, 'expected_weight' => '4'],
+            ['item_name' => '', 'metal_uuid' => $gold->uuid, 'purity_uuid' => $purity->uuid, 'expected_weight' => '6'],
+        ];
+
+        $this->actingAs($owner)->post(route('orders.store'), $payload)
+            ->assertSessionHasErrors('lines.1.item_name');
+        $this->seeShop($owner);
+        $this->assertSame(0, AdvanceOrder::query()->count());
     }
 
     public function test_one_order_can_have_two_purities_and_bill_each_at_its_locked_rate(): void

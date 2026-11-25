@@ -129,13 +129,13 @@ class AdvanceOrderController extends Controller
         $estimate = $orders->estimate($order, $company);
         $metal = $order->metalSummary();
         $lineShare = $order->lines->isNotEmpty()
-            ? $order->lines->map(fn ($line) => trim($line->metalLabel()).' about '.$weight((string) $line->expected_weight).' @ '.$money((string) $line->rate_per_gram).' / g')->implode("\n")
+            ? $order->lines->map(fn ($line) => ($line->item_name ?: $order->description).': '.trim($line->metalLabel()).' about '.$weight((string) $line->expected_weight).' @ '.$money((string) $line->rate_per_gram).' / g')->implode("\n")
             : $metal.' about '.$weight((string) $order->expected_weight)."\n".'Rate locked '.$money((string) $order->rate_per_gram).' per gram';
         $share = $company->displayName()."\n"
             .'Order booking '.$order->number."\n"
             .'Date '.$order->booked_at?->timezone(config('app.timezone'))->format('d-m-Y')."\n"
             .'Customer '.($order->customer?->name)."\n\n"
-            .$order->description."\n"
+            .($order->lines->isNotEmpty() ? '' : $order->description."\n")
             .$lineShare."\n"
             .($order->due_on ? 'Delivery by '.$order->due_on->format('d-m-Y')."\n" : '')
             ."\n".'Estimated bill '.$money($estimate['total'])."\n"

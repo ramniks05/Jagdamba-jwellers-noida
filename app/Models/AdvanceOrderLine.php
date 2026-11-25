@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'company_id', 'advance_order_id', 'metal_type_id', 'purity_id', 'metal_rate_id',
+    'company_id', 'advance_order_id', 'item_name', 'metal_type_id', 'purity_id', 'metal_rate_id',
     'expected_weight', 'rate_per_gram', 'estimated_making', 'sort_order',
 ])]
 class AdvanceOrderLine extends Model
@@ -51,6 +51,13 @@ class AdvanceOrderLine extends Model
         return (string) BigDecimal::of((string) $this->expected_weight)
             ->multipliedBy((string) $this->rate_per_gram)
             ->toScale(2, RoundingMode::HalfUp);
+    }
+
+    public function itemLabel(): string
+    {
+        $this->loadMissing('order');
+
+        return trim((string) ($this->item_name ?: $this->order?->description));
     }
 
     public function metalLabel(): string

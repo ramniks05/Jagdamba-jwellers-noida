@@ -12,7 +12,7 @@
         ][$makingMode] ?? 'Making inside jewellery GST';
     @endphp
     <h1 class="page-title h3 mb-1">New order</h1>
-    <p class="text-secondary mb-3">Book a piece the customer wants made. Today’s rate is locked on the order and the final bill uses the actual weight at that rate.</p>
+    <p class="text-secondary mb-3">Book the pieces the customer wants made — one or many items in one order. Today’s rate is locked on the order and the final bill uses the actual weight at that rate.</p>
     <form method="POST" action="{{ route('orders.store') }}" id="order-form" autocomplete="off">
         @csrf
         <input type="hidden" name="customer_uuid" id="customer-uuid" value="{{ old('customer_uuid') }}">
@@ -23,21 +23,10 @@
                 <div class="card mb-3">
                     <div class="card-header bg-white">What to make</div>
                     <div class="card-body">
-                        <div class="weigh-section-title">Piece</div>
-                        <div class="mt-2">
-                            <label class="form-label" for="order-category">Category</label>
-                            <select class="form-select" id="order-category">
-                                <option value="">Choose category</option>
-                                @foreach ($categories as $category)
-                                    <option value="{{ $category->name }}" @selected(old('description') === $category->name)>{{ $category->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mt-2">
-                            <label class="form-label" for="description">Name</label>
-                            <input class="form-control" id="description" name="description" value="{{ old('description') }}" placeholder="Choose a category, then type the name if it is different" maxlength="160" required>
-                        </div>
-                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals])
+                        @include('commerce.orders.partials.metal-lines', ['metals' => $metals, 'categories' => $categories])
+                        @error('lines')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
                         <div class="weigh-section">
                             <div class="charges-head">
                                 <div class="weigh-section-title">Charges</div>
@@ -259,17 +248,6 @@
             csrf: order.csrf,
             addLabel: 'Add to order',
             chipLabel: 'Order for',
-        });
-        const categoryNames = () => Array.from(document.querySelectorAll('#order-category option'))
-            .map((option) => option.value.trim())
-            .filter((name) => name !== '');
-        $('order-category').addEventListener('change', () => {
-            const selected = $('order-category').value.trim();
-            const nameField = $('description');
-            if (selected && (nameField.value.trim() === '' || categoryNames().includes(nameField.value.trim()))) {
-                nameField.value = selected;
-            }
-            document.querySelector('#order-lines .order-line-weight')?.focus();
         });
         $('making-method').addEventListener('change', () => {
             syncMaking();

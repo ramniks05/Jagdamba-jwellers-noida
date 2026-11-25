@@ -5,6 +5,7 @@
         $lineRows = $lineRows;
     } else {
         $lineRows = [[
+            'item_name' => old('description', ''),
             'metal_uuid' => old('metal_uuid', ''),
             'purity_uuid' => old('purity_uuid', ''),
             'expected_weight' => old('expected_weight', ''),
@@ -15,8 +16,8 @@
 @endphp
 <div class="weigh-section">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div class="weigh-section-title mb-0">Metal lines</div>
-        <span class="small text-secondary">One description for the order; add a line per purity (e.g. ring 18K + tops 20K).</span>
+        <div class="weigh-section-title mb-0">Items</div>
+        <span class="small text-secondary">Add every piece the customer wants in this order (e.g. ring, chain, bangles). Each item has its own metal, purity and weight.</span>
     </div>
     <div id="order-lines" class="d-flex flex-column gap-2">
         @foreach ($lineRows as $index => $line)
@@ -24,19 +25,21 @@
                 'index' => $index,
                 'line' => $line,
                 'metals' => $metals,
+                'categories' => $categories,
                 'canRemove' => count($lineRows) > 1,
             ])
         @endforeach
     </div>
-    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="add-order-line"><i class="bi bi-plus-lg"></i> Add another purity</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="add-order-line"><i class="bi bi-plus-lg"></i> Add another item</button>
     <div class="text-danger small mt-2 d-none" id="rate-missing"></div>
 </div>
 
 <template id="order-line-template">
     @include('commerce.orders.partials.metal-line-row', [
         'index' => '__INDEX__',
-        'line' => ['metal_uuid' => '', 'purity_uuid' => '', 'expected_weight' => '', 'rate_per_gram' => '', 'estimated_making' => '0'],
+        'line' => ['item_name' => '', 'metal_uuid' => '', 'purity_uuid' => '', 'expected_weight' => '', 'rate_per_gram' => '', 'estimated_making' => '0'],
         'metals' => $metals,
+        'categories' => $categories,
         'canRemove' => true,
         'template' => true,
     ])

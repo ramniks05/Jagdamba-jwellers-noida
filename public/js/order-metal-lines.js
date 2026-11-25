@@ -1,5 +1,5 @@
 /**
- * Multi-line metal rows on advance order create / edit.
+ * Multi-item rows (name, metal, purity, weight, rate) on advance order create / edit.
  * Expects #order-lines, #order-line-template, #order-config JSON, and optional #estimated-making.
  */
 (function () {
@@ -56,7 +56,7 @@
         function reindexLines() {
             container.querySelectorAll('.order-line').forEach((row, index) => {
                 row.dataset.index = String(index);
-                row.querySelector('.order-line-label').textContent = 'Line ' + (index + 1);
+                row.querySelector('.order-line-label').textContent = 'Item ' + (index + 1);
                 row.querySelectorAll('[name^="lines["]').forEach((field) => {
                     field.name = field.name.replace(/lines\[\d+\]/, 'lines[' + index + ']');
                 });
@@ -135,9 +135,27 @@
             const wrap = document.createElement('div');
             wrap.innerHTML = html.trim();
             const row = wrap.firstElementChild;
+            const previous = container.querySelector('.order-line:last-child');
             container.appendChild(row);
+            if (previous) {
+                const metal = row.querySelector('.order-line-metal');
+                metal.value = previous.querySelector('.order-line-metal').value;
+                syncPurities(row);
+                const purity = row.querySelector('.order-line-purity');
+                const wanted = previous.querySelector('.order-line-purity').value;
+                if (Array.from(purity.options).some((option) => option.value === wanted && !option.disabled)) {
+                    purity.value = wanted;
+                }
+            }
             reindexLines();
             render();
+            row.querySelector('.order-line-category')?.focus();
+        }
+
+        function categoryNames(row) {
+            return Array.from(row.querySelectorAll('.order-line-category option'))
+                .map((option) => option.value.trim())
+                .filter((name) => name !== '');
         }
 
         container.addEventListener('click', (event) => {
@@ -154,6 +172,15 @@
         });
 
         container.addEventListener('change', (event) => {
+            if (event.target.classList.contains('order-line-category')) {
+                const row = event.target.closest('.order-line');
+                const chosen = event.target.value.trim();
+                const nameField = row?.querySelector('.order-line-name');
+                if (chosen && nameField && (nameField.value.trim() === '' || categoryNames(row).includes(nameField.value.trim()))) {
+                    nameField.value = chosen;
+                }
+                row?.querySelector('.order-line-weight')?.focus();
+            }
             if (event.target.classList.contains('order-line-metal') || event.target.classList.contains('order-line-purity')) {
                 const row = event.target.closest('.order-line');
                 const rateField = row?.querySelector('.order-line-rate');

@@ -22,6 +22,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdvanceOrderService
@@ -61,7 +62,7 @@ class AdvanceOrderService
                 ]);
             }
 
-            $resolvedLines = $this->resolveLines($attributes['lines'] ?? [], $branch);
+            $resolvedLines = $this->resolveLines($attributes['lines'] ?? [], $branch, trim((string) ($attributes['description'] ?? '')));
             $first = $resolvedLines[0];
             $bookedAt = $this->bookedAt($attributes);
             $number = $this->numbers->issue($this->numbers->for(DocumentType::AdvanceOrder, $branch));
@@ -73,7 +74,7 @@ class AdvanceOrderService
                 'purity_id' => $first['purity_id'],
                 'metal_rate_id' => $first['metal_rate_id'],
                 'number' => $number->number,
-                'description' => trim((string) $attributes['description']),
+                'description' => $this->orderName($attributes, $resolvedLines),
                 'design_notes' => trim((string) ($attributes['design_notes'] ?? '')) ?: null,
                 'expected_weight' => $this->sumWeights($resolvedLines),
                 'rate_per_gram' => $first['rate_per_gram'],
@@ -259,10 +260,10 @@ class AdvanceOrderService
             $this->mustBeOpen($order, 'description');
 
             $branch = $order->branch ?? Branch::query()->where('is_head_office', true)->first();
-            $resolvedLines = $this->resolveLines($attributes['lines'] ?? [], $branch);
+            $resolvedLines = $this->resolveLines($attributes['lines'] ?? [], $branch, trim((string) ($attributes['description'] ?? '')));
             $first = $resolvedLines[0];
 
-            $order->description = trim((string) $attributes['description']);
+            $order->description = $this->orderName($attributes, $resolvedLines);
             $order->design_notes = trim((string) ($attributes['design_notes'] ?? '')) ?: null;
             $order->metal_type_id = $first['metal_type_id'];
             $order->purity_id = $first['purity_id'];
@@ -510,20 +511,47 @@ class AdvanceOrderService
     }
 
     /**
-     * @param  list<array<string, mixed>>  $rows
-     * @return list<array{metal_type_id: int, purity_id: int, metal_rate_id: int, expected_weight: string, rate_per_gram: string, estimated_making: string}>
+     * The order's own name: what was typed, otherwise every item name joined (Ring, Chain, Bangles).
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  list<array{item_name: string}>  $lines
      */
-    private function resolveLines(array $rows, ?Branch $branch): array
+    private function orderName(array $attributes, array $lines): string
+    {
+        $typed = trim((string) ($attributes['description'] ?? ''));
+
+        if ($typed !== '') {
+            return $typed;
+        }
+
+        $names = array_values(array_unique(array_map(fn (array $line) => $line['item_name'], $lines)));
+
+        return Str::limit(implode(', ', $names), 160, '');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array{item_name: string, metal_type_id: int, purity_id: int, metal_rate_id: int, expected_weight: string, rate_per_gram: string, estimated_making: string}>
+     */
+    private function resolveLines(array $rows, ?Branch $branch, string $fallbackName = ''): array
     {
         if ($rows === []) {
             throw ValidationException::withMessages([
-                'lines' => 'Add at least one metal line to the order.',
+                'lines' => 'Add at least one item to the order.',
             ]);
         }
 
         $resolved = [];
 
         foreach (array_values($rows) as $index => $row) {
+            $itemName = trim((string) ($row['item_name'] ?? '')) ?: $fallbackName;
+
+            if ($itemName === '') {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.item_name" => 'Name this item.',
+                ]);
+            }
+
             $metal = MetalType::query()->where('uuid', $row['metal_uuid'] ?? '')->first();
             $purity = Purity::query()->where('uuid', $row['purity_uuid'] ?? '')->first();
 
@@ -557,6 +585,7 @@ class AdvanceOrderService
                 : (string) BigDecimal::of((string) $row['estimated_making'])->toScale(2, RoundingMode::HalfUp);
 
             $resolved[] = [
+                'item_name' => Str::limit($itemName, 160, ''),
                 'metal_type_id' => (int) $metal->id,
                 'purity_id' => (int) $purity->id,
                 'metal_rate_id' => (int) $rate->id,
@@ -570,7 +599,7 @@ class AdvanceOrderService
     }
 
     /**
-     * @param  list<array{metal_type_id: int, purity_id: int, metal_rate_id: int, expected_weight: string, rate_per_gram: string, estimated_making: string}>  $rows
+     * @param  list<array{item_name: string, metal_type_id: int, purity_id: int, metal_rate_id: int, expected_weight: string, rate_per_gram: string, estimated_making: string}>  $rows
      */
     private function storeLines(AdvanceOrder $order, array $rows): void
     {
@@ -580,6 +609,7 @@ class AdvanceOrderService
             AdvanceOrderLine::query()->create([
                 'company_id' => $order->company_id,
                 'advance_order_id' => $order->id,
+                'item_name' => $row['item_name'],
                 'metal_type_id' => $row['metal_type_id'],
                 'purity_id' => $row['purity_id'],
                 'metal_rate_id' => $row['metal_rate_id'],

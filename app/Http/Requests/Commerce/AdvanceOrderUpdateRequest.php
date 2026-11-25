@@ -79,9 +79,10 @@ class AdvanceOrderUpdateRequest extends FormRequest
         $bookedDay = Carbon::parse((string) $this->input('booked_at'), config('app.timezone'))->toDateString();
 
         return [
-            'description' => ['required', 'string', 'max:160'],
+            'description' => ['nullable', 'string', 'max:160'],
             'design_notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1', 'max:8'],
+            'lines.*.item_name' => ['nullable', 'string', 'max:160'],
             'lines.*.metal_uuid' => ['required', 'uuid', Rule::exists('metal_types', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id)->whereNull('deleted_at'))],
             'lines.*.purity_uuid' => ['required', 'uuid', Rule::exists('purities', 'uuid')->where(fn ($query) => $query->where('company_id', $this->user()->company_id)->whereNull('deleted_at'))],
             'lines.*.expected_weight' => ['required', 'numeric', 'gt:0', Limits::WEIGHT],
