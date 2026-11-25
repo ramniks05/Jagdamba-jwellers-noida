@@ -106,6 +106,16 @@ class Sale extends Model
         return $this->hasMany(SaleCharge::class)->orderBy('position')->orderBy('id');
     }
 
+    /**
+     * Charges for display. Empty (not an error) on a server that has not run the charges migration yet.
+     *
+     * @return \Illuminate\Support\Collection<int, SaleCharge>
+     */
+    public function chargeLines(): \Illuminate\Support\Collection
+    {
+        return SaleCharge::ready() ? $this->charges : collect();
+    }
+
     public function makingLabel(): string
     {
         return in_array($this->making_mode, ['processing', 'separate'], true) ? 'Processing charge' : 'Making';

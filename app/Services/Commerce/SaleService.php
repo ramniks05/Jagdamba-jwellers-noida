@@ -318,6 +318,13 @@ class SaleService
             $taxableTotal = BigDecimal::of($bill->taxableAmount)->plus($retailTotals['taxable']);
             $taxTotal = BigDecimal::of($bill->taxAmount)->plus($retailTotals['tax']);
             $chargeRows = $attributes['charges'] ?? [];
+
+            if ($chargeRows !== [] && ! SaleCharge::ready()) {
+                throw ValidationException::withMessages([
+                    'charges' => 'This server needs the latest database update (php artisan migrate) before other charges can be saved. Remove the charges for now, or run migrate on live.',
+                ]);
+            }
+
             $chargesTotal = BigDecimal::zero();
 
             foreach ($chargeRows as $charge) {
@@ -530,16 +537,18 @@ class SaleService
                 }
             }
 
-            $sale->charges()->delete();
+            if (SaleCharge::ready()) {
+                $sale->charges()->delete();
 
-            foreach ($chargeRows as $position => $charge) {
-                SaleCharge::query()->create([
-                    'company_id' => $company->id,
-                    'sale_id' => $sale->id,
-                    'label' => $charge['label'],
-                    'amount' => (string) BigDecimal::of((string) $charge['amount'])->toScale(2, RoundingMode::HalfUp),
-                    'position' => $position,
-                ]);
+                foreach ($chargeRows as $position => $charge) {
+                    SaleCharge::query()->create([
+                        'company_id' => $company->id,
+                        'sale_id' => $sale->id,
+                        'label' => $charge['label'],
+                        'amount' => (string) BigDecimal::of((string) $charge['amount'])->toScale(2, RoundingMode::HalfUp),
+                        'position' => $position,
+                    ]);
+                }
             }
 
             if ($tray && $trayNet->isPositive()) {
@@ -808,7 +817,9 @@ class SaleService
             $sale->retailLines()->delete();
         }
 
-        $sale->charges()->delete();
+        if (SaleCharge::ready()) {
+            $sale->charges()->delete();
+        }
 
         foreach ($madeForBill as $item) {
             $item->delete();

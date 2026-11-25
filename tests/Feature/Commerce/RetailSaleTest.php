@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class RetailSaleTest extends TestCase
@@ -144,6 +145,37 @@ class RetailSaleTest extends TestCase
         $sale->refresh()->load('charges');
         $this->assertSame('1000.00', (string) $sale->total);
         $this->assertCount(0, $sale->charges);
+    }
+
+    public function test_bills_still_save_and_print_before_the_charges_migration_has_run(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+        Schema::drop('sale_charges');
+
+        $this->actingAs($owner)->post(route('sales.store'), $this->billWithCharges($buyer, [], '1000'))
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $sale = Sale::query()->latest('id')->firstOrFail();
+        $this->assertSame('1000.00', (string) $sale->total);
+
+        $this->actingAs($owner)->get(route('sales.show', $sale))->assertOk();
+        $this->actingAs($owner)->get(route('sales.edit', $sale))->assertOk();
+        $this->actingAs($owner)->put(route('sales.update', $sale), $this->billWithCharges($buyer, [], '1000'))
+            ->assertRedirect()->assertSessionHasNoErrors();
+    }
+
+    public function test_charges_give_a_clear_message_instead_of_an_error_before_the_migration_has_run(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+        Schema::drop('sale_charges');
+
+        $this->actingAs($owner)->post(route('sales.store'), $this->billWithCharges($buyer, [
+            ['label' => 'Card charge', 'amount' => '25'],
+        ], '1025'))->assertSessionHasErrors('charges');
+
+        $this->assertSame(0, Sale::query()->count());
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services\Commerce;
 
 use App\Models\Company;
 use App\Models\Sale;
+use App\Models\SaleCharge;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\DisplayText;
@@ -29,7 +30,10 @@ class InvoiceSheet
      */
     public function data(Sale $sale, Company $company): array
     {
-        $sale->loadMissing(['lines.item', 'lines.stones', 'retailLines', 'charges', 'payments', 'customer', 'branch', 'advanceOrder']);
+        $sale->loadMissing(array_merge(
+            ['lines.item', 'lines.stones', 'retailLines', 'payments', 'customer', 'branch', 'advanceOrder'],
+            SaleCharge::ready() ? ['charges'] : [],
+        ));
         $link = $this->link($sale);
         $terms = (string) ($this->settings->get('invoice.terms', $company) ?? '');
 

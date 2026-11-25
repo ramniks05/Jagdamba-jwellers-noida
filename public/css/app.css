@@ -2426,6 +2426,24 @@ a {
     text-align: right;
 }
 
+/* Other charges sit on their own full-width row; in one grid column they squeezed the inputs above. */
+.bill-settings .bill-charges-editor {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+.bill-charges-editor [data-charge-row] input:first-of-type {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+}
+
+.bill-charges-editor [data-charge-row] .bill-charge-amount {
+    flex: 0 0 7.5rem;
+    min-width: 0;
+    text-align: right;
+}
+
 .charges-head {
     align-items: center;
     display: flex;

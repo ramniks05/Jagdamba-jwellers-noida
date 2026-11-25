@@ -20,6 +20,7 @@ use App\Models\MetalType;
 use App\Models\Payment;
 use App\Models\RetailProduct;
 use App\Models\Sale;
+use App\Models\SaleCharge;
 use App\Models\SaleLine;
 use App\Models\SaleRetailLine;
 use App\Models\SaleReturnLine;
@@ -400,7 +401,10 @@ class SaleController extends Controller
             $draft = $sale
                 ? $sales->revise($sale, $request->validated(), $request->user()?->id)
                 : $sales->post($company, $request->validated(), $request->user()?->id);
-            $draft->load(['lines.item', 'lines.stones', 'retailLines', 'charges', 'payments', 'customer', 'branch', 'advanceOrder']);
+            $draft->load(array_merge(
+                ['lines.item', 'lines.stones', 'retailLines', 'payments', 'customer', 'branch', 'advanceOrder'],
+                SaleCharge::ready() ? ['charges'] : [],
+            ));
             $html = view('commerce.sales.partials.invoice', $invoice->data($draft, $company) + ['preview' => true])->render();
         } finally {
             DB::rollBack();

@@ -194,7 +194,7 @@
                     <td>{{ $money((string) $sale->round_off) }}</td>
                 </tr>
             @endif
-            @foreach ($sale->charges as $charge)
+            @foreach ($sale->chargeLines() as $charge)
                 <tr>
                     <td>{{ $charge->label }}</td>
                     <td>{{ $money((string) $charge->amount) }}</td>

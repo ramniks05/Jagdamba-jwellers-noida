@@ -338,7 +338,7 @@
                             @php
                                 $chargeRows = old('charges') !== null
                                     ? array_values((array) old('charges'))
-                                    : ($sale ? $sale->charges->map(fn ($charge) => ['label' => $charge->label, 'amount' => (string) $charge->amount])->all() : []);
+                                    : ($sale ? $sale->chargeLines()->map(fn ($charge) => ['label' => $charge->label, 'amount' => (string) $charge->amount])->all() : []);
                                 $chargeNextIndex = count($chargeRows);
                             @endphp
                             <div class="bill-charges-editor">
