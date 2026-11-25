@@ -51,6 +51,47 @@ class RetailSaleTest extends TestCase
         $this->assertSame('1000.00', (string) $line->sale->total);
     }
 
+    public function test_other_item_sales_report_totals_and_lists_retail_lines(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+
+        $this->actingAs($owner)->post(route('sales.store'), [
+            'customer_uuid' => $buyer->uuid,
+            'discount' => '0',
+            'making_mode' => 'inside',
+            'retail_items' => [[
+                'name' => 'Ganesh murti',
+                'quantity' => '2',
+                'unit_price' => '500',
+                'tax_mode' => 'inclusive',
+                'tax_amount' => '50',
+            ]],
+            'payments' => [
+                ['method' => 'cash', 'amount' => '1000'],
+            ],
+        ])->assertRedirect();
+
+        $today = now()->toDateString();
+        $report = $this->actingAs($owner)
+            ->get(route('reports.other-items', ['from' => $today, 'to' => $today]))
+            ->assertOk()
+            ->assertSee('Ganesh murti');
+        $this->assertSame(1, $report->viewData('lineCount'));
+        $this->assertSame(2, $report->viewData('quantity'));
+        $this->assertStringContainsString('1,000.00', (string) $report->viewData('amount'));
+
+        $this->actingAs($owner)
+            ->get(route('reports.other-items', ['from' => $today, 'to' => $today, 'search' => 'murti']))
+            ->assertOk()
+            ->assertSee('Ganesh murti');
+
+        $this->actingAs($owner)
+            ->get(route('reports.other-items', ['from' => '2000-01-01', 'to' => '2000-01-02']))
+            ->assertOk()
+            ->assertViewHas('lineCount', 0);
+    }
+
     public function test_mixed_jewellery_and_retail_bill_does_not_move_extra_stock(): void
     {
         $owner = $this->shopUser();

@@ -593,16 +593,20 @@ class ReportController extends Controller
             ->orderByDesc('sales.sold_at')
             ->orderByDesc('sale_retail_lines.id');
 
+        // Totals start from a clean select: the page query's sale_retail_lines.* and ordering are dropped.
+        // Columns are qualified because sales also has a tax_amount, and MariaDB rejects ambiguous names.
+        // The alias is line_count, not lines, which MariaDB reserves.
         $totals = (clone $query)->toBase()
-            ->selectRaw('count(*) as lines, coalesce(sum(quantity), 0) as qty, coalesce(sum(line_amount), 0) as amount, coalesce(sum(tax_amount), 0) as tax')
+            ->reorder()
+            ->select(DB::raw('count(*) as line_count, coalesce(sum(sale_retail_lines.quantity), 0) as qty, coalesce(sum(sale_retail_lines.line_amount), 0) as amount, coalesce(sum(sale_retail_lines.tax_amount), 0) as tax'))
             ->first();
 
         $money = fn (string $amount) => $format->money($amount, $company);
 
         return view('commerce.reports.other-items', [
-            'lines' => $this->page($query, $request, (int) $totals->lines),
+            'lines' => $this->page($query, $request, (int) $totals->line_count),
             'filters' => compact('search', 'from', 'to'),
-            'lineCount' => (int) $totals->lines,
+            'lineCount' => (int) $totals->line_count,
             'quantity' => (int) $totals->qty,
             'amount' => $money($this->decimal($totals->amount)),
             'tax' => $money($this->decimal($totals->tax)),
