@@ -87,6 +87,7 @@
                         <a class="nav-link {{ request()->routeIs('reports.categories') ? 'active' : '' }}" href="{{ route('reports.categories') }}"><i class="bi bi-tags"></i><span>Pieces by category report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}" href="{{ route('reports.sales') }}"><i class="bi bi-receipt"></i><span>Sales report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.outstanding') ? 'active' : '' }}" href="{{ route('reports.outstanding') }}"><i class="bi bi-people"></i><span>Customer dues report</span></a>
+                        <a class="nav-link {{ request()->routeIs('reports.suppliers') ? 'active' : '' }}" href="{{ route('reports.suppliers') }}"><i class="bi bi-journal-text"></i><span>Supplier passbook report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.own-gold') ? 'active' : '' }}" href="{{ route('reports.own-gold') }}"><i class="bi bi-gem"></i><span>Own gold report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.trays') ? 'active' : '' }}" href="{{ route('reports.trays') }}"><i class="bi bi-inbox"></i><span>Tray report</span></a>
                         <a class="nav-link {{ request()->routeIs('reports.other-items') ? 'active' : '' }}" href="{{ route('reports.other-items') }}"><i class="bi bi-basket"></i><span>Other item sales</span></a>

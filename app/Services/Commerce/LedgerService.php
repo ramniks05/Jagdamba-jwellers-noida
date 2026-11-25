@@ -9,6 +9,7 @@ use App\Models\LedgerEntry;
 use App\Support\CompanyContext;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 
 class LedgerService
@@ -24,6 +25,7 @@ class LedgerService
         string $narration,
         ?Model $reference = null,
         ?int $userId = null,
+        ?CarbonInterface $occurredAt = null,
     ): LedgerEntry {
         $this->context->ensureId($companyId);
 
@@ -36,7 +38,7 @@ class LedgerService
             'narration' => $narration,
             'reference_type' => $reference ? $reference->getMorphClass() : null,
             'reference_id' => $reference?->getKey(),
-            'occurred_at' => now(),
+            'occurred_at' => $occurredAt ?? now(),
             'user_id' => $userId,
         ]);
     }

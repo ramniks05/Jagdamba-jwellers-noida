@@ -197,6 +197,7 @@ Route::middleware(['auth', 'company.context'])->group(function () {
     Route::put('reports/stock/{movement}', [MetalStockController::class, 'update'])->name('reports.stock.update');
     Route::get('reports/sales', [ReportController::class, 'sales'])->name('reports.sales');
     Route::get('reports/outstanding', [ReportController::class, 'outstanding'])->name('reports.outstanding');
+    Route::get('reports/suppliers', [ReportController::class, 'suppliers'])->name('reports.suppliers');
     Route::get('reports/trays', [ReportController::class, 'trays'])->name('reports.trays');
     Route::get('reports/other-items', [ReportController::class, 'otherItems'])->name('reports.other-items');
 });

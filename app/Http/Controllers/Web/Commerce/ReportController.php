@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Web\Commerce;
 
 use App\Enums\ItemStatus;
+use App\Enums\LedgerDirection;
 use App\Enums\MetalStockKind;
 use App\Enums\PartyType;
+use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Customer;
@@ -13,6 +15,9 @@ use App\Models\Item;
 use App\Models\LedgerEntry;
 use App\Models\MetalStockMovement;
 use App\Models\MetalType;
+use App\Models\Payment;
+use App\Models\Purchase;
+use App\Models\PurchaseReturn;
 use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SaleRetailLine;
@@ -26,11 +31,16 @@ use App\Services\Commerce\WeightSummary;
 use App\Services\Foundation\NumberFormatService;
 use App\Services\Foundation\SettingService;
 use App\Support\CompanyContext;
+use App\Support\Pdf;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ReportController extends Controller
@@ -311,6 +321,212 @@ class ReportController extends Controller
             'company' => $company,
             'money' => $money,
         ]);
+    }
+
+    /**
+     * What each supplier sold us, what we paid, and what we still owe. Pick a supplier for the
+     * date-by-date passbook; leave it empty for one line per supplier.
+     */
+    public function suppliers(Request $request, NumberFormatService $format, CompanyContext $context): View|Response
+    {
+        $this->authorize('reports.view');
+        $company = $context->company();
+        $today = now()->toDateString();
+        $first = LedgerEntry::query()->where('party_type', PartyType::Supplier)->min('occurred_at');
+        $download = $request->boolean('pdf');
+
+        if ($download) {
+            $request->merge(['all' => 1]);
+        }
+
+        if ($request->query('range') === 'all') {
+            $from = $first ? Carbon::parse($first)->toDateString() : $today;
+            $to = $today;
+        } else {
+            $from = $this->dateQuery($request->query('from')) ?? now()->startOfMonth()->toDateString();
+            $to = $this->dateQuery($request->query('to')) ?? $today;
+        }
+
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $supplierUuid = trim((string) $request->query('supplier', ''));
+        $supplier = $supplierUuid === '' ? null : Supplier::query()->where('uuid', $supplierUuid)->first();
+        $money = fn (string $amount) => $format->money($amount, $company);
+        $ranges = [
+            'This month' => [now()->startOfMonth()->toDateString(), $today],
+            'Last month' => [now()->subMonthNoOverflow()->startOfMonth()->toDateString(), now()->subMonthNoOverflow()->endOfMonth()->toDateString()],
+            'Last 3 months' => [now()->subMonthsNoOverflow(2)->startOfMonth()->toDateString(), $today],
+            'All time' => [$first ? Carbon::parse($first)->toDateString() : $today, $today],
+        ];
+
+        $data = [
+            'supplier' => $supplier,
+            'suppliers' => Supplier::query()->orderBy('name')->get(['uuid', 'code', 'name', 'is_active']),
+            'filters' => ['supplier' => $supplier?->uuid ?? '', 'from' => $from, 'to' => $to],
+            'ranges' => $ranges,
+            'perPage' => $this->perPage($request),
+            'company' => $company,
+            'money' => $money,
+        ];
+
+        $data += $supplier
+            ? $this->supplierPassbook($supplier, $from, $to, $format, $company)
+            : $this->supplierSummary($request, $from, $to, $money);
+
+        if ($download) {
+            $name = 'supplier-passbook-'.($supplier ? Str::slug($supplier->code) : 'all-suppliers').'-'.$from.'-to-'.$to.'.pdf';
+
+            return Pdf::download('commerce.reports.suppliers-pdf', $data, $name);
+        }
+
+        return view('commerce.reports.suppliers', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function supplierSummary(Request $request, string $from, string $to, \Closure $money): array
+    {
+        $returnType = (new PurchaseReturn)->getMorphClass();
+        $credit = "direction = 'credit'";
+        $inRange = 'date(occurred_at) between ? and ?';
+        $ledger = LedgerEntry::query()
+            ->select('party_id')
+            ->selectRaw("sum(case when date(occurred_at) < ? then (case when {$credit} then amount else -amount end) else 0 end) as opening", [$from])
+            ->selectRaw("sum(case when {$inRange} and {$credit} then amount else 0 end) as purchased", [$from, $to])
+            ->selectRaw("sum(case when {$inRange} and direction = 'debit' and reference_type = ? then amount else 0 end) as returned", [$from, $to, $returnType])
+            ->selectRaw("sum(case when {$inRange} and direction = 'debit' and (reference_type is null or reference_type <> ?) then amount else 0 end) as paid", [$from, $to, $returnType])
+            ->selectRaw("sum(case when date(occurred_at) <= ? then (case when {$credit} then amount else -amount end) else 0 end) as closing", [$to])
+            ->where('party_type', PartyType::Supplier->value)
+            ->groupBy('party_id');
+        $query = Supplier::query()
+            ->joinSub($ledger, 'ledger', 'ledger.party_id', '=', 'suppliers.id')
+            ->whereRaw('(abs(ledger.closing) > 0.004 or ledger.purchased > 0 or ledger.returned > 0 or ledger.paid > 0)');
+
+        $totals = DB::query()
+            ->fromSub((clone $query)->select('ledger.opening', 'ledger.purchased', 'ledger.returned', 'ledger.paid', 'ledger.closing'), 'rows')
+            ->selectRaw('count(*) as suppliers, coalesce(sum(opening), 0) as opening, coalesce(sum(purchased), 0) as purchased, coalesce(sum(returned), 0) as returned, coalesce(sum(paid), 0) as paid, coalesce(sum(closing), 0) as closing')
+            ->first();
+
+        $query->select('suppliers.*', 'ledger.opening', 'ledger.purchased', 'ledger.returned', 'ledger.paid', 'ledger.closing')
+            ->orderBy('suppliers.name')
+            ->orderBy('suppliers.id');
+
+        return [
+            'rows' => $this->page($query, $request, (int) $totals->suppliers),
+            'supplierCount' => (int) $totals->suppliers,
+            'sums' => [
+                'opening' => $this->decimal($totals->opening),
+                'purchased' => $this->decimal($totals->purchased),
+                'returned' => $this->decimal($totals->returned),
+                'paid' => $this->decimal($totals->paid),
+                'closing' => $this->decimal($totals->closing),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function supplierPassbook(Supplier $supplier, string $from, string $to, NumberFormatService $format, \App\Models\Company $company): array
+    {
+        $entries = LedgerEntry::query()
+            ->where('party_type', PartyType::Supplier)
+            ->where('party_id', $supplier->id)
+            ->whereDate('occurred_at', '<=', $to)
+            ->orderByRaw('date(occurred_at) asc')
+            ->orderBy('id')
+            ->get();
+
+        $day = fn (LedgerEntry $entry): string => $entry->occurred_at->timezone(config('app.timezone'))->toDateString();
+        $opening = BigDecimal::zero();
+        $inRange = collect();
+
+        foreach ($entries as $entry) {
+            if ($day($entry) < $from) {
+                $opening = $this->owed($opening, $entry);
+            } else {
+                $inRange->push($entry);
+            }
+        }
+
+        $ids = fn (string $class) => $inRange->where('reference_type', (new $class)->getMorphClass())->pluck('reference_id');
+        $purchases = Purchase::query()->whereIn('id', $ids(Purchase::class))->withCount('lines')->withSum('lines', 'gross_weight')->get()->keyBy('id');
+        $payments = Payment::query()->whereIn('id', $ids(Payment::class))->get()->keyBy('id');
+        $purchaseType = (new Purchase)->getMorphClass();
+        $paymentType = (new Payment)->getMorphClass();
+        $returnType = (new PurchaseReturn)->getMorphClass();
+
+        $running = $opening;
+        $totals = ['purchased' => BigDecimal::zero(), 'returned' => BigDecimal::zero(), 'paid' => BigDecimal::zero()];
+        $rows = [];
+
+        foreach ($inRange as $entry) {
+            $amount = BigDecimal::of((string) $entry->amount);
+            $running = $this->owed($running, $entry);
+            $row = [
+                'date' => $day($entry),
+                'title' => $entry->narration,
+                'detail' => null,
+                'link' => null,
+                'purchased' => null,
+                'returned' => null,
+                'paid' => null,
+                'balance' => (string) $running->toScale(2, RoundingMode::HalfUp),
+            ];
+
+            if ($entry->direction === LedgerDirection::Credit) {
+                $row['purchased'] = (string) $amount;
+                $totals['purchased'] = $totals['purchased']->plus($amount);
+            } elseif ($entry->reference_type === $returnType) {
+                $row['returned'] = (string) $amount;
+                $totals['returned'] = $totals['returned']->plus($amount);
+            } else {
+                $row['paid'] = (string) $amount;
+                $totals['paid'] = $totals['paid']->plus($amount);
+            }
+
+            if ($entry->reference_type === $purchaseType && ($purchase = $purchases->get($entry->reference_id))) {
+                $row['title'] = 'Purchase '.$purchase->number;
+                $row['link'] = route('purchases.show', $purchase);
+                $row['detail'] = collect([
+                    $purchase->supplier_bill_number ? 'Bill '.$purchase->supplier_bill_number : null,
+                    $purchase->lines_count.' '.($purchase->lines_count === 1 ? 'piece' : 'pieces'),
+                    $format->weight($this->decimal($purchase->lines_sum_gross_weight ?? 0, 3), $company).' gross',
+                ])->filter()->join(' · ');
+            } elseif ($entry->reference_type === $paymentType && ($payment = $payments->get($entry->reference_id))) {
+                $row['title'] = 'Paid · '.$payment->number;
+                $row['detail'] = collect([
+                    $payment->method instanceof PaymentMethod ? $payment->method->label() : (string) $payment->method,
+                    $payment->reference ? 'Ref '.$payment->reference : null,
+                ])->filter()->join(' · ');
+            }
+
+            $rows[] = $row;
+        }
+
+        return [
+            'passbook' => $rows,
+            'sums' => [
+                'opening' => (string) $opening->toScale(2, RoundingMode::HalfUp),
+                'purchased' => (string) $totals['purchased']->toScale(2, RoundingMode::HalfUp),
+                'returned' => (string) $totals['returned']->toScale(2, RoundingMode::HalfUp),
+                'paid' => (string) $totals['paid']->toScale(2, RoundingMode::HalfUp),
+                'closing' => (string) $running->toScale(2, RoundingMode::HalfUp),
+            ],
+        ];
+    }
+
+    /**
+     * What we owe the supplier after this row: bills add to it, payments and returns take away.
+     */
+    private function owed(BigDecimal $owed, LedgerEntry $entry): BigDecimal
+    {
+        $amount = BigDecimal::of((string) $entry->amount);
+
+        return $entry->direction === LedgerDirection::Credit ? $owed->plus($amount) : $owed->minus($amount);
     }
 
     public function trays(Request $request, NumberFormatService $format, CompanyContext $context): View

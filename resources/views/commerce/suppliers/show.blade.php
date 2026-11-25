@@ -131,7 +131,15 @@
             @endif
 
             <div class="card">
-                <div class="card-header bg-white">Account</div>
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span>Account</span>
+                    @can('reports.view')
+                        <span class="small">
+                            <a href="{{ route('reports.suppliers', ['supplier' => $supplier->uuid, 'range' => 'all']) }}">Full passbook</a>
+                            · <a href="{{ route('reports.suppliers', ['supplier' => $supplier->uuid, 'range' => 'all', 'pdf' => 1]) }}">PDF</a>
+                        </span>
+                    @endcan
+                </div>
                 <div class="table-responsive">
                     <table class="table mb-0">
                         <thead>

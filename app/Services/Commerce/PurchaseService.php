@@ -208,7 +208,7 @@ class PurchaseService
         }
 
         if ($supplier) {
-            $this->ledger->post((int) $company->id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Credit, $bill->total, 'Purchase '.$purchase->number, $purchase, $userId);
+            $this->ledger->post((int) $company->id, PartyType::Supplier, (int) $supplier->id, LedgerDirection::Credit, $bill->total, 'Purchase '.$purchase->number, $purchase, $userId, $purchase->purchased_at);
         }
 
         foreach ($attributes['payments'] ?? [] as $row) {

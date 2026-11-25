@@ -206,6 +206,7 @@ class PaymentService
                 'Payment '.$payment->number,
                 $payment,
                 $userId,
+                $payment->received_at,
             );
             $this->settlePurchases($supplier, $amount);
 

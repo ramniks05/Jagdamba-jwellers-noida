@@ -416,6 +416,70 @@ class WorkshopTest extends TestCase
         $this->assertSame(1, \App\Models\Payment::query()->where('supplier_id', $supplier->id)->count());
     }
 
+    public function test_the_supplier_passbook_lists_bills_and_payments_by_their_own_dates_with_a_running_balance(): void
+    {
+        [$owner, $gold, $purity] = $this->counter();
+        $supplier = $this->supplier($owner);
+        $billDate = now()->subDays(10)->toDateString();
+        $paidOn = now()->subDays(4)->toDateString();
+
+        $bill = $this->piece($supplier, $gold, $purity, 'CHAIN10');
+        $bill['purchased_on'] = $billDate;
+        $this->actingAs($owner)->post(route('purchases.store'), $bill)->assertSessionHasNoErrors()->assertRedirect();
+        $this->seeShop($owner);
+        $this->actingAs($owner)->post(route('suppliers.payments.store', $supplier), [
+            'method' => 'upi',
+            'amount' => '20000',
+            'reference' => 'UTR778',
+            'paid_on' => $paidOn,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $this->seeShop($owner);
+
+        $purchase = \App\Models\Purchase::query()->where('supplier_id', $supplier->id)->firstOrFail();
+        $owed = number_format((float) $purchase->total - 20000, 2, '.', '');
+        $dayOf = fn (string $day) => \Illuminate\Support\Carbon::parse($day)->format('d-m-Y');
+
+        $passbook = $this->actingAs($owner)->get(route('reports.suppliers', [
+            'supplier' => $supplier->uuid,
+            'from' => now()->subDays(30)->toDateString(),
+            'to' => now()->toDateString(),
+        ]));
+        $passbook->assertOk()
+            ->assertSeeInOrder([$dayOf($billDate), 'Purchase '.$purchase->number, '1 piece', $dayOf($paidOn), 'UPI', 'Ref UTR778']);
+        $this->assertSame(
+            ['opening' => '0.00', 'purchased' => number_format((float) $purchase->total, 2, '.', ''), 'returned' => '0.00', 'paid' => '20000.00', 'closing' => $owed],
+            $passbook->viewData('sums'),
+        );
+        $this->assertSame([$billDate, $paidOn], array_column($passbook->viewData('passbook'), 'date'));
+        $this->assertSame($owed, $passbook->viewData('passbook')[1]['balance']);
+
+        $later = $this->actingAs($owner)->get(route('reports.suppliers', [
+            'supplier' => $supplier->uuid,
+            'from' => now()->subDays(6)->toDateString(),
+            'to' => now()->toDateString(),
+        ]))->assertOk();
+        $this->assertSame(number_format((float) $purchase->total, 2, '.', ''), $later->viewData('sums')['opening']);
+        $this->assertSame('0.00', $later->viewData('sums')['purchased']);
+        $this->assertSame('20000.00', $later->viewData('sums')['paid']);
+        $this->assertSame($owed, $later->viewData('sums')['closing']);
+
+        $summary = $this->actingAs($owner)->get(route('reports.suppliers', ['range' => 'all']))->assertOk()->assertSee('Mumbai Bullion');
+        $this->assertSame(1, $summary->viewData('supplierCount'));
+        $this->assertSame($owed, $summary->viewData('sums')['closing']);
+
+        $this->actingAs($owner)->get(route('suppliers.show', $supplier))->assertOk()->assertSee('Full passbook');
+
+        $pdf = $this->actingAs($owner)->get(route('reports.suppliers', ['supplier' => $supplier->uuid, 'range' => 'all', 'pdf' => 1]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringContainsString('supplier-passbook-sup01-', (string) $pdf->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $this->actingAs($owner)->get(route('reports.suppliers', ['range' => 'all', 'pdf' => 1]))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+    }
+
     public function test_an_installment_can_be_dated_back_to_on_or_after_the_start_date(): void
     {
         [$owner] = $this->counter();
