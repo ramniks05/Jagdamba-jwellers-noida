@@ -194,6 +194,12 @@
                     <td>{{ $money((string) $sale->round_off) }}</td>
                 </tr>
             @endif
+            @foreach ($sale->charges as $charge)
+                <tr>
+                    <td>{{ $charge->label }}</td>
+                    <td>{{ $money((string) $charge->amount) }}</td>
+                </tr>
+            @endforeach
             <tr class="invoice-grand">
                 <td>Total</td>
                 <td>{{ $money((string) $sale->total) }}</td>

@@ -92,6 +92,84 @@ class RetailSaleTest extends TestCase
             ->assertViewHas('lineCount', 0);
     }
 
+    public function test_other_charges_are_added_to_the_total_and_printed_on_the_invoice(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+
+        $this->actingAs($owner)->post(route('sales.store'), $this->billWithCharges($buyer, [
+            ['label' => 'Card charge', 'amount' => '25'],
+            ['label' => 'Packing', 'amount' => '10.50'],
+        ], '1035.50'))->assertRedirect()->assertSessionHasNoErrors();
+
+        $sale = Sale::query()->latest('id')->with('charges')->firstOrFail();
+        $this->assertSame('1035.50', (string) $sale->total);
+        $this->assertSame(['Card charge', 'Packing'], $sale->charges->pluck('label')->all());
+        $this->assertSame(['25.00', '10.50'], $sale->charges->map(fn ($charge) => (string) $charge->amount)->all());
+
+        $this->actingAs($owner)
+            ->get(route('sales.show', $sale))
+            ->assertOk()
+            ->assertSee('Card charge', false)
+            ->assertSee('25.00', false)
+            ->assertSee('Packing', false);
+    }
+
+    public function test_a_charge_with_an_amount_needs_a_label(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+
+        $this->actingAs($owner)->post(route('sales.store'), $this->billWithCharges($buyer, [
+            ['label' => '', 'amount' => '25'],
+        ], '1025'))->assertSessionHasErrors('charges.0.label');
+
+        $this->assertSame(0, Sale::query()->count());
+    }
+
+    public function test_editing_a_bill_replaces_its_charges(): void
+    {
+        $owner = $this->shopUser();
+        $buyer = $this->counterCustomer($owner);
+
+        $this->actingAs($owner)->post(route('sales.store'), $this->billWithCharges($buyer, [
+            ['label' => 'Card charge', 'amount' => '25'],
+        ], '1025'))->assertRedirect();
+        $sale = Sale::query()->latest('id')->firstOrFail();
+
+        $this->actingAs($owner)->put(route('sales.update', $sale), $this->billWithCharges($buyer, [
+            ['label' => '', 'amount' => ''],
+        ], '1000'))->assertRedirect()->assertSessionHasNoErrors();
+
+        $sale->refresh()->load('charges');
+        $this->assertSame('1000.00', (string) $sale->total);
+        $this->assertCount(0, $sale->charges);
+    }
+
+    /**
+     * @param  list<array{label: string, amount: string}>  $charges
+     * @return array<string, mixed>
+     */
+    private function billWithCharges($buyer, array $charges, string $paid): array
+    {
+        return [
+            'customer_uuid' => $buyer->uuid,
+            'discount' => '0',
+            'making_mode' => 'inside',
+            'retail_items' => [[
+                'name' => 'Ganesh murti',
+                'quantity' => '2',
+                'unit_price' => '500',
+                'tax_mode' => 'inclusive',
+                'tax_amount' => '50',
+            ]],
+            'charges' => $charges,
+            'payments' => [
+                ['method' => 'cash', 'amount' => $paid],
+            ],
+        ];
+    }
+
     public function test_mixed_jewellery_and_retail_bill_does_not_move_extra_stock(): void
     {
         $owner = $this->shopUser();

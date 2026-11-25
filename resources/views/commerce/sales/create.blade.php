@@ -335,6 +335,27 @@
                                 }
                             @endphp
                             <input class="form-control form-control-sm counter-num" id="discount" name="discount" inputmode="decimal" value="{{ $discountDefault }}" placeholder="0">
+                            @php
+                                $chargeRows = old('charges') !== null
+                                    ? array_values((array) old('charges'))
+                                    : ($sale ? $sale->charges->map(fn ($charge) => ['label' => $charge->label, 'amount' => (string) $charge->amount])->all() : []);
+                                $chargeNextIndex = count($chargeRows);
+                            @endphp
+                            <div class="bill-charges-editor">
+                                <span class="form-label mb-0 d-block">Other charges <small class="text-secondary">(card charge, packing, and similar; no GST)</small></span>
+                                <div id="bill-charges" data-next-index="{{ $chargeNextIndex }}">
+                                    @foreach ($chargeRows as $index => $charge)
+                                        @include('commerce.sales.partials.charge-row', ['index' => $index, 'charge' => $charge])
+                                    @endforeach
+                                </div>
+                                <button class="btn btn-outline-secondary btn-sm mt-1" type="button" id="bill-charge-add"><i class="bi bi-plus-lg"></i> Add charge</button>
+                                <template id="bill-charge-row-template">
+                                    @include('commerce.sales.partials.charge-row', ['index' => '__INDEX__', 'charge' => ['label' => '', 'amount' => '']])
+                                </template>
+                                @error('charges')
+                                    <div class="text-danger small">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
                         <p class="text-secondary small d-none mb-2" id="customer-pays-note"></p>
                         <div class="bill-block">
@@ -354,6 +375,7 @@
                             <div class="bill-row d-none" id="bill-hallmark-row"><span>Hallmark (no GST)</span><span id="bill-hallmark">0.00</span></div>
                             <div class="bill-row d-none" id="bill-round-row"><span>Round off</span><span id="bill-round">0.00</span></div>
                         </div>
+                        <div class="bill-block d-none" id="bill-charges-block"></div>
                         <div class="bill-grand"><span>Total</span><strong id="bill-total">0.00</strong></div>
                         @if ($order)
                             <div class="bill-row"><span>Advance {{ $order->number }}</span><span id="bill-advance">0.00</span></div>
@@ -1289,11 +1311,25 @@
                 roundOff = round2(total - exact);
             }
             const retail = retailTotals();
-            exact = round2(exact + retail.line);
-            total = round2(total + retail.line);
+            const charges = chargesTotal();
+            exact = round2(exact + retail.line + charges);
+            total = round2(total + retail.line + charges);
             tax = round2(tax + retail.tax);
 
-            return { ...base, making, mode, hallmark, taxedSubtotal, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff, retail };
+            return { ...base, making, mode, hallmark, taxedSubtotal, discount, tax, makingTax, taxBase, makingBase, exact, total, roundOff, retail, charges };
+        }
+
+        function chargeLines() {
+            return Array.from(document.querySelectorAll('#bill-charges [data-charge-row]'))
+                .map((row) => ({
+                    label: row.querySelector('input[name$="[label]"]').value.trim(),
+                    amount: round2(parseAmount(row.querySelector('.bill-charge-amount').value)),
+                }))
+                .filter((line) => line.amount > 0);
+        }
+
+        function chargesTotal() {
+            return round2(chargeLines().reduce((sum, line) => sum + line.amount, 0));
         }
 
         function discountForPayable(target) {
@@ -1405,6 +1441,19 @@
             showRow('bill-retail', retailAmount, retailAmount > 0);
             document.getElementById('bill-tax').textContent = money.format(tax);
             showRow('bill-round', roundOff, roundOff !== 0);
+            const charges = chargeLines();
+            const chargesBlock = document.getElementById('bill-charges-block');
+            chargesBlock.replaceChildren(...charges.map((line) => {
+                const row = document.createElement('div');
+                row.className = 'bill-row';
+                const label = document.createElement('span');
+                label.textContent = line.label || 'Other charge';
+                const amount = document.createElement('span');
+                amount.textContent = money.format(line.amount);
+                row.append(label, amount);
+                return row;
+            }));
+            chargesBlock.classList.toggle('d-none', charges.length === 0);
             document.getElementById('bill-total').textContent = money.format(total);
             document.getElementById('bill-form').dataset.total = String(total);
             const payNote = document.getElementById('customer-pays-note');
@@ -1755,6 +1804,24 @@
             }
         });
         syncOldBillingPayments();
+        const billCharges = document.getElementById('bill-charges');
+        const chargeAdd = document.getElementById('bill-charge-add');
+        const chargeTemplate = document.getElementById('bill-charge-row-template');
+        chargeAdd?.addEventListener('click', () => {
+            const index = Number(billCharges.dataset.nextIndex || 0);
+            const wrap = document.createElement('div');
+            wrap.innerHTML = chargeTemplate.innerHTML.replaceAll('__INDEX__', String(index)).trim();
+            billCharges.appendChild(wrap.firstElementChild);
+            billCharges.dataset.nextIndex = String(index + 1);
+            wrap.firstElementChild.querySelector('input[name$="[label]"]').focus();
+            renderTotals();
+        });
+        billCharges?.addEventListener('click', (event) => {
+            if (!event.target.closest('.bill-charge-remove')) return;
+            event.target.closest('[data-charge-row]')?.remove();
+            renderTotals();
+        });
+        billCharges?.addEventListener('input', renderTotals);
         document.getElementById('use-total').addEventListener('click', () => {
             const field = document.querySelector('.bill-pay');
             const pay = Number(document.getElementById('bill-form').dataset.pay || 0);

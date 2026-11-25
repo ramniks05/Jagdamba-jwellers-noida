@@ -98,6 +98,23 @@ class SaleRequest extends FormRequest
 
         $soldAt = $soldAtForMode;
 
+        $charges = [];
+
+        foreach ((array) $this->input('charges', []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $label = trim((string) ($row['label'] ?? ''));
+            $amount = trim((string) ($row['amount'] ?? ''));
+
+            if ($label === '' && $amount === '') {
+                continue;
+            }
+
+            $charges[] = ['label' => $label, 'amount' => $amount];
+        }
+
         $retailItems = [];
 
         foreach ((array) $this->input('retail_items', []) as $row) {
@@ -123,6 +140,7 @@ class SaleRequest extends FormRequest
             'new_piece' => $piece,
             'new_pieces' => $pieces,
             'retail_items' => $retailItems,
+            'charges' => $charges,
             'discount' => trim((string) $this->input('discount')) === '' ? '0' : $this->input('discount'),
             'notes' => trim((string) $this->input('notes')) === '' ? null : $this->input('notes'),
             'sold_at' => $soldAt,
@@ -196,6 +214,9 @@ class SaleRequest extends FormRequest
             'new_pieces.*.stones.*.rate' => ['nullable', 'numeric', 'gte:0', Limits::MONEY],
             'new_pieces.*.stones.*.rate_unit' => ['nullable', Rule::in(StoneRate::UNITS)],
             'discount' => ['required', 'numeric', 'gte:0', Limits::MONEY],
+            'charges' => ['array', 'max:10'],
+            'charges.*.label' => ['required', 'string', 'max:80'],
+            'charges.*.amount' => ['required', 'numeric', 'gt:0', Limits::MONEY],
             'making_mode' => ['nullable', Rule::in(['inside', 'separate', 'processing'])],
             'notes' => ['nullable', 'string', 'max:500'],
             'payments' => ['array'],

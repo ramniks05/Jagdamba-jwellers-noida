@@ -20,6 +20,7 @@ use App\Models\MetalStockMovement;
 use App\Models\Payment;
 use App\Models\RetailProduct;
 use App\Models\Sale;
+use App\Models\SaleCharge;
 use App\Models\SaleLine;
 use App\Models\SaleLineStone;
 use App\Models\SaleRetailLine;
@@ -316,7 +317,14 @@ class SaleService
             $merchandiseTotal = BigDecimal::of($bill->linesAmount)->plus($retailTotals['line']);
             $taxableTotal = BigDecimal::of($bill->taxableAmount)->plus($retailTotals['taxable']);
             $taxTotal = BigDecimal::of($bill->taxAmount)->plus($retailTotals['tax']);
-            $invoiceTotal = BigDecimal::of($bill->total)->plus($retailTotals['line']);
+            $chargeRows = $attributes['charges'] ?? [];
+            $chargesTotal = BigDecimal::zero();
+
+            foreach ($chargeRows as $charge) {
+                $chargesTotal = $chargesTotal->plus(BigDecimal::of((string) $charge['amount'])->toScale(2, RoundingMode::HalfUp));
+            }
+
+            $invoiceTotal = BigDecimal::of($bill->total)->plus($retailTotals['line'])->plus($chargesTotal);
 
             $paid = BigDecimal::zero();
             $paymentRows = [];
@@ -520,6 +528,18 @@ class SaleService
                         'position' => $retailRow['position'],
                     ]);
                 }
+            }
+
+            $sale->charges()->delete();
+
+            foreach ($chargeRows as $position => $charge) {
+                SaleCharge::query()->create([
+                    'company_id' => $company->id,
+                    'sale_id' => $sale->id,
+                    'label' => $charge['label'],
+                    'amount' => (string) BigDecimal::of((string) $charge['amount'])->toScale(2, RoundingMode::HalfUp),
+                    'position' => $position,
+                ]);
             }
 
             if ($tray && $trayNet->isPositive()) {
@@ -787,6 +807,8 @@ class SaleService
         if (RetailBilling::enabled()) {
             $sale->retailLines()->delete();
         }
+
+        $sale->charges()->delete();
 
         foreach ($madeForBill as $item) {
             $item->delete();

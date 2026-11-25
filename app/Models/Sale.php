@@ -101,6 +101,11 @@ class Sale extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function charges(): HasMany
+    {
+        return $this->hasMany(SaleCharge::class)->orderBy('position')->orderBy('id');
+    }
+
     public function makingLabel(): string
     {
         return in_array($this->making_mode, ['processing', 'separate'], true) ? 'Processing charge' : 'Making';
